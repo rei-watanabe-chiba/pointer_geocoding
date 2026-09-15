@@ -640,9 +640,32 @@ class StartDialog(QDialog):
           into them; when no valid CSV is selected, the inputs stay disabled
           with their last known values.
 
+        When the selected grid CSV cannot be read (missing path, unreadable
+        file, or unparsable content), the "CSVファイル利用" radio button is
+        disabled outright, and, if it was the active selection, the mode is
+        forced back to "新規作成・更新". This forced switch never touches the
+        origin/range spinbox values -- their previous values are left as-is.
+        Once a valid CSV is selected again, the radio button is re-enabled.
+
         Preview UI elements remain always enabled regardless of grid mode.
         """
         csv_path = self.edit_grid_csv.text().strip()
+
+        metadata: Optional[Dict[str, int]] = None
+        if csv_path and os.path.isfile(csv_path):
+            metadata = self._extract_csv_metadata(csv_path)
+        csv_valid = metadata is not None
+
+        self.radio_grid_mode_use_csv.setEnabled(csv_valid)
+        if not csv_valid and self.radio_grid_mode_use_csv.isChecked():
+            # Force back to "new/update" mode without letting the resulting
+            # toggled signal re-enter this method (values must stay untouched).
+            self.radio_grid_mode_new.blockSignals(True)
+            self.radio_grid_mode_use_csv.blockSignals(True)
+            self.radio_grid_mode_new.setChecked(True)
+            self.radio_grid_mode_use_csv.blockSignals(False)
+            self.radio_grid_mode_new.blockSignals(False)
+
         use_csv_mode = self.radio_grid_mode_use_csv.isChecked()
         enable_inputs = not use_csv_mode
 
@@ -673,27 +696,24 @@ class StartDialog(QDialog):
         self.edit_preview_y.setEnabled(True)
         self.panel_preview_status.setEnabled(True)
 
-        # Extract metadata from CSV if a valid file exists, in either mode.
-        # In "new/update" mode this overwrites the (still-editable) inputs as
-        # a template; in "use existing CSV" mode it populates the
-        # display-only inputs. An invalid/missing CSV leaves prior values
-        # untouched (and, in "use existing CSV" mode, inputs stay disabled).
-        if csv_path and os.path.isfile(csv_path):
-            metadata = self._extract_csv_metadata(csv_path)
-            if metadata:
-                # Extend the X-axis numeric spinbox maxima if the CSV exceeds current limits.
-                # (Y-axis ExcelColumnSpinBox already covers the full 'A'..'ZZ' range.)
-                if metadata["range_x_max"] > self.spin_range_x_max.maximum():
-                    self.spin_range_x_max.setMaximum(metadata["range_x_max"])
-                if metadata["range_x_min"] > self.spin_range_x_min.maximum():
-                    self.spin_range_x_min.setMaximum(metadata["range_x_min"])
+        # Reflect metadata already extracted above, in either mode. In
+        # "new/update" mode this overwrites the (still-editable) inputs as a
+        # template; in "use existing CSV" mode it populates the display-only
+        # inputs. An invalid/missing CSV leaves prior values untouched.
+        if metadata:
+            # Extend the X-axis numeric spinbox maxima if the CSV exceeds current limits.
+            # (Y-axis ExcelColumnSpinBox already covers the full 'A'..'ZZ' range.)
+            if metadata["range_x_max"] > self.spin_range_x_max.maximum():
+                self.spin_range_x_max.setMaximum(metadata["range_x_max"])
+            if metadata["range_x_min"] > self.spin_range_x_min.maximum():
+                self.spin_range_x_min.setMaximum(metadata["range_x_min"])
 
-                self.spin_origin_x.setValue(metadata["origin_x"])
-                self.spin_origin_y.setValue(metadata["origin_y"])
-                self.spin_range_x_min.setValue(metadata["range_x_min"])
-                self.spin_range_x_max.setValue(metadata["range_x_max"])
-                self.spin_range_y_min.setValue(metadata["range_y_min"])
-                self.spin_range_y_max.setValue(metadata["range_y_max"])
+            self.spin_origin_x.setValue(metadata["origin_x"])
+            self.spin_origin_y.setValue(metadata["origin_y"])
+            self.spin_range_x_min.setValue(metadata["range_x_min"])
+            self.spin_range_x_max.setValue(metadata["range_x_max"])
+            self.spin_range_y_min.setValue(metadata["range_y_min"])
+            self.spin_range_y_max.setValue(metadata["range_y_max"])
 
         self._update_grid_coordinate_preview()
 
