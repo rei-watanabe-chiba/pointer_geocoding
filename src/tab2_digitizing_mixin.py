@@ -51,6 +51,7 @@ from .core_logic import (
     build_digitized_feature,
     insert_feature_to_layer,
     pixel_from_affine,
+    safe_get_str,
 )
 from .main_dock_constants import (
     UIConfig,
@@ -621,7 +622,7 @@ class Tab2DigitizingMixin:
         updated_count = 0
         self.point_layer.startEditing()
         for feat in self.point_layer.getFeatures():
-            if str(feat["feature_name"] or "") == selected_feat:
+            if safe_get_str(feat, "feature_name") == selected_feat:
                 self.point_layer.changeAttributeValue(feat.id(), field_idx, color_hex)
                 updated_count += 1
         self.point_layer.commitChanges()

@@ -47,6 +47,7 @@ from .core_logic import (
     from_survey_coords,
     update_point_layer_geometry,
     evaluate_residuals,
+    safe_get_str,
 )
 from .main_dock_constants import (
     UIConfig,
@@ -280,7 +281,7 @@ class Tab1GeorefMixin:
         if self.point_layer and self.point_layer.isValid() and "drawing_name" in self.point_layer.fields().names():
             has_points = False
             for f in self.point_layer.getFeatures():
-                if str(f["drawing_name"] or "").strip() == layer_name:
+                if safe_get_str(f, "drawing_name") == layer_name:
                     has_points = True
                     break
             if has_points:
@@ -295,7 +296,7 @@ class Tab1GeorefMixin:
                 self.point_layer.startEditing()
                 idx = self.point_layer.fields().indexFromName("drawing_name")
                 for f in self.point_layer.getFeatures():
-                    if str(f["drawing_name"] or "").strip() == layer_name:
+                    if safe_get_str(f, "drawing_name") == layer_name:
                         self.point_layer.changeAttributeValue(f.id(), idx, "")
                 self.point_layer.commitChanges()
 
@@ -448,7 +449,7 @@ class Tab1GeorefMixin:
                         self.point_layer.startEditing()
                         idx = self.point_layer.fields().indexFromName("drawing_name")
                         for f in self.point_layer.getFeatures():
-                            if str(f["drawing_name"] or "").strip() == old_name:
+                            if safe_get_str(f, "drawing_name") == old_name:
                                 self.point_layer.changeAttributeValue(f.id(), idx, layer_name)
                         self.point_layer.commitChanges()
                         

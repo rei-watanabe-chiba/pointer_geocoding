@@ -152,7 +152,7 @@ def update_point_layer_geometry(
 
     for feat in point_layer.getFeatures():
         if drawing_name and has_drawing_col:
-            feat_drawing = str(feat["drawing_name"] or "").strip()
+            feat_drawing = safe_get_str(feat, "drawing_name")
             if feat_drawing != drawing_name:
                 continue
 
@@ -264,14 +264,14 @@ def check_point_duplicate(
     has_drawing_col = "drawing_name" in point_layer.fields().names()
     for feat in point_layer.getFeatures():
         if has_drawing_col and drawing_name:
-            f_drawing = str(feat["drawing_name"] or "").strip()
+            f_drawing = safe_get_str(feat, "drawing_name")
             if f_drawing and drawing_name != f_drawing:
                 continue
 
-        f_type = str(feat["excavation_type"] or "").strip()
-        f_feat = str(feat["feature_name"] or "").strip()
-        f_pname = str(feat["point_name"] or "").strip()
-        f_branch = str(feat["branch_no"] or "").strip()
+        f_type = safe_get_str(feat, "excavation_type")
+        f_feat = safe_get_str(feat, "feature_name")
+        f_pname = safe_get_str(feat, "point_name")
+        f_branch = safe_get_str(feat, "branch_no")
 
         if excavation_type == "グリッド":
             if f_type == "グリッド" and f_pname == point_name and f_branch == branch_no:
@@ -308,12 +308,12 @@ def get_next_point_number(
 
     max_num = 0
     for feat in point_layer.getFeatures():
-        ex_type = str(feat["excavation_type"] or "").strip()
+        ex_type = safe_get_str(feat, "excavation_type")
         if excavation_type == "グリッド":
             if ex_type != "グリッド":
                 continue
         else:
-            f_name = str(feat["feature_name"] or "").strip()
+            f_name = safe_get_str(feat, "feature_name")
             if ex_type != "遺構" or f_name != feature_name:
                 continue
 
@@ -500,3 +500,86 @@ def pixel_from_affine(
     pixel_x = (E * (map_point.x() - C) - B * (map_point.y() - F)) / det
     pixel_y = (-D * (map_point.x() - C) + A * (map_point.y() - F)) / det
     return pixel_x, pixel_y
+
+
+# =============================================================================
+# 7. QgsFeature Attribute Access Helpers (NULL-safe type conversion)
+# =============================================================================
+
+def safe_get_str(feat: QgsFeature, field_name: str, default: str = "") -> str:
+    """Safely read a QgsFeature attribute as a trimmed string, guarding NULL/missing values.
+
+    Consolidates the previously duplicated `str(feat[field_name] or "").strip()` pattern
+    found across this module, tab1_georef_mixin.py and tab2_digitizing_mixin.py. A missing
+    field (KeyError -- e.g. an optional column such as "drawing_name" that does not exist
+    on a given layer schema) falls back to `default`, matching prior call-site behaviour of
+    guarding such lookups with a `field_name in layer.fields().names()` check before ever
+    reading the attribute.
+
+    :param feat: Source feature.
+    :type feat: QgsFeature
+    :param field_name: Attribute field name to read.
+    :type field_name: str
+    :param default: Fallback value used when the attribute is NULL/None or the field does
+        not exist on the feature.
+    :type default: str
+    :return: Trimmed string value.
+    :rtype: str
+    """
+    try:
+        value = feat[field_name]
+    except KeyError:
+        return default
+    if value is None or value == NULL:
+        return default
+    return str(value).strip()
+
+
+def safe_get_float(feat: QgsFeature, field_name: str, default: float = 0.0) -> float:
+    """Safely read a QgsFeature attribute as a float, guarding NULL/missing/invalid values.
+
+    :param feat: Source feature.
+    :type feat: QgsFeature
+    :param field_name: Attribute field name to read.
+    :type field_name: str
+    :param default: Fallback value used when the attribute is NULL/None, the field does not
+        exist on the feature, or the value cannot be converted to float.
+    :type default: float
+    :return: Converted float value.
+    :rtype: float
+    """
+    try:
+        value = feat[field_name]
+    except KeyError:
+        return default
+    if value is None or value == NULL:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def safe_get_int(feat: QgsFeature, field_name: str, default: int = 0) -> int:
+    """Safely read a QgsFeature attribute as an int, guarding NULL/missing/invalid values.
+
+    :param feat: Source feature.
+    :type feat: QgsFeature
+    :param field_name: Attribute field name to read.
+    :type field_name: str
+    :param default: Fallback value used when the attribute is NULL/None, the field does not
+        exist on the feature, or the value cannot be converted to int.
+    :type default: int
+    :return: Converted int value.
+    :rtype: int
+    """
+    try:
+        value = feat[field_name]
+    except KeyError:
+        return default
+    if value is None or value == NULL:
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
