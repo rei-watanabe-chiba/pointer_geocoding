@@ -14,6 +14,7 @@ from qgis.PyQt.QtWidgets import QAction, QMessageBox, QToolBar
 
 from .start_dialog import StartDialog
 from .layer_manager import LayerManager
+from .main_dock_constants import UIMessages
 
 
 class PointerGeocodingPlugin:
@@ -124,8 +125,8 @@ class PointerGeocodingPlugin:
         if QgsProject.instance().isDirty():
             reply = QMessageBox.question(
                 self.iface.mainWindow(),
-                "未保存の変更",
-                "現在のQGISプロジェクトに変更が加えられています。\n保存せずに新しいセッションを開始すると、未保存のデータは破棄されます。\n続行しますか？",
+                UIMessages.MSG_UNSAVED_CHANGES_TITLE,
+                UIMessages.MSG_UNSAVED_CHANGES,
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,
             )
@@ -156,14 +157,14 @@ class PointerGeocodingPlugin:
         if not success:
             QMessageBox.critical(
                 self.iface.mainWindow(),
-                "セッションエラー",
-                f"セッションの初期化に失敗しました:\n{message}",
+                UIMessages.ERR_TITLE_SESSION,
+                UIMessages.ERR_SESSION_INIT_FAILED.format(message=message),
             )
             return
 
         # Notify success on QGIS message bar
         self.iface.messageBar().pushMessage(
-            "点群座標取得",
+            UIMessages.MSG_TITLE_PLUGIN,
             message,
             level=Qgis.MessageLevel.Success,
             duration=5,
@@ -200,8 +201,8 @@ class PointerGeocodingPlugin:
         except ImportError:
             # Step 1 environment: main_dock.py has not been generated yet
             self.iface.messageBar().pushMessage(
-                "点群座標取得",
-                "Step 1（セッション管理基盤）の準備が完了しました。ドックパネルモジュール (Step 2) を待機しています。",
+                UIMessages.MSG_TITLE_PLUGIN,
+                UIMessages.MSG_STEP1_READY,
                 level=Qgis.MessageLevel.Info,
                 duration=7,
             )

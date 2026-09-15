@@ -659,6 +659,37 @@ class UIStyleHelper:
         combo.blockSignals(False)
 
     @staticmethod
+    def build_centered_button_row(
+        buttons: List[QPushButton],
+        spacing: int = 12,
+        button_stretch: int = 1,
+    ) -> QHBoxLayout:
+        """Build a centered, equal-width row layout for dialog action buttons.
+
+        Mirrors the "stretch(1) - button - button - stretch(1)" pattern used
+        by StartDialog's OK/Cancel row (start_dialog.py) so confirmation
+        dialogs across the plugin share the same centered button alignment
+        instead of left/right-anchored or edge-to-edge button rows.
+
+        :param buttons: Ordered list of QPushButton widgets to place in the row.
+        :type buttons: List[QPushButton]
+        :param spacing: Horizontal spacing between buttons. Default is 12.
+        :type spacing: int
+        :param button_stretch: Stretch factor applied to each button. Default is 1.
+        :type button_stretch: int
+        :return: QHBoxLayout containing the centered buttons (not yet attached
+            to a parent layout; caller adds it via addLayout()).
+        :rtype: QHBoxLayout
+        """
+        row_layout = QHBoxLayout()
+        row_layout.setSpacing(spacing)
+        row_layout.addStretch(1)
+        for button in buttons:
+            row_layout.addWidget(button, button_stretch)
+        row_layout.addStretch(1)
+        return row_layout
+
+    @staticmethod
     def build_segmented_toggle(
         options: List[str], default_index: int = 0, parent: Optional[QWidget] = None
     ) -> Tuple[QWidget, List[QPushButton]]:

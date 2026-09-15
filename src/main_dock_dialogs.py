@@ -48,7 +48,7 @@ from qgis.PyQt.QtWidgets import (
 from .map_tool import ImageGeorefTool
 from .style_helper import UIStyleHelper
 from .core_logic import to_survey_coords
-from .main_dock_constants import UILabels, UIMessages
+from .main_dock_constants import UILabels, UIMessages, UIDialogSizes
 
 
 class ModelessSectionDialog(QDialog):
@@ -140,7 +140,7 @@ class ImageDialog(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle(UILabels.TAB_1_TITLE)
-        self.resize(1100, 650)
+        self.resize(UIDialogSizes.IMAGE_DIALOG_WIDTH, UIDialogSizes.IMAGE_DIALOG_HEIGHT)
         self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
         self._on_show = on_show
         self._on_close = on_close
@@ -301,7 +301,7 @@ class GridInputDialog(QDialog):
 
         self.setWindowTitle(UILabels.GRID_DIALOG_TITLE)
         self.setModal(True)
-        self.setMinimumWidth(380)
+        self.setMinimumWidth(UIDialogSizes.GRID_DIALOG_MIN_WIDTH)
 
         self._init_ui()
         UIStyleHelper.apply_theme(self)
@@ -399,12 +399,10 @@ class GridInputDialog(QDialog):
         layout.addWidget(self.btn_delete_point)
 
         # -------------------------------------------------------------
-        # Tier 3: [確定] [キャンセル] ボタン
+        # Tier 3: [確定] [キャンセル] ボタン (centered, equal width; see
+        # UIStyleHelper.build_centered_button_row / StartDialog's OK/Cancel
+        # row for the shared pattern)
         # -------------------------------------------------------------
-        btn_action_layout = QHBoxLayout()
-        btn_action_layout.setContentsMargins(0, 0, 0, 0)
-        btn_action_layout.setSpacing(8)
-
         self.btn_confirm = QPushButton(UILabels.BTN_CONFIRM, self)
         UIStyleHelper.set_primary_button(self.btn_confirm)
         self.btn_confirm.setEnabled(False)
@@ -413,8 +411,9 @@ class GridInputDialog(QDialog):
         self.btn_cancel = QPushButton(UILabels.BTN_CANCEL, self)
         self.btn_cancel.clicked.connect(self.reject)
 
-        btn_action_layout.addWidget(self.btn_confirm, 1)
-        btn_action_layout.addWidget(self.btn_cancel, 1)
+        btn_action_layout = UIStyleHelper.build_centered_button_row(
+            [self.btn_confirm, self.btn_cancel]
+        )
         layout.addLayout(btn_action_layout)
 
         # -------------------------------------------------------------
@@ -533,7 +532,7 @@ class GridInputDialog(QDialog):
         reply = QMessageBox.question(
             self,
             UIMessages.MSG_CONFIRM_TITLE,
-            "この基準点を削除しますか？",
+            UIMessages.MSG_CONFIRM_DELETE_REF,
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
