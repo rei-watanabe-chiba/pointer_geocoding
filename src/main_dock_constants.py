@@ -177,6 +177,10 @@ class UIMessages:
     MSG_COLOR_APPLIED = "遺構 '{feature}' の全打刻点 ({count}件) にカラー {color} を適用しました。"
     MSG_ATTR_CONFIRM_TITLE = "属性確定"
     MSG_ATTR_CONFIRMED = "属性 '{attr}' を確定し、フォーカスモードを更新しました。"
+    MSG_RENAME_OLD_FILE_LEFT = (
+        "レイヤ名の変更は完了しましたが、旧ファイルの削除に失敗しました"
+        "(セッションフォルダに残っています。機能上の問題はありません): {names}"
+    )
     ERR_POINT_NAME_REQUIRED = "点名（点番号）を入力してください。"
     ERR_NEW_FEATURE_REQUIRED = "新規遺構名を入力してください。"
     MSG_DELETE_CONFIRM = "選択中のポイントを削除しますか？\nこの操作は元に戻せません。"

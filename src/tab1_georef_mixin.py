@@ -15,6 +15,7 @@ import os
 import re
 import math
 import gc
+import shutil
 import time
 from typing import Optional, List, Tuple
 
@@ -430,36 +431,77 @@ class Tab1GeorefMixin:
                         new_base = os.path.join(os.path.dirname(old_path), layer_name)
                         new_path = new_base + ext
 
-                        # Release any QGIS raster layer already holding this file
-                        # BEFORE renaming, otherwise Windows refuses to rename a file
-                        # that is still open (GDAL file handle) -> [WinError 32].
-                        released_info = self._release_raster_layer_for_rename(old_path, old_name)
-
+                        # T-0014: copy-and-best-effort-delete instead of os.rename().
+                        # os.rename() requires exclusive access to the source file,
+                        # which kept failing with [WinError 32] on Windows even after
+                        # releasing the QGIS/GDAL layer and retrying briefly (T-0010
+                        # through T-0013). A plain file copy, by contrast, typically
+                        # succeeds even while another process still holds the file
+                        # open for reading (most OSes/drivers open files with
+                        # share-read access), so the new file is created first and
+                        # the old file is only removed afterwards, on a best-effort
+                        # basis that never blocks the rename from completing.
+                        copied_world_files: List[Tuple[str, str]] = []
                         try:
-                            # Rename file (retried briefly on [WinError 32]-style
-                            # failures; see _rename_with_retry() for rationale)
-                            self._rename_with_retry(old_path, new_path)
-                            self.current_copied_image_path = new_path
-                            layer_meta["file_path"] = new_path
-
-                            # Rename world files
+                            shutil.copy2(old_path, new_path)
                             for w_ext in [".tfw", ".jgw", ".pgw", ".bpw", ".wld"]:
-                                if os.path.exists(base + w_ext):
-                                    self._rename_with_retry(base + w_ext, new_base + w_ext)
+                                w_src = base + w_ext
+                                if os.path.exists(w_src):
+                                    w_dst = new_base + w_ext
+                                    shutil.copy2(w_src, w_dst)
+                                    copied_world_files.append((w_src, w_dst))
                         except Exception as e:
-                            # Restore the released layer under its original path so the
-                            # canvas is not left without the image after a failed rename.
-                            if released_info is not None:
-                                restore_path = new_path if os.path.exists(new_path) else old_path
-                                restore_name = layer_name if os.path.exists(new_path) else old_name
-                                self._reload_raster_layer_after_rename(
-                                    restore_path, restore_name, released_info
-                                )
+                            # Nothing about the old layer/file has been touched yet
+                            # (the old layer is still loaded, the old file is still
+                            # in place), so no rollback is needed here: just clean
+                            # up any partially-copied file(s) and abort.
+                            for _w_src, w_dst in copied_world_files:
+                                if os.path.exists(w_dst):
+                                    try:
+                                        os.remove(w_dst)
+                                    except OSError:
+                                        pass
+                            if os.path.exists(new_path):
+                                try:
+                                    os.remove(new_path)
+                                except OSError:
+                                    pass
                             QMessageBox.warning(self, "Rename Error", f"ファイルの名称変更に失敗しました:\n{e}")
                             return
 
-                        # Rename succeeded: recreate the raster layer under the new path,
-                        # restoring its style, parent group, position and checked state.
+                        self.current_copied_image_path = new_path
+                        layer_meta["file_path"] = new_path
+
+                        # Copy succeeded: only now release the old QGIS raster layer
+                        # (and any other Python reference keeping its GDAL handle
+                        # open), since we no longer need the old file to remain
+                        # readable for anything else.
+                        released_info = self._release_raster_layer_for_rename(old_path, old_name)
+
+                        # Best-effort removal of the old file(s). A failure here does
+                        # NOT fail the overall rename: the new file/layer/metadata
+                        # are already valid at this point, so a leftover old file is
+                        # merely an orphaned file left behind in the session folder,
+                        # not a functional problem.
+                        leftover_paths = []
+                        if not self._remove_with_retry(old_path):
+                            leftover_paths.append(old_path)
+                        for w_src, _w_dst in copied_world_files:
+                            if not self._remove_with_retry(w_src):
+                                leftover_paths.append(w_src)
+
+                        if leftover_paths:
+                            self.iface.messageBar().pushMessage(
+                                UIMessages.MSG_TITLE_INFO,
+                                UIMessages.MSG_RENAME_OLD_FILE_LEFT.format(
+                                    names=", ".join(os.path.basename(p) for p in leftover_paths)
+                                ),
+                                level=Qgis.MessageLevel.Warning,
+                                duration=6,
+                            )
+
+                        # Recreate the raster layer under the new path, restoring its
+                        # style, parent group, position and checked state.
                         if released_info is not None:
                             self._reload_raster_layer_after_rename(new_path, layer_name, released_info)
 
@@ -498,45 +540,45 @@ class Tab1GeorefMixin:
         else:
             self._create_preview_canvas(self.current_copied_image_path)
 
-    def _rename_with_retry(
-        self, src: str, dst: str, max_attempts: int = 5, delay_sec: float = 0.2
-    ) -> None:
-        """Rename ``src`` to ``dst`` via ``os.rename()``, retrying on failure.
+    def _remove_with_retry(
+        self, path: str, max_attempts: int = 5, delay_sec: float = 0.2
+    ) -> bool:
+        """Attempt to delete ``path`` via ``os.remove()``, retrying briefly on failure.
 
-        NOTE (T-0013): even after ``_release_raster_layer_for_rename()`` releases the
-        QGIS raster layer holding ``src`` (``removeMapLayer()`` + ``processEvents()`` +
-        ``gc.collect()``), reports indicate the rename can still fail with
-        ``[WinError 32]`` immediately afterwards, with the layer observed to briefly
-        flash on screen (evidence the release path is actually running, not being
-        skipped). The working hypothesis is that this is a timing race: Windows may
-        take a short additional moment after the GDAL dataset/layer object is torn
-        down to actually release the underlying file handle, so ``os.rename()`` called
-        immediately afterward can still observe the file as locked.
-
-        This is NOT a fix for a confirmed root cause; it is a defensive retry that
-        absorbs a possible timing gap between "layer released in QGIS/Python" and "OS
-        has actually released the file handle". On ``PermissionError``/``OSError``
-        (which is what ``[WinError 32]`` surfaces as on Windows), this waits briefly
-        while pumping the Qt event loop (so the UI does not appear fully frozen) and
-        retries up to ``max_attempts`` times before re-raising the last exception, so
-        the caller's existing ``except`` block (error dialog + rollback) is unchanged.
+        T-0014 background: this retry loop is carried over from T-0013's
+        ``_rename_with_retry()`` (originally written to absorb a possible short
+        timing gap between "layer released in QGIS/Python" and "OS has actually
+        released the file handle" before calling ``os.rename()``). Under the T-0014
+        copy-and-delete design, deleting the now-superseded old file is no longer on
+        the critical path for the rename to succeed (the new file/layer/metadata are
+        already valid once this is called), so this is purely best-effort cleanup:
+        unlike the old ``_rename_with_retry()``, this NEVER raises. It returns
+        ``True`` on success and ``False`` if every attempt failed (e.g. still
+        ``[WinError 32]``-style locking on Windows), leaving the caller to decide how
+        to surface that (currently: a single non-blocking message-bar warning,
+        without failing the overall rename).
         """
-        last_error: Optional[OSError] = None
         for attempt in range(max_attempts):
             try:
-                os.rename(src, dst)
-                return
-            except (PermissionError, OSError) as e:
-                last_error = e
+                os.remove(path)
+                return True
+            except (PermissionError, OSError):
                 if attempt == max_attempts - 1:
-                    break
+                    return False
                 QCoreApplication.processEvents()
                 time.sleep(delay_sec)
-        raise last_error
+        return False
 
     def _release_raster_layer_for_rename(self, file_path: str, old_name: str) -> Optional[dict]:
         """Find the QGIS raster layer backed by ``file_path`` (if any) and remove it from
-        the project so its GDAL file handle is released before the file is renamed on disk.
+        the project so its GDAL file handle is released.
+
+        T-0014: called after the new (renamed) file has already been created via
+        ``shutil.copy2()``, and before the old file is (best-effort) deleted. Releasing
+        the layer here no longer needs to happen before any OS-level file operation for
+        the rename itself to succeed (that requirement was specific to ``os.rename()``,
+        which this design no longer uses); it is still done at this point so the old
+        file is no longer open when its deletion is attempted afterwards.
 
         Captures the layer's style, layer-tree parent group, position and checked state
         so the layer can be recreated afterwards via ``_reload_raster_layer_after_rename``.
