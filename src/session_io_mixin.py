@@ -92,6 +92,13 @@ class SessionIOMixin:
                 # 4.2 ref_points is loaded from CSV in load_grid_csv_to_memory() below.
                 #     No GPKG-based ref_points layer is created or loaded here.
 
+            # 4.3 Ensure the '画像ファイル' raster group exists in the layer tree from
+            # session creation, even before any image has been added (T-0015). It was
+            # previously only created lazily, the first time load_georeferenced_raster()
+            # ran, which meant an unused new session showed no such group at all.
+            if project.layerTreeRoot().findGroup("画像ファイル") is None:
+                project.layerTreeRoot().addGroup("画像ファイル")
+
             # 5. Save initial project state
             project.write(qgz_path)
 
@@ -367,6 +374,13 @@ class SessionIOMixin:
             # 【変更不可侵の絶対的ルール】 測量座標系（X軸=南北, Y軸=東西）を採用。QGISキャンバス上のX座標(東西)はSurvey Y、Y座標(南北)はSurvey Xに対応する。
             local_crs = get_local_crs()
             project.setCrs(local_crs)
+
+            # Ensure the '画像ファイル' raster group exists in the layer tree, even for
+            # sessions that were saved before any image was ever added (T-0015). Persist
+            # it back to the project file so it is not re-created on every reload.
+            if project.layerTreeRoot().findGroup("画像ファイル") is None:
+                project.layerTreeRoot().addGroup("画像ファイル")
+                project.write(qgz_path)
 
             # Locate required layers from project mapLayers
             point_layer: Optional[QgsVectorLayer] = None

@@ -162,6 +162,7 @@ class UIMessages:
     ERR_PREVIEW_FAILED = "プレビュー画像の読み込みに失敗しました:\n{msg}"
     MSG_LIMIT_REFS = "基準点は最大4点まで登録できます。\n不要な基準点を削除してください。"
     ERR_DUPLICATE_REF = "同名の基準点 '{name}' が既に存在します。\n別の名称を入力してください。"
+    ERR_DUPLICATE_LAYER_NAME = "同名のレイヤ '{name}' が既に存在します。\n別の名称を入力してください。"
     MSG_SELECT_REF_ROW = "削除する基準点を行選択してください。"
     ERR_MIN_2_REFS = "最低2点以上の基準点が必要です。"
     ERR_INPUT_REAL_COORDS = "基準点 '{name}' の実座標 (X, Y) を入力してください。"
@@ -177,10 +178,7 @@ class UIMessages:
     MSG_COLOR_APPLIED = "遺構 '{feature}' の全打刻点 ({count}件) にカラー {color} を適用しました。"
     MSG_ATTR_CONFIRM_TITLE = "属性確定"
     MSG_ATTR_CONFIRMED = "属性 '{attr}' を確定し、フォーカスモードを更新しました。"
-    MSG_RENAME_OLD_FILE_LEFT = (
-        "レイヤ名の変更は完了しましたが、旧ファイルの削除に失敗しました"
-        "(セッションフォルダに残っています。機能上の問題はありません): {names}"
-    )
+    MSG_RENAME_LAYER_SUCCESS = "レイヤ名を '{old}' から '{new}' に変更しました。"
     ERR_POINT_NAME_REQUIRED = "点名（点番号）を入力してください。"
     ERR_NEW_FEATURE_REQUIRED = "新規遺構名を入力してください。"
     MSG_DELETE_CONFIRM = "選択中のポイントを削除しますか？\nこの操作は元に戻せません。"

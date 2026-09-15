@@ -14,20 +14,15 @@ export).
 import os
 import re
 import math
-import gc
-import shutil
-import time
 from typing import Optional, List, Tuple
 
 from qgis.core import (
     QgsProject,
     QgsPointXY,
-    QgsRasterLayer,
     Qgis,
 )
 from qgis.gui import QgsFilterLineEdit
-from qgis.PyQt.QtCore import Qt, pyqtSlot, QCoreApplication
-from qgis.PyQt.QtXml import QDomDocument
+from qgis.PyQt.QtCore import Qt, pyqtSlot
 from qgis.PyQt.QtWidgets import (
     QWidget,
     QDialog,
@@ -62,7 +57,6 @@ from .main_dock_constants import (
     UIMessages,
     MAIN_RATIO,
 )
-from .layer_manager_models import get_local_crs, suppress_crs_prompt
 from .main_dock_dialogs import PreviewDialog, GridInputDialog
 
 
@@ -167,19 +161,28 @@ class Tab1GeorefMixin:
         )
         img_layout.addWidget(row_image_name)
 
-        # 3d. Actions: Confirm & Delete
-        actions_btn_layout = QHBoxLayout()
-        self.btn_confirm_image = QPushButton("確定", self.sec_image)
-        UIStyleHelper.set_primary_button(self.btn_confirm_image)
-        self.btn_confirm_image.clicked.connect(self._on_confirm_image_clicked)
-        
-        self.btn_delete_layer = QPushButton("レイヤ削除", self.sec_image)
-        self.btn_delete_layer.setEnabled(False)
+        # 3d. Actions: Rename & Delete (Edit/Delete mode only), and Setup Reference Points (both modes)
+        # T-0015: layer rename is now metadata-only (no file I/O), so it gets its own
+        # dedicated button instead of being folded into the former "確定" button.
+        self.row_rename_delete = QWidget(self.sec_image)
+        row_rename_delete_layout = QHBoxLayout(self.row_rename_delete)
+        row_rename_delete_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.btn_rename_layer = QPushButton("レイヤ名変更", self.row_rename_delete)
+        self.btn_rename_layer.clicked.connect(self._on_rename_layer_clicked)
+
+        self.btn_delete_layer = QPushButton("削除", self.row_rename_delete)
         self.btn_delete_layer.clicked.connect(self._on_delete_layer_clicked)
 
-        actions_btn_layout.addWidget(self.btn_confirm_image, 1)
-        actions_btn_layout.addWidget(self.btn_delete_layer, 1)
-        img_layout.addLayout(actions_btn_layout)
+        row_rename_delete_layout.addWidget(self.btn_rename_layer, 1)
+        row_rename_delete_layout.addWidget(self.btn_delete_layer, 1)
+        img_layout.addWidget(self.row_rename_delete)
+        self.row_rename_delete.hide()
+
+        self.btn_confirm_image = QPushButton("基準点設置", self.sec_image)
+        UIStyleHelper.set_primary_button(self.btn_confirm_image)
+        self.btn_confirm_image.clicked.connect(self._on_confirm_image_clicked)
+        img_layout.addWidget(self.btn_confirm_image)
 
         # 4. Reference Points Table
         self.table_ref_points = QTableWidget(0, 4, self.sec_image)
@@ -226,7 +229,7 @@ class Tab1GeorefMixin:
         if mode_index == 0:
             self.row_image_path.show()
             self.row_edit_layer.hide()
-            self.btn_delete_layer.setEnabled(False)
+            self.row_rename_delete.hide()
             self.edit_image_path.clear()
             self.edit_image_name.clear()
             self.confirmed_layer_name = None
@@ -235,7 +238,7 @@ class Tab1GeorefMixin:
         else:
             self.row_image_path.hide()
             self.row_edit_layer.show()
-            self.btn_delete_layer.setEnabled(True)
+            self.row_rename_delete.show()
             self._refresh_edit_layer_combo()
             self._on_edit_layer_changed()
 
@@ -339,6 +342,101 @@ class Tab1GeorefMixin:
         self._refresh_edit_layer_combo()
         self._on_edit_layer_changed()
 
+    def _on_rename_layer_clicked(self) -> None:
+        """Rename the currently selected layer (T-0015: metadata-only rename).
+
+        This only reassigns the metadata dictionary key and calls
+        ``QgsRasterLayer.setName()`` on the matching project-tree layer; the
+        underlying image file on disk is never touched (no copy, no delete, no
+        ``os.rename()``), so this operation cannot raise a Windows
+        ``[WinError 32]``-style file-locking error by construction.
+        """
+        old_name = self.combo_edit_layer.currentText()
+        if not old_name:
+            return
+
+        new_name = self.edit_image_name.text().strip()
+
+        if not new_name:
+            QMessageBox.warning(
+                self, UIMessages.ERR_TITLE_INPUT, UIMessages.ERR_REQUIRED_IMAGE_NAME,
+            )
+            self.edit_image_name.setFocus()
+            return
+
+        if re.search(self.INVALID_CHARS_PATTERN, new_name):
+            QMessageBox.warning(
+                self, UIMessages.ERR_TITLE_INPUT, UIMessages.ERR_INVALID_IMAGE_NAME,
+            )
+            self.edit_image_name.setFocus()
+            return
+
+        if new_name == old_name:
+            return
+
+        meta = self.layer_manager.load_image_metadata()
+        if old_name not in meta:
+            QMessageBox.warning(
+                self,
+                UIMessages.ERR_TITLE_GENERIC,
+                f"レイヤ '{old_name}' のメタデータが見つかりません。",
+            )
+            return
+
+        if new_name in meta:
+            QMessageBox.warning(
+                self,
+                UIMessages.ERR_TITLE_DUPLICATE,
+                UIMessages.ERR_DUPLICATE_LAYER_NAME.format(name=new_name),
+            )
+            self.edit_image_name.setFocus()
+            return
+
+        # 1. Rename the matching raster layer in the QGIS project tree, if loaded.
+        # NOTE (T-0012, carried over): matched by display name, which has been
+        # reported as reliably identifying the layer for this session's raster group.
+        project = QgsProject.instance()
+        for tree_layer in project.layerTreeRoot().findLayers():
+            layer = tree_layer.layer()
+            if layer and layer.name() == old_name:
+                layer.setName(new_name)
+                break
+
+        # 2. Reassign the metadata dictionary key (file_path/ref_points/affine_params
+        # are carried over unchanged; the physical file itself is never touched).
+        meta[new_name] = meta.pop(old_name)
+        self.layer_manager.save_image_metadata(meta)
+        self.confirmed_layer_name = new_name
+        self.current_copied_image_path = meta[new_name].get(
+            "file_path", self.current_copied_image_path
+        )
+
+        # 3. Update drawing_name attribute on digitized points referencing the old name.
+        if self.point_layer and self.point_layer.isValid() and "drawing_name" in self.point_layer.fields().names():
+            self.point_layer.startEditing()
+            idx = self.point_layer.fields().indexFromName("drawing_name")
+            for f in self.point_layer.getFeatures():
+                if safe_get_str(f, "drawing_name") == old_name:
+                    self.point_layer.changeAttributeValue(f.id(), idx, new_name)
+            self.point_layer.commitChanges()
+
+        # 4. Refresh the edit-layer combo and reselect the renamed layer.
+        self._refresh_edit_layer_combo()
+        index = self.combo_edit_layer.findText(new_name)
+        if index >= 0:
+            self.combo_edit_layer.setCurrentIndex(index)
+        self._on_edit_layer_changed()
+
+        self.lbl_tab1_info_1.setText(
+            UILabels.TAB1_INFO_IMAGE_REF.format(name=new_name, count=len(self.ref_points_data))
+        )
+
+        QMessageBox.information(
+            self,
+            "レイヤ名変更完了",
+            UIMessages.MSG_RENAME_LAYER_SUCCESS.format(old=old_name, new=new_name),
+        )
+
     # =========================================================================
     # Tab 1: Image Addition, Preview Canvas & Georeferencing Handlers
     # =========================================================================
@@ -360,7 +458,21 @@ class Tab1GeorefMixin:
             self.confirmed_layer_name = None
 
     def _on_confirm_image_clicked(self) -> None:
-        """Handle layer confirm: integrate image load and preview. In Edit mode, handle rename."""
+        """Handle the "基準点設置" button.
+
+        New-add mode: copy the source image into the session (keeping its
+        original file name; T-0015 no longer derives the on-disk file name
+        from the layer name) and open the preview canvas for reference-point
+        setup. Edit/delete mode: renaming is handled separately by
+        ``_on_rename_layer_clicked`` (metadata-only, no file I/O), so here we
+        simply (re)open the preview canvas for the currently selected layer.
+        """
+        is_edit_mode = self.tab1_mode_buttons[1].isChecked()
+
+        if is_edit_mode:
+            self._on_setup_ref_points_clicked()
+            return
+
         layer_name = self.edit_image_name.text().strip()
 
         if not layer_name:
@@ -381,156 +493,54 @@ class Tab1GeorefMixin:
             self.edit_image_name.setFocus()
             return
 
-        is_edit_mode = self.tab1_mode_buttons[1].isChecked()
+        # T-0015: the on-disk image file name no longer doubles as the layer
+        # name, so layer-name uniqueness must be checked against the metadata
+        # keys directly (previously this was checked indirectly via the
+        # destination file-existence check inside copy_image_to_session()).
+        meta = self.layer_manager.load_image_metadata()
+        if layer_name in meta:
+            QMessageBox.warning(
+                self,
+                UIMessages.ERR_TITLE_DUPLICATE,
+                UIMessages.ERR_DUPLICATE_LAYER_NAME.format(name=layer_name),
+            )
+            self.edit_image_name.setFocus()
+            return
 
-        if not is_edit_mode:
-            src_path = self.edit_image_path.text().strip()
-            if not src_path or not os.path.isfile(src_path):
-                QMessageBox.warning(
-                    self,
-                    UIMessages.ERR_TITLE_INPUT,
-                    UIMessages.ERR_INVALID_IMAGE,
-                )
-                self.edit_image_path.setFocus()
-                return
+        src_path = self.edit_image_path.text().strip()
+        if not src_path or not os.path.isfile(src_path):
+            QMessageBox.warning(
+                self,
+                UIMessages.ERR_TITLE_INPUT,
+                UIMessages.ERR_INVALID_IMAGE,
+            )
+            self.edit_image_path.setFocus()
+            return
 
-            _, ext = os.path.splitext(src_path)
-            target_filename = f"{layer_name}{ext}"
+        # Copy image to session, keeping its original file name unchanged
+        # (T-0015: layer name and physical file name are no longer coupled).
+        success, msg, dest_path = self.layer_manager.copy_image_to_session(src_path)
+        if not success:
+            QMessageBox.warning(self, UIMessages.ERR_TITLE_FILE, msg)
+            return
 
-            # Copy image to session
-            success, msg, dest_path = self.layer_manager.copy_image_to_session(src_path, target_filename)
-            if not success:
-                if dest_path and os.path.isfile(dest_path):
-                    pass
-                else:
-                    QMessageBox.warning(self, UIMessages.ERR_TITLE_FILE, msg)
-                    return
-            
-            self.confirmed_layer_name = layer_name
-            self.current_copied_image_path = dest_path
+        self.confirmed_layer_name = layer_name
+        self.current_copied_image_path = dest_path
 
-            # Clear old reference points for newly added image
-            self.ref_points_data.clear()
-            self.calculated_affine_params = None
-            self._refresh_ref_points_table_and_markers()
-            if self.preview_dialog:
-                self.preview_dialog.clear_markers()
-                self.preview_dialog.set_ref_points_data([])
-                
-        else:
-            old_name = self.combo_edit_layer.currentText()
-            if old_name != layer_name:
-                # Handle rename
-                meta = self.layer_manager.load_image_metadata()
-                if old_name in meta:
-                    layer_meta = meta[old_name]
-                    old_path = layer_meta.get("file_path", "")
-
-                    if old_path and os.path.exists(old_path):
-                        base, ext = os.path.splitext(old_path)
-                        new_base = os.path.join(os.path.dirname(old_path), layer_name)
-                        new_path = new_base + ext
-
-                        # T-0014: copy-and-best-effort-delete instead of os.rename().
-                        # os.rename() requires exclusive access to the source file,
-                        # which kept failing with [WinError 32] on Windows even after
-                        # releasing the QGIS/GDAL layer and retrying briefly (T-0010
-                        # through T-0013). A plain file copy, by contrast, typically
-                        # succeeds even while another process still holds the file
-                        # open for reading (most OSes/drivers open files with
-                        # share-read access), so the new file is created first and
-                        # the old file is only removed afterwards, on a best-effort
-                        # basis that never blocks the rename from completing.
-                        copied_world_files: List[Tuple[str, str]] = []
-                        try:
-                            shutil.copy2(old_path, new_path)
-                            for w_ext in [".tfw", ".jgw", ".pgw", ".bpw", ".wld"]:
-                                w_src = base + w_ext
-                                if os.path.exists(w_src):
-                                    w_dst = new_base + w_ext
-                                    shutil.copy2(w_src, w_dst)
-                                    copied_world_files.append((w_src, w_dst))
-                        except Exception as e:
-                            # Nothing about the old layer/file has been touched yet
-                            # (the old layer is still loaded, the old file is still
-                            # in place), so no rollback is needed here: just clean
-                            # up any partially-copied file(s) and abort.
-                            for _w_src, w_dst in copied_world_files:
-                                if os.path.exists(w_dst):
-                                    try:
-                                        os.remove(w_dst)
-                                    except OSError:
-                                        pass
-                            if os.path.exists(new_path):
-                                try:
-                                    os.remove(new_path)
-                                except OSError:
-                                    pass
-                            QMessageBox.warning(self, "Rename Error", f"ファイルの名称変更に失敗しました:\n{e}")
-                            return
-
-                        self.current_copied_image_path = new_path
-                        layer_meta["file_path"] = new_path
-
-                        # Copy succeeded: only now release the old QGIS raster layer
-                        # (and any other Python reference keeping its GDAL handle
-                        # open), since we no longer need the old file to remain
-                        # readable for anything else.
-                        released_info = self._release_raster_layer_for_rename(old_path, old_name)
-
-                        # Best-effort removal of the old file(s). A failure here does
-                        # NOT fail the overall rename: the new file/layer/metadata
-                        # are already valid at this point, so a leftover old file is
-                        # merely an orphaned file left behind in the session folder,
-                        # not a functional problem.
-                        leftover_paths = []
-                        if not self._remove_with_retry(old_path):
-                            leftover_paths.append(old_path)
-                        for w_src, _w_dst in copied_world_files:
-                            if not self._remove_with_retry(w_src):
-                                leftover_paths.append(w_src)
-
-                        if leftover_paths:
-                            self.iface.messageBar().pushMessage(
-                                UIMessages.MSG_TITLE_INFO,
-                                UIMessages.MSG_RENAME_OLD_FILE_LEFT.format(
-                                    names=", ".join(os.path.basename(p) for p in leftover_paths)
-                                ),
-                                level=Qgis.MessageLevel.Warning,
-                                duration=6,
-                            )
-
-                        # Recreate the raster layer under the new path, restoring its
-                        # style, parent group, position and checked state.
-                        if released_info is not None:
-                            self._reload_raster_layer_after_rename(new_path, layer_name, released_info)
-
-                    # Update metadata key
-                    meta[layer_name] = layer_meta
-                    del meta[old_name]
-                    self.layer_manager.save_image_metadata(meta)
-                    self.confirmed_layer_name = layer_name
-
-                    # Update point attributes
-                    if self.point_layer and self.point_layer.isValid() and "drawing_name" in self.point_layer.fields().names():
-                        self.point_layer.startEditing()
-                        idx = self.point_layer.fields().indexFromName("drawing_name")
-                        for f in self.point_layer.getFeatures():
-                            if safe_get_str(f, "drawing_name") == old_name:
-                                self.point_layer.changeAttributeValue(f.id(), idx, layer_name)
-                        self.point_layer.commitChanges()
-
-                    self._refresh_edit_layer_combo()
-                    index = self.combo_edit_layer.findText(layer_name)
-                    if index >= 0:
-                        self.combo_edit_layer.setCurrentIndex(index)
+        # Clear old reference points for newly added image
+        self.ref_points_data.clear()
+        self.calculated_affine_params = None
+        self._refresh_ref_points_table_and_markers()
+        if self.preview_dialog:
+            self.preview_dialog.clear_markers()
+            self.preview_dialog.set_ref_points_data([])
 
         self.lbl_tab1_info_1.setText(
             UILabels.TAB1_INFO_IMAGE_REF.format(
                 name=layer_name, count=len(self.ref_points_data)
             )
         )
-        
+
         # Automatically show preview canvas
         if self.preview_dialog and self.preview_dialog.raster_layer is not None:
             self.preview_dialog.set_ref_points_data(self.ref_points_data)
@@ -539,218 +549,6 @@ class Tab1GeorefMixin:
             self.preview_dialog.activateWindow()
         else:
             self._create_preview_canvas(self.current_copied_image_path)
-
-    def _remove_with_retry(
-        self, path: str, max_attempts: int = 5, delay_sec: float = 0.2
-    ) -> bool:
-        """Attempt to delete ``path`` via ``os.remove()``, retrying briefly on failure.
-
-        T-0014 background: this retry loop is carried over from T-0013's
-        ``_rename_with_retry()`` (originally written to absorb a possible short
-        timing gap between "layer released in QGIS/Python" and "OS has actually
-        released the file handle" before calling ``os.rename()``). Under the T-0014
-        copy-and-delete design, deleting the now-superseded old file is no longer on
-        the critical path for the rename to succeed (the new file/layer/metadata are
-        already valid once this is called), so this is purely best-effort cleanup:
-        unlike the old ``_rename_with_retry()``, this NEVER raises. It returns
-        ``True`` on success and ``False`` if every attempt failed (e.g. still
-        ``[WinError 32]``-style locking on Windows), leaving the caller to decide how
-        to surface that (currently: a single non-blocking message-bar warning,
-        without failing the overall rename).
-        """
-        for attempt in range(max_attempts):
-            try:
-                os.remove(path)
-                return True
-            except (PermissionError, OSError):
-                if attempt == max_attempts - 1:
-                    return False
-                QCoreApplication.processEvents()
-                time.sleep(delay_sec)
-        return False
-
-    def _release_raster_layer_for_rename(self, file_path: str, old_name: str) -> Optional[dict]:
-        """Find the QGIS raster layer backed by ``file_path`` (if any) and remove it from
-        the project so its GDAL file handle is released.
-
-        T-0014: called after the new (renamed) file has already been created via
-        ``shutil.copy2()``, and before the old file is (best-effort) deleted. Releasing
-        the layer here no longer needs to happen before any OS-level file operation for
-        the rename itself to succeed (that requirement was specific to ``os.rename()``,
-        which this design no longer uses); it is still done at this point so the old
-        file is no longer open when its deletion is attempted afterwards.
-
-        Captures the layer's style, layer-tree parent group, position and checked state
-        so the layer can be recreated afterwards via ``_reload_raster_layer_after_rename``.
-
-        Also clears any other long-lived Python reference to the same raster layer object
-        that would otherwise keep its GDAL dataset (and Windows file handle) open even
-        after ``removeMapLayer()`` runs:
-          - ``self.layer_manager.raster_layer``: a reference kept for the lifetime of the
-            plugin session (set by ``load_georeferenced_raster``/``load_existing_session``
-            in ``session_io_mixin.py``) and read elsewhere (e.g. ``main_dock.py``) to
-            determine whether an active raster is currently loaded.
-          - ``self.preview_dialog.raster_layer``: a separate standalone raster layer
-            (never added to ``QgsProject``, created via
-            ``LayerManager.load_preview_raster()``) used by the modeless preview canvas;
-            if it currently displays the same file, it is released independently via
-            ``PreviewDialog.clean_up()``.
-
-        Returns None if no matching layer/reference is currently held anywhere (in which
-        case the caller should simply rename the file without any layer-tree sync).
-
-        NOTE (T-0012): the project-tree layer lookup below matches by the layer's display
-        name (``old_name``), mirroring ``_on_delete_layer_clicked()`` (``l.name() ==
-        layer_name``), which has been reported as reliably releasing the GDAL file handle.
-        The previous T-0010/T-0011 implementation matched by
-        ``os.path.normpath(layer.source())`` instead; QGIS/GDAL can normalize
-        ``source()`` differently from the path used to construct the layer (path
-        separators, drive-letter case, etc.), so that comparison may simply never have
-        matched on the reporter's environment, meaning this function silently returned
-        None and none of the T-0010/T-0011 mitigations below ever ran. This is a
-        hypothesis based on report analysis, not a confirmed root cause; whether it
-        actually resolves the Windows [WinError 32] recurrence has not been verified.
-        """
-        norm_target = os.path.normpath(file_path)
-        project = QgsProject.instance()
-
-        released_info: Optional[dict] = None
-
-        for tree_layer in project.layerTreeRoot().findLayers():
-            layer = tree_layer.layer()
-            if layer is None or not isinstance(layer, QgsRasterLayer):
-                continue
-            if layer.name() != old_name:
-                continue
-
-            parent_group = tree_layer.parent()
-            position = parent_group.children().index(tree_layer) if parent_group else -1
-            checked = tree_layer.itemVisibilityChecked()
-
-            style_doc = QDomDocument()
-            layer.exportNamedStyle(style_doc)
-
-            released_info = {
-                "style_xml": style_doc.toString(),
-                "parent_group": parent_group,
-                "position": position,
-                "checked": checked,
-            }
-
-            # LayerManager keeps a session-lifetime reference to the "current" raster
-            # layer. If it points at the very layer we are about to remove, clear it so
-            # it does not keep the GDAL dataset alive; _reload_raster_layer_after_rename()
-            # restores it to the recreated layer afterwards.
-            if (
-                self.layer_manager.raster_layer is not None
-                and self.layer_manager.raster_layer.id() == layer.id()
-            ):
-                released_info["was_layer_manager_raster"] = True
-                self.layer_manager.raster_layer = None
-
-            project.removeMapLayer(layer.id())
-            del layer
-            break
-        # NOTE: if no project-tree layer's name() matched old_name above, released_info
-        # is still None here. That means no project-tree raster layer was recognized as
-        # holding this file, so its release step (and the T-0010/T-0011 style/position
-        # restore, layer_manager.raster_layer clear, gc.collect()) is skipped entirely.
-        # If [WinError 32] is still reproduced after this change, re-check this branch
-        # first (e.g. log layer.name()/old_name here) before assuming the fix is correct.
-
-        # The modeless preview dialog owns its own standalone QgsRasterLayer (never added
-        # to QgsProject). If it currently displays the file being renamed, its GDAL
-        # dataset independently holds the file handle open, so release it too, regardless
-        # of whether a project-tree layer matched above.
-        if (
-            self.preview_dialog is not None
-            and self.preview_dialog.raster_layer is not None
-            and os.path.normcase(os.path.normpath(self.preview_dialog.raster_layer.source()))
-            == os.path.normcase(norm_target)
-        ):
-            if released_info is None:
-                released_info = {}
-            released_info["was_preview_raster"] = True
-            self.preview_dialog.clean_up()
-
-        if released_info is not None:
-            # removeMapLayer()/clean_up() may defer the underlying C++ object deletion to
-            # the Qt event loop; flush pending events, then force a GC pass so any
-            # remaining Python-side reference to the removed layer wrapper is collected.
-            # This is a defensive mitigation for delayed GDAL/Windows file handle release
-            # after a QGIS raster layer is torn down (reported as recurring under
-            # T-0011 even after the T-0010 removeMapLayer()+processEvents() fix).
-            QCoreApplication.processEvents()
-            gc.collect()
-
-        return released_info
-
-    def _reload_raster_layer_after_rename(
-        self, file_path: str, layer_name: str, released_info: dict
-    ) -> None:
-        """Recreate a raster layer previously released by ``_release_raster_layer_for_rename``,
-        restoring its style, parent group, layer-tree position and checked state.
-        Mirrors the '画像ファイル' group placement pattern used by
-        LayerManager.load_georeferenced_raster().
-
-        Also restores ``self.layer_manager.raster_layer`` and/or the preview dialog's
-        standalone raster layer if they were cleared for this same file by
-        ``_release_raster_layer_for_rename``.
-        """
-        if not file_path or not os.path.isfile(file_path):
-            return
-
-        project = QgsProject.instance()
-
-        # Only recreate a project-tree layer if one was actually captured above (i.e. a
-        # matching layer/parent group/position was found before removal). A preview-only
-        # release has no parent_group/position to restore into the layer tree.
-        if "parent_group" in released_info:
-            with suppress_crs_prompt():
-                raster_layer = QgsRasterLayer(file_path, layer_name)
-                if not raster_layer.isValid():
-                    raster_layer = None
-                else:
-                    raster_layer.setCrs(get_local_crs())
-
-                    style_xml = released_info.get("style_xml")
-                    if style_xml:
-                        style_doc = QDomDocument()
-                        if style_doc.setContent(style_xml):
-                            raster_layer.importNamedStyle(style_doc)
-
-                    project.addMapLayer(raster_layer, addToLegend=False)
-
-                    parent_group = released_info.get("parent_group")
-                    if parent_group is not None:
-                        position = released_info.get("position", -1)
-                        try:
-                            parent_group.insertLayer(position, raster_layer)
-                        except Exception:
-                            parent_group.addLayer(raster_layer)
-                        node = parent_group.findLayer(raster_layer.id())
-                        if node is not None:
-                            node.setItemVisibilityChecked(released_info.get("checked", True))
-                    else:
-                        project.layerTreeRoot().addLayer(raster_layer)
-
-            if raster_layer is not None:
-                raster_layer.triggerRepaint()
-
-                if released_info.get("was_layer_manager_raster"):
-                    self.layer_manager.raster_layer = raster_layer
-
-        # If the preview dialog's standalone raster was released for this same file,
-        # recreate it too so the preview canvas is left with a live raster layer rather
-        # than a cleaned-up (georef_tool/raster_layer == None) state.
-        if released_info.get("was_preview_raster") and self.preview_dialog is not None:
-            success, _msg, preview_raster = self.layer_manager.load_preview_raster(file_path)
-            if success and preview_raster is not None:
-                self.preview_dialog.setup_raster(
-                    preview_raster,
-                    self._on_preview_canvas_point_clicked,
-                    self.ref_points_data,
-                )
 
     def _create_preview_canvas(self, image_path: str) -> bool:
         """Create or update modeless PreviewDialog with preview raster."""
