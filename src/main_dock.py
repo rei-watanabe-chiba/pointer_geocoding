@@ -365,7 +365,9 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
         if is_focus_on:
             feat_name = self.combo_feature_name.currentText().strip()
             if feat_name == UILabels.FEATURE_NEW_OPTION:
-                feat_name = self.edit_new_feature.text().strip()
+                # T-0027: no free-text new-feature field remains inline; the
+                # placeholder option means "no concrete feature selected yet".
+                feat_name = ""
             filters = {
                 "drawing_name": self.combo_drawing_name.currentText().strip(),
                 "excavation_type": self.combo_excavation_type.currentText().strip(),

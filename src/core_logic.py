@@ -324,6 +324,80 @@ def check_point_duplicate(
     return False
 
 
+def build_point_ident(
+    excavation_type: str,
+    feature_name: str,
+    point_name: str,
+    branch_no: str,
+    drawing_name: str = "",
+) -> str:
+    """Build a human-readable identifier string for a digitized point.
+
+    T-0027: extracted from the previously duplicated inline ident-building
+    code in Tab2DigitizingMixin._on_canvas_clicked (new-point duplicate
+    error) and the former _on_correct_point_number (existing-point
+    duplicate error), so both the new-point digitizing flow and the point
+    rename dialog (main_dock_dialogs.PointRenameDialog) share a single
+    source of truth for the identifier shown in duplicate-error messages.
+
+    :param excavation_type: ExcavationType.GRID.value or ExcavationType.FEATURE.value.
+    :type excavation_type: str
+    :param feature_name: Feature name string (used only when excavation_type is FEATURE).
+    :type feature_name: str
+    :param point_name: Point number string.
+    :type point_name: str
+    :param branch_no: Branch number string.
+    :type branch_no: str
+    :param drawing_name: Optional target drawing name string.
+    :type drawing_name: str
+    :return: Formatted identifier, e.g. "[plan_01] SK01-5 (a)".
+    :rtype: str
+    """
+    ident = (
+        f"{feature_name}-{point_name}"
+        if excavation_type == ExcavationType.FEATURE.value
+        else f"{ExcavationType.GRID.value}-{point_name}"
+    )
+    if branch_no:
+        ident += f" ({branch_no})"
+    if drawing_name:
+        ident = f"[{drawing_name}] {ident}"
+    return ident
+
+
+def check_duplicate_and_build_message(
+    point_layer: QgsVectorLayer,
+    excavation_type: str,
+    feature_name: str,
+    point_name: str,
+    branch_no: str,
+    drawing_name: str = "",
+    exclude_feature_id: Optional[int] = None,
+) -> Optional[str]:
+    """Check for a duplicate point and, if found, return its formatted identifier.
+
+    T-0027: thin combination of check_point_duplicate() + build_point_ident(),
+    extracted so both the new-point digitizing flow
+    (Tab2DigitizingMixin._on_canvas_clicked) and the point rename dialog
+    (main_dock_dialogs.PointRenameDialog) can share identical duplicate
+    detection + message-building logic without repeating it.
+
+    :return: Formatted identifier string if a duplicate exists, otherwise None.
+    :rtype: Optional[str]
+    """
+    if check_point_duplicate(
+        point_layer,
+        excavation_type,
+        feature_name,
+        point_name,
+        branch_no,
+        drawing_name,
+        exclude_feature_id=exclude_feature_id,
+    ):
+        return build_point_ident(excavation_type, feature_name, point_name, branch_no, drawing_name)
+    return None
+
+
 def get_next_point_number(
     point_layer: QgsVectorLayer,
     excavation_type: str,

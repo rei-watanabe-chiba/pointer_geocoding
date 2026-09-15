@@ -26,6 +26,10 @@ class UIConfig:
     # QDockWidget.setWidget in main_dock.py), so the dock no longer relies
     # on QGIS's default auto-sizing. ---
     DOCK_WIDTH = 300
+    # --- T-0027: fixed height (~6 rows) of the 図面選択リスト panel's
+    # QListWidget, so it does not grow unbounded with many drawings and
+    # instead scrolls internally. ---
+    DRAWING_LIST_HEIGHT = 180
 
 
 class UIDialogSizes:
@@ -119,22 +123,14 @@ class UILabels:
     BTN_FOCUS_OFF = "🎯 フォーカスモード (OFF)"
     BTN_FOCUS_ON = "🎯 フォーカスモード (ON)"
     OPACITY_LABEL = "対象外透明度:"
-    GROUP_CATEGORY = "入力カテゴリ設定 (フォーカス判定対象)"
     DRAWING_NAME = "対象図面:"
-    GROUP_INDIVIDUAL = "個別入力設定 (フォーカス判定対象外)"
-    EDIT_STATUS_INIT = "状態: 新規打刻モード (メインキャンバスをクリックして打刻)"
-    BTN_RESET_SELECTION = "連番再開"
     BTN_DELETE_POINT = "削除"
-    BTN_CORRECT_NUMBER = "番号修正を確定"
     EXCAVATION_TYPE = "出土形態:"
     EXCAVATION_OPTIONS = [ExcavationType.GRID.value, ExcavationType.FEATURE.value]
     FEATURE_SELECTOR = "遺構名セレクタ:"
     FEATURE_NEW_OPTION = "新規作成"
-    NEW_FEATURE_NAME = "新規遺構名:"
-    GROUP_POINT_NAME = "点名・枝番設定"
     POINT_NAME = "点名 (半角数字):"
     BRANCH_NO = "枝番 (任意):"
-    GROUP_ATTRIBUTE = "属性設定 & 透過強調表示"
     ATTRIBUTE_CODE = "属性記号:"
     ATTRIBUTE_OPTIONS = [
         AttributeType.S.value,
@@ -143,10 +139,21 @@ class UILabels:
         AttributeType.SP.value,
     ]
     BTN_CONFIRM_ATTRIBUTE = "属性確定 (フォーカス有効化)"
-    GROUP_COLOR = "遺構カラー設定"
     BTN_COLOR_PICKER = "カラー選択"
-    BTN_APPLY_COLOR = "グループ一括適用"
     GROUP_CSV = "CSV出力設定"
+
+    # --- T-0027: 4-panel main area restructure (点情報/属性/フォーカスモード/図面選択リスト) ---
+    GROUP_POINT_INFO = "点情報"
+    GROUP_ATTRIBUTE_PANEL = "属性パネル"
+    GROUP_DRAWING_LIST = "図面選択リスト"
+    LBL_INFO_GROUP_OR_FEATURE = "グリッド/遺構名:"
+    LBL_INFO_ATTRIBUTE = "属性:"
+    LBL_INFO_COORDS = "XY座標:"
+    BTN_CREATE_FEATURE = "作成"
+    BTN_RENAME_POINT = "点名変更"
+    FEATURE_CREATE_DIALOG_TITLE = "遺構名作成"
+    NEW_FEATURE_NAME = "新規遺構名:"
+    RENAME_POINT_DIALOG_TITLE = "点名変更"
     ENCODING = "文字コード:"
     RADIO_UTF8 = "UTF-8 (BOM付き)"
     RADIO_SJIS = "Shift-JIS"
@@ -158,8 +165,6 @@ class UILabels:
     STATUS_NEED_MORE_REFS = "基準点登録数: {count} 点 (※最低2点以上の基準点が必要です)"
     STATUS_INPUT_COORDS = "基準点登録数: {count} 点 (実座標 X, Y をテーブル内に入力してください)"
     STATUS_READY_TRANSFORM = "基準点登録数: {count} 点 ({mode}の実行準備が完了しました)"
-    STATUS_DIGITIZE_SUCCESS = "直前に打刻成功: ID={id} (点名={name})"
-    STATUS_EXISTING_POINT = "⚠️ 既存点を選択中: ID={id} (点名={name})"
 
 class UIPlaceholders:
     IMAGE_PATH = "画像ファイルを選択してください"
@@ -220,12 +225,12 @@ class UIMessages:
     MSG_RENAME_LAYER_SUCCESS = "レイヤ名を '{old}' から '{new}' に変更しました。"
     ERR_POINT_NAME_REQUIRED = "点名（点番号）を入力してください。"
     ERR_NEW_FEATURE_REQUIRED = "新規遺構名を入力してください。"
-    MSG_DELETE_CONFIRM = "選択中のポイントを削除しますか？\nこの操作は元に戻せません。"
     MSG_DELETE_SUCCESS_TITLE = "ポイント削除"
     MSG_DELETE_SUCCESS = "ポイントを削除しました。"
     MSG_EXPORT_CSV_TITLE = "CSV出力完了"
-    MSG_CORRECT_NUMBER_SUCCESS_TITLE = "番号修正"
-    MSG_CORRECT_NUMBER_SUCCESS = "ポイントの番号を修正しました。"
+    # --- T-0027: 点名変更ダイアログ (旧「番号修正を確定」ボタンを置換) ---
+    MSG_RENAME_POINT_SUCCESS_TITLE = "点名変更"
+    MSG_RENAME_POINT_SUCCESS = "点名を変更しました。"
 
     # --- T-0025: undefined-literal cleanup (main_dock_dialogs.py) ---
     MSG_CONFIRM_DELETE_REF = "この基準点を削除しますか？"
