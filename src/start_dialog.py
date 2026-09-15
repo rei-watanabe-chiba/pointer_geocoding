@@ -127,13 +127,13 @@ class ExcelColumnSpinBox(QSpinBox):
         :type parent: Optional[QWidget]
         """
         super().__init__(parent)
-        self.setRange(self.MIN_VALUE, self.MAX_VALUE)
         if HAS_QT_REGEX:
             self._validator = QRegularExpressionValidator(
                 QRegularExpression(r"^[A-Za-z]{1,2}$"), self
             )
         else:
             self._validator = QRegExpValidator(QRegExp(r"^[A-Za-z]{1,2}$"), self)
+        self.setRange(self.MIN_VALUE, self.MAX_VALUE)
 
     def textFromValue(self, value: int) -> str:
         """Render the internal integer as an Excel-style column letter.
