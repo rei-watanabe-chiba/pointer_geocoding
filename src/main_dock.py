@@ -39,6 +39,25 @@ _on_panel_changed(), driven by self._active_panel ("drawing" / "settings"
 once at __init__ time, matching the old initial currentChanged fire).
 self.tab1_container / self.tab2_container / self.tab3_container attribute
 names are kept unchanged for backward compatibility with tab*_mixin.py.
+
+T-0021 (dock split): the icon rail + collapsible side panel widget tree
+built above (self.side_panel / self.side_stack / self.nav_btn_drawing /
+self.nav_btn_settings / self.tab1_container / self.tab3_container) is no
+longer embedded inside this class's own QDockWidget layout. It is instead
+built by _init_left_dock() into a second, independent QDockWidget instance
+(self.left_dock), which plugin.py registers separately in
+Qt.LeftDockWidgetArea (this class, self, remains registered in
+Qt.RightDockWidgetArea as before). This exposes the QGIS map canvas between
+the two docks, matching the requested "left dock / canvas / right dock"
+layout, instead of the T-0020 layout where everything lived inside one
+right-hand dock's internal QHBoxLayout. self's own root widget now holds
+only the save-project button and the always-visible main digitizing area
+(self.tab2_container). All event-handling logic (_on_nav_button_clicked,
+_on_panel_changed, _close_side_panel, self._active_panel state machine) is
+unchanged and still lives on this class (self); only the container widget
+each piece of UI is parented into has changed. plugin.py is responsible for
+iface.addDockWidget()-registering and removeDockWidget()-unregistering
+self.left_dock alongside self.
 """
 # 【変更不可侵の絶対的ルール】 測量座標系（X軸=南北, Y軸=東西）を採用。QGISキャンバス上のX座標(東西)はSurvey Y、Y座標(南北)はSurvey Xに対応する。
 
@@ -139,6 +158,7 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
 
         self._init_ui()
         UIStyleHelper.apply_theme(self)
+        UIStyleHelper.apply_theme(self.left_dock)
         self._restore_feature_names()
         self._update_drawing_combo()
         self.update_settings_ui_from_dict()
@@ -180,30 +200,67 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
     SIDE_PANEL_WIDTH = 300
 
     def _init_ui(self) -> None:
-        """Construct the entire dock interface programmatically using native PyQt classes."""
+        """Construct the two-dock interface programmatically using native PyQt classes.
+
+        T-0021: builds self.left_dock (icon rail + collapsible side panel)
+        via _init_left_dock(), then constructs this dock's (self, the
+        right-hand "main operation" dock) own contents: only the permanent
+        save-project button and the always-visible main digitizing area
+        (former Tab 2). See the T-0021 module-docstring note above for the
+        rationale (QGIS dock-area split vs. T-0020's single-dock layout).
+        """
+        # No side panel open by default; the digitizing main area (former
+        # Tab 2) is shown on its own until a nav button opens one.
+        self._active_panel: Optional[str] = None
+
+        # 1. Left dock: icon rail + collapsible side panel (図面管理/設定)
+        self._init_left_dock()
+
+        # 2. Right dock (self): permanent save button + main digitizing area
         root_widget = QWidget(self)
         root_layout = QVBoxLayout(root_widget)
         root_layout.setContentsMargins(6, 6, 6, 6)
         root_layout.setSpacing(6)
 
-        # No side panel open by default; the digitizing main area (former
-        # Tab 2) is shown on its own until a nav button opens one.
-        self._active_panel: Optional[str] = None
-
-        # 1. Permanent Save Button Header
         self.btn_save_project = QPushButton(UILabels.BTN_SAVE_PROJECT, root_widget)
         UIStyleHelper.set_success_button(self.btn_save_project)
         self.btn_save_project.clicked.connect(self._save_project)
         root_layout.addWidget(self.btn_save_project)
 
-        # 2. Content row: left icon rail + collapsible side panel + main area
-        content_row = QHBoxLayout()
-        content_row.setContentsMargins(0, 0, 0, 0)
-        content_row.setSpacing(6)
-        root_layout.addLayout(content_row)
+        # Main area: 遺物点作成 (former Tab 2), always visible, no tab chrome
+        self.tab2_container = self._create_tab2_ui()
+        root_layout.addWidget(self.tab2_container, 1)
 
-        # 2a. Icon rail: nav buttons toggling the side panel open/closed
-        icon_rail = QWidget(root_widget)
+        self.setWidget(root_widget)
+
+    def _init_left_dock(self) -> None:
+        """Construct self.left_dock: icon rail + collapsible side panel (T-0021).
+
+        Hosts 図面管理 (former Tab 1) and 設定 (former Tab 3) inside a fixed-width
+        side panel (self.side_panel / self.side_stack), toggled open/closed by
+        checkable nav buttons (self.nav_btn_drawing / self.nav_btn_settings) on
+        a left icon rail (VSCode-activity-bar style; the open/close/exclusivity
+        interaction itself is unchanged from T-0020 and lives in
+        _on_nav_button_clicked/_on_panel_changed below).
+
+        self.left_dock is a standalone QDockWidget (parent=None, mirroring how
+        self itself starts parentless before plugin.py's iface.addDockWidget()
+        reparents it); plugin.py is responsible for registering it in
+        Qt.LeftDockWidgetArea and for removeDockWidget()/deleteLater()-ing it
+        alongside self during teardown/re-setup, since Qt's automatic
+        parent-child cleanup does not apply once addDockWidget() reparents a
+        dock widget into the QGIS main window's internal dock area.
+        """
+        self.left_dock = QDockWidget(UILabels.LEFT_DOCK_TITLE, None)
+        self.left_dock.setObjectName("PointerGeocodingLeftDock")
+
+        left_root = QWidget(self.left_dock)
+        left_layout = QHBoxLayout(left_root)
+        left_layout.setContentsMargins(6, 6, 6, 6)
+        left_layout.setSpacing(6)
+
+        # Icon rail: nav buttons toggling the side panel open/closed
+        icon_rail = QWidget(left_root)
         icon_rail.setFixedWidth(self.ICON_RAIL_WIDTH)
         icon_rail_layout = QVBoxLayout(icon_rail)
         icon_rail_layout.setContentsMargins(2, 4, 2, 4)
@@ -242,10 +299,10 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
         self.nav_btn_drawing.clicked.connect(lambda: self._on_nav_button_clicked("drawing"))
         self.nav_btn_settings.clicked.connect(lambda: self._on_nav_button_clicked("settings"))
 
-        content_row.addWidget(icon_rail)
+        left_layout.addWidget(icon_rail)
 
-        # 2b. Side panel: 図面管理 (Tab 1) / 設定 (Tab 3), hidden by default
-        self.side_panel = QWidget(root_widget)
+        # Side panel: 図面管理 (Tab 1) / 設定 (Tab 3), hidden by default
+        self.side_panel = QWidget(left_root)
         self.side_panel.setFixedWidth(self.SIDE_PANEL_WIDTH)
         side_panel_layout = QVBoxLayout(self.side_panel)
         side_panel_layout.setContentsMargins(0, 0, 0, 0)
@@ -263,13 +320,10 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
         self.side_stack.addWidget(self.tab3_container)
 
         self.side_panel.hide()
-        content_row.addWidget(self.side_panel)
+        left_layout.addWidget(self.side_panel)
+        left_layout.addStretch()
 
-        # 2c. Main area: 遺物点作成 (former Tab 2), always visible, no tab chrome
-        self.tab2_container = self._create_tab2_ui()
-        content_row.addWidget(self.tab2_container, 1)
-
-        self.setWidget(root_widget)
+        self.left_dock.setWidget(left_root)
 
     def _on_nav_button_clicked(self, panel: str) -> None:
         """Handle a click on a left icon-rail nav button (図面管理/設定).

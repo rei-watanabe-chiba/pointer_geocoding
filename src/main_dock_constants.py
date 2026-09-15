@@ -25,6 +25,8 @@ class UIConfig:
 
 class UILabels:
     DOCK_TITLE = "点群座標取得パネル"
+    # --- T-0021: left dock (icon rail + collapsible side panel) title ---
+    LEFT_DOCK_TITLE = "点群座標取得（図面管理・設定）"
     BTN_SAVE_PROJECT = "💾 プロジェクトを保存"
     TAB_1_TITLE = "画像管理"
     TAB_2_TITLE = "遺物点作成"
