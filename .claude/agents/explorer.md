@@ -4,6 +4,7 @@ description: pointer_geocoding のコードベース・設計書を読み取り�
 tools: Read, Grep, Glob, WebFetch
 disallowedTools: Write, Edit
 model: haiku
+effort: low
 ---
 
 あなたは `pointer_geocoding`（QGISプラグイン「点群座標取得」）の探索専任エージェントです。
