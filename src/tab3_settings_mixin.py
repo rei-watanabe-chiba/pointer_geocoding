@@ -47,26 +47,6 @@ class Tab3SettingsMixin:
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(12)
 
-        def _make_section_header(title: str) -> QLabel:
-            """Build a section header label with bold text."""
-            header = QLabel(title)
-            header.setStyleSheet(
-                "font-weight: bold; margin-top: 10px; padding-bottom: 3px;"
-            )
-            return header
-
-        def _make_sub_container(label_text: str, widget: QWidget) -> QWidget:
-            """Build a sub-container with a label and an input widget side by side."""
-            sub_container = QWidget()
-            sub_layout = QHBoxLayout(sub_container)
-            sub_layout.setContentsMargins(0, 0, 0, 0)
-            sub_layout.setSpacing(4)
-            if label_text:
-                lbl = QLabel(label_text)
-                sub_layout.addWidget(lbl)
-            sub_layout.addWidget(widget, 1)
-            return sub_container
-
         def _create_color_button(color_hex: str, handler) -> QPushButton:
             btn = QPushButton("")
             btn.setStyleSheet(f"background-color: {color_hex}; color: white; border-radius: 4px;")
@@ -74,7 +54,7 @@ class Tab3SettingsMixin:
             return btn
 
         # ── Section: 基準点 ─────────────────────────────────────────────
-        layout.addWidget(_make_section_header(UILabels.TAB3_SECTION_REF_SYMBOL))
+        layout.addWidget(UIStyleHelper.build_section_header(UILabels.TAB3_SECTION_REF_SYMBOL))
 
         self.spin_ref_sym_size = QDoubleSpinBox()
         self.spin_ref_sym_size.setRange(0.5, 20.0)
@@ -87,8 +67,8 @@ class Tab3SettingsMixin:
         self.spin_ref_sym_linewidth.setValue(1.2)
 
         ref_row1 = QHBoxLayout()
-        ref_row1.addWidget(_make_sub_container(UILabels.TAB3_LBL_SIZE, self.spin_ref_sym_size), 1)
-        ref_row1.addWidget(_make_sub_container(UILabels.TAB3_LBL_LINEWIDTH, self.spin_ref_sym_linewidth), 1)
+        ref_row1.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_SIZE, self.spin_ref_sym_size), 1)
+        ref_row1.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_LINEWIDTH, self.spin_ref_sym_linewidth), 1)
         ref_row1.addStretch(1)
         layout.addLayout(ref_row1)
 
@@ -99,12 +79,12 @@ class Tab3SettingsMixin:
         )
 
         ref_row2 = QHBoxLayout()
-        ref_row2.addWidget(_make_sub_container(UILabels.TAB3_LBL_LINECOLOR, self.btn_ref_line_color), 1)
+        ref_row2.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_LINECOLOR, self.btn_ref_line_color), 1)
         ref_row2.addStretch(2)
         layout.addLayout(ref_row2)
 
         # ── Section: 遺物点 ─────────────────────────────────────────────
-        layout.addWidget(_make_section_header(UILabels.TAB3_SECTION_POINT_SYMBOL))
+        layout.addWidget(UIStyleHelper.build_section_header(UILabels.TAB3_SECTION_POINT_SYMBOL))
 
         self.spin_point_sym_size = QDoubleSpinBox()
         self.spin_point_sym_size.setRange(0.5, 20.0)
@@ -117,8 +97,8 @@ class Tab3SettingsMixin:
         self.spin_point_sym_linewidth.setValue(0.9)
 
         point_row1 = QHBoxLayout()
-        point_row1.addWidget(_make_sub_container(UILabels.TAB3_LBL_SIZE, self.spin_point_sym_size), 1)
-        point_row1.addWidget(_make_sub_container(UILabels.TAB3_LBL_LINEWIDTH, self.spin_point_sym_linewidth), 1)
+        point_row1.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_SIZE, self.spin_point_sym_size), 1)
+        point_row1.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_LINEWIDTH, self.spin_point_sym_linewidth), 1)
         point_row1.addStretch(1)
         layout.addLayout(point_row1)
 
@@ -138,12 +118,12 @@ class Tab3SettingsMixin:
         point_fill_layout.addWidget(self.radio_point_fill_off)
 
         point_row2 = QHBoxLayout()
-        point_row2.addWidget(_make_sub_container(UILabels.TAB3_LBL_LINECOLOR, self.btn_point_line_color), 1)
+        point_row2.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_LINECOLOR, self.btn_point_line_color), 1)
         point_row2.addWidget(point_fill_widget, 2)
         layout.addLayout(point_row2)
 
         # ── Section: ラベル ──────────────────────────────────────────────
-        layout.addWidget(_make_section_header(UILabels.TAB3_SECTION_LABEL_SYMBOL))
+        layout.addWidget(UIStyleHelper.build_section_header(UILabels.TAB3_SECTION_LABEL_SYMBOL))
 
         self.spin_lbl_size = QSpinBox()
         self.spin_lbl_size.setRange(6, 36)
@@ -155,8 +135,8 @@ class Tab3SettingsMixin:
         self.spin_lbl_offset.setValue(1.0)
 
         lbl_row1 = QHBoxLayout()
-        lbl_row1.addWidget(_make_sub_container(UILabels.TAB3_LBL_SIZE, self.spin_lbl_size), 1)
-        lbl_row1.addWidget(_make_sub_container(UILabels.TAB3_LABEL_OFFSET, self.spin_lbl_offset), 1)
+        lbl_row1.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_SIZE, self.spin_lbl_size), 1)
+        lbl_row1.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LABEL_OFFSET, self.spin_lbl_offset), 1)
         lbl_row1.addStretch(1)
         layout.addLayout(lbl_row1)
 
@@ -175,7 +155,7 @@ class Tab3SettingsMixin:
         layout.addLayout(lbl_row2)
 
         # ── Section: 表示縮尺 ────────────────────────────────────────────
-        layout.addWidget(_make_section_header(UILabels.TAB3_SECTION_SCALE))
+        layout.addWidget(UIStyleHelper.build_section_header(UILabels.TAB3_SECTION_SCALE))
 
         def _make_scale_controls(
             label_text: str, default_always: bool, default_scale: int

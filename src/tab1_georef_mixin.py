@@ -233,12 +233,10 @@ class Tab1GeorefMixin:
             self._on_edit_layer_changed()
 
     def _refresh_edit_layer_combo(self) -> None:
-        self.combo_edit_layer.blockSignals(True)
-        self.combo_edit_layer.clear()
         meta = self.layer_manager.load_image_metadata()
-        for layer_name in meta.keys():
-            self.combo_edit_layer.addItem(layer_name)
-        self.combo_edit_layer.blockSignals(False)
+        UIStyleHelper.repopulate_combo_box(
+            self.combo_edit_layer, list(meta.keys()), preserve_current=False
+        )
 
     def _on_edit_layer_changed(self) -> None:
         layer_name = self.combo_edit_layer.currentText()
@@ -749,19 +747,14 @@ class Tab1GeorefMixin:
             self.preview_dialog.clear_markers()
             self.preview_dialog.set_ref_points_data(self.ref_points_data)
 
-        self.table_ref_points.blockSignals(True)
-        self.table_ref_points.setRowCount(0)
-
-        for i, rdata in enumerate(self.ref_points_data):
-            self.table_ref_points.insertRow(i)
+        def _build_row(i: int):
+            rdata = self.ref_points_data[i]
 
             name_item = QTableWidgetItem(rdata["name"])
             name_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-            self.table_ref_points.setItem(i, 0, name_item)
 
             pix_item = QTableWidgetItem(f"({rdata['pixel_x']:.1f}, {rdata['pixel_y']:.1f})")
             pix_item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-            self.table_ref_points.setItem(i, 1, pix_item)
 
             if rdata["real_x"] is not None and rdata["real_y"] is not None:
                 sx, sy = to_survey_coords(float(rdata["real_x"]), float(rdata["real_y"]))
@@ -770,13 +763,15 @@ class Tab1GeorefMixin:
             else:
                 rx_str = ""
                 ry_str = ""
-            self.table_ref_points.setItem(i, 2, QTableWidgetItem(rx_str))
-            self.table_ref_points.setItem(i, 3, QTableWidgetItem(ry_str))
 
             if self.preview_dialog:
                 self.preview_dialog.add_marker(rdata["pixel_x"], rdata["pixel_y"], rdata["name"])
 
-        self.table_ref_points.blockSignals(False)
+            return (name_item, pix_item, QTableWidgetItem(rx_str), QTableWidgetItem(ry_str))
+
+        UIStyleHelper.rebuild_table_rows(
+            self.table_ref_points, len(self.ref_points_data), _build_row
+        )
         self._update_ref_points_status()
 
     def _on_transform_clicked(self) -> None:

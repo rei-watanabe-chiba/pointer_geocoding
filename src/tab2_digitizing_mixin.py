@@ -362,36 +362,16 @@ class Tab2DigitizingMixin:
         if not hasattr(self, "combo_drawing_name") or self.combo_drawing_name is None:
             return
 
-        current_val = self.combo_drawing_name.currentText()
         layers_info = self._get_drawing_layers()
         names = [info[0] for info in layers_info]
 
         # 1. Update combo_drawing_name
-        self.combo_drawing_name.blockSignals(True)
-        self.combo_drawing_name.clear()
-
-        for name in names:
-            self.combo_drawing_name.addItem(name)
-
-        if current_val in names:
-            self.combo_drawing_name.setCurrentText(current_val)
-        elif names:
-            self.combo_drawing_name.setCurrentIndex(0)
-
-        self.combo_drawing_name.blockSignals(False)
+        UIStyleHelper.repopulate_combo_box(self.combo_drawing_name, names, preserve_current=True)
 
         # 2. Update list_drawing_visibility
         if hasattr(self, "list_drawing_visibility") and self.list_drawing_visibility is not None:
-            self.list_drawing_visibility.blockSignals(True)
-            self.list_drawing_visibility.clear()
-
-            for name, layer_id, is_vis in layers_info:
-                item = QListWidgetItem(name, self.list_drawing_visibility)
-                item.setData(Qt.UserRole, layer_id)
-                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                item.setCheckState(Qt.Checked if is_vis else Qt.Unchecked)
-
-            self.list_drawing_visibility.blockSignals(False)
+            entries = [(name, layer_id, is_vis) for name, layer_id, is_vis in layers_info]
+            UIStyleHelper.repopulate_checkable_list(self.list_drawing_visibility, entries)
 
     def _on_drawing_visibility_item_changed(self, item: QListWidgetItem) -> None:
         """Toggle canvas visibility for the corresponding layer in '画像ファイル' group.
@@ -399,8 +379,7 @@ class Tab2DigitizingMixin:
         :param item: QListWidgetItem whose check state was changed.
         :type item: QListWidgetItem
         """
-        layer_id = item.data(Qt.UserRole)
-        is_checked = (item.checkState() == Qt.Checked)
+        layer_id, is_checked = UIStyleHelper.get_checkable_item_state(item)
         root = QgsProject.instance().layerTreeRoot()
         if root and layer_id:
             image_group = root.findGroup("画像ファイル")
@@ -582,19 +561,13 @@ class Tab2DigitizingMixin:
         if not self.point_layer or not self.point_layer.isValid():
             return
 
-        names = set()
-        for feat in self.point_layer.getFeatures():
-            fname = str(feat["feature_name"] or "").strip()
-            if fname:
-                names.add(fname)
-
-        self.combo_feature_name.blockSignals(True)
-        self.combo_feature_name.clear()
-        self.combo_feature_name.addItem(UILabels.FEATURE_NEW_OPTION)
-        for n in sorted(names):
-            self.combo_feature_name.addItem(n)
-            self.feature_name_list.append(n)
-        self.combo_feature_name.blockSignals(False)
+        UIStyleHelper.populate_combo_from_layer_field(
+            self.combo_feature_name,
+            self.point_layer,
+            "feature_name",
+            leading_item=UILabels.FEATURE_NEW_OPTION,
+            target_list=self.feature_name_list,
+        )
 
     def register_new_feature_name(self, new_name: str) -> str:
         """Register a newly entered feature name into the combo box and select it."""

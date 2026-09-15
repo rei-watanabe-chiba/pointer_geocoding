@@ -3,7 +3,7 @@
  PointerGeocoding Plugin - UI Style Helper (Material & High DPI Adaptation)
  ***************************************************************************/
 """
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Any, Callable, Iterable
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
     QWidget,
@@ -17,6 +17,10 @@ from qgis.PyQt.QtWidgets import (
     QLineEdit,
     QButtonGroup,
     QMessageBox,
+    QListWidget,
+    QListWidgetItem,
+    QTableWidget,
+    QTableWidgetItem,
 )
 
 
@@ -437,6 +441,191 @@ class UIStyleHelper:
         layout.addWidget(input_widget, 1)
 
         return container
+
+    @staticmethod
+    def build_form_row(label_text: str, widget: QWidget, spacing: int = 4) -> QWidget:
+        """Build a labeled form row pairing a plain-text label with a single input widget.
+
+        Higher-level convenience wrapper around build_child_container() that also
+        constructs the QLabel from a plain string, consolidating the common
+        "label text + single input widget" row-building pattern repeated across
+        Tab1-Tab3 UI construction code.
+
+        :param label_text: Text for the leading label (omitted entirely if falsy).
+        :type label_text: str
+        :param widget: Input widget to pair with the label.
+        :type widget: QWidget
+        :param spacing: Horizontal spacing between label and widget. Default is 4.
+        :type spacing: int
+        :return: Composite QWidget containing the label + widget row.
+        :rtype: QWidget
+        """
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(spacing)
+        if label_text:
+            layout.addWidget(QLabel(label_text))
+        layout.addWidget(widget, 1)
+        return container
+
+    @staticmethod
+    def build_section_header(title: str) -> QLabel:
+        """Build a bold section header QLabel used to visually separate settings groups.
+
+        :param title: Header text.
+        :type title: str
+        :return: Configured QLabel.
+        :rtype: QLabel
+        """
+        header = QLabel(title)
+        header.setStyleSheet(
+            "font-weight: bold; margin-top: 10px; padding-bottom: 3px;"
+        )
+        return header
+
+    @staticmethod
+    def repopulate_combo_box(
+        combo: QComboBox,
+        items: List[str],
+        preserve_current: bool = True,
+    ) -> None:
+        """Clear and repopulate a QComboBox with a list of string items while blocking signals.
+
+        Consolidates the "rebuild a combo box from a fresh list of layer/entry
+        names" pattern used for both the Tab2 target-drawing selector and the
+        Tab1 edit-layer selector.
+
+        :param combo: Target QComboBox.
+        :type combo: QComboBox
+        :param items: New list of string items to populate.
+        :type items: List[str]
+        :param preserve_current: If True, keep the previously selected text when
+            it still exists among the new items (falling back to index 0
+            otherwise). If False, simply repopulate without restoring selection.
+        :type preserve_current: bool
+        """
+        current_val = combo.currentText() if preserve_current else None
+
+        combo.blockSignals(True)
+        combo.clear()
+        for item in items:
+            combo.addItem(item)
+
+        if preserve_current:
+            if current_val in items:
+                combo.setCurrentText(current_val)
+            elif items:
+                combo.setCurrentIndex(0)
+
+        combo.blockSignals(False)
+
+    @staticmethod
+    def repopulate_checkable_list(
+        list_widget: QListWidget,
+        entries: List[Tuple[str, Any, bool]],
+    ) -> None:
+        """Clear and repopulate a QListWidget with checkable items while blocking signals.
+
+        :param list_widget: Target QListWidget.
+        :type list_widget: QListWidget
+        :param entries: List of tuples (text, user_data, is_checked). user_data is
+            stored under Qt.UserRole on each created item (e.g. a layer id).
+        :type entries: List[Tuple[str, Any, bool]]
+        """
+        list_widget.blockSignals(True)
+        list_widget.clear()
+        for text, user_data, is_checked in entries:
+            item = QListWidgetItem(text, list_widget)
+            item.setData(Qt.UserRole, user_data)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if is_checked else Qt.Unchecked)
+        list_widget.blockSignals(False)
+
+    @staticmethod
+    def get_checkable_item_state(item: QListWidgetItem) -> Tuple[Any, bool]:
+        """Extract (user_data, is_checked) from a checkable QListWidgetItem.
+
+        Consolidates the small "read Qt.UserRole payload + checked flag" pattern
+        used whenever a QListWidget item's checkState changes.
+
+        :param item: Source QListWidgetItem.
+        :type item: QListWidgetItem
+        :return: Tuple of (user_data stored under Qt.UserRole, is_checked).
+        :rtype: Tuple[Any, bool]
+        """
+        return item.data(Qt.UserRole), (item.checkState() == Qt.Checked)
+
+    @staticmethod
+    def rebuild_table_rows(
+        table: QTableWidget,
+        row_count: int,
+        row_builder: Callable[[int], Iterable[Optional[QTableWidgetItem]]],
+    ) -> None:
+        """Clear and rebuild a QTableWidget's rows from a data source while blocking signals.
+
+        Consolidates the "clear all rows, then re-insert one row per data entry"
+        pattern used for data-driven tables (e.g. the Tab1 reference points table).
+
+        :param table: Target QTableWidget.
+        :type table: QTableWidget
+        :param row_count: Number of rows to (re)build.
+        :type row_count: int
+        :param row_builder: Callable(row_index) -> iterable of QTableWidgetItem
+            (or None) for each column of that row, in column order. A None entry
+            leaves the corresponding cell unset.
+        :type row_builder: Callable[[int], Iterable[Optional[QTableWidgetItem]]]
+        """
+        table.blockSignals(True)
+        table.setRowCount(0)
+        for i in range(row_count):
+            table.insertRow(i)
+            for column, cell_item in enumerate(row_builder(i)):
+                if cell_item is not None:
+                    table.setItem(i, column, cell_item)
+        table.blockSignals(False)
+
+    @staticmethod
+    def populate_combo_from_layer_field(
+        combo: QComboBox,
+        layer: Any,
+        field_name: str,
+        leading_item: Optional[str] = None,
+        target_list: Optional[list] = None,
+    ) -> None:
+        """Populate a QComboBox with unique sorted string values extracted from a vector layer field.
+
+        Consolidates the "scan a layer's features for unique non-empty values of
+        a given field, then repopulate a combo box (optionally with a fixed
+        leading entry such as a '新規作成' option), while also recording each
+        restored value into an external tracking list" pattern.
+
+        :param combo: Target QComboBox.
+        :type combo: QComboBox
+        :param layer: Source vector layer (duck-typed: must support getFeatures()).
+        :type layer: Any
+        :param field_name: Name of the feature attribute field to extract unique values from.
+        :type field_name: str
+        :param leading_item: Optional fixed item always added first (e.g. "新規作成").
+        :type leading_item: Optional[str]
+        :param target_list: Optional external list that each restored value is also appended to.
+        :type target_list: Optional[list]
+        """
+        values = set()
+        for feat in layer.getFeatures():
+            val = str(feat[field_name] or "").strip()
+            if val:
+                values.add(val)
+
+        combo.blockSignals(True)
+        combo.clear()
+        if leading_item is not None:
+            combo.addItem(leading_item)
+        for v in sorted(values):
+            combo.addItem(v)
+            if target_list is not None:
+                target_list.append(v)
+        combo.blockSignals(False)
 
     @staticmethod
     def build_segmented_toggle(
