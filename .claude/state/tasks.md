@@ -30,7 +30,7 @@
 | T-0025 | UI改修: ①右ドック幅300固定（UIConfigへ`DOCK_WIDTH`追加）②画像/設定モードレスダイアログの幅・高さを先頭定義化（UIDialogSizes新設）③未定数化のメッセージ文字列をUIMessagesへ回収（plugin.py分も追加発見・対応）④確認ダイアログ等のボタンをstyle_helper.py新規`build_centered_button_row()`で整列表示 | 完了 | `.claude/logs/implement/2026-09-15-T-0025-ui-constants-and-alignment.md` | 静的検証: 問題なし | 完了 |
 | T-0026 | 起動時ダイアログ改修: 「グリッド数」設定をX範囲・Y範囲（最小〜最大）に置換。Y軸は半角英大文字1〜2桁対応のカスタムスピンボックス(ExcelColumnSpinBox)。グリッドCSV出力を指定範囲内のみに変更。プレビュー機能は維持 | 再オープン(T-0028へ) | `.claude/logs/implement/2026-09-15-T-0026-start-dialog-xy-range.md` | QGIS起動時に`AttributeError: 'ExcelColumnSpinBox' object has no attribute '_validator'`発生。`ExcelColumnSpinBox.__init__()`内で`setRange()`が`self._validator`生成前に呼ばれ`validate()`がAttributeErrorとなるバグ。T-0028で修正 | - |
 | T-0027 | メインタブ大改修: アコーディオン(QgsCollapsibleGroupBox)全廃止、常時展開の4パネル（点情報／属性／フォーカスモード／図面選択リスト）に再構成。既設点選択時の点名/枝番は表示専用化、「点名変更」ダイアログ(PointRenameDialog、点名+枝番、自動採番なし・重複判定のみ)と「削除」（確認なし即削除）に統合。連番再開・番号修正確定・ステータスパネルは廃止し、キャンバス空白クリックでの選択解除に統合。遺構名「作成」はFeatureCreateDialog(OK/キャンセル)に一本化、カラーはピッカーOKで即時反映 | 人手確認待ち | `.claude/logs/implement/2026-09-15-T-0027-tab2-4panel-restructure.md` | 静的検証: 問題なし。実行環境での確認が必要 | - |
-| T-0028 | T-0026フォローアップ: ExcelColumnSpinBox初期化順序バグ修正(起動時AttributeError) | 人手確認待ち | `.claude/logs/implement/2026-09-16-T-0028-excelcolumnspinbox-init-order-fix.md` | 静的検証: 問題なし。実行環境での確認が必要 | - |
+| T-0028 | T-0026フォローアップ: ExcelColumnSpinBox初期化順序バグ修正(起動時AttributeError) | 完了 | `.claude/logs/implement/2026-09-16-T-0028-excelcolumnspinbox-init-order-fix.md` | 静的検証: 問題なし | 完了 |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
