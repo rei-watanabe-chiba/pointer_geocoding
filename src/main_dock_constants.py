@@ -6,7 +6,13 @@
 Stage B split (mechanical, logic-preserving): extracted from main_dock.py.
 Contains UI string/config constant classes shared across MainDockWidget,
 its tab mixins, and the standalone dialog classes in main_dock_dialogs.py.
+
+T-0017 (アプローチA): EXCAVATION_OPTIONS/ATTRIBUTE_OPTIONS は core_logic.py の
+ExcavationType/AttributeType Enum の .value から構築し、コンボボックス文字列と
+Enum定義の単一情報源化を図る（一覧の中身・順序は変更前と同一）。
 """
+
+from .core_logic import ExcavationType, AttributeType
 
 # UI Configuration dictionary and layout ratios
 class UIConfig:
@@ -99,7 +105,7 @@ class UILabels:
     BTN_RESET_SELECTION = "連番再開"
     BTN_DELETE_POINT = "削除"
     EXCAVATION_TYPE = "出土形態:"
-    EXCAVATION_OPTIONS = ["グリッド", "遺構"]
+    EXCAVATION_OPTIONS = [ExcavationType.GRID.value, ExcavationType.FEATURE.value]
     FEATURE_SELECTOR = "遺構名セレクタ:"
     FEATURE_NEW_OPTION = "新規作成"
     NEW_FEATURE_NAME = "新規遺構名:"
@@ -108,7 +114,12 @@ class UILabels:
     BRANCH_NO = "枝番 (任意):"
     GROUP_ATTRIBUTE = "属性設定 & 透過強調表示"
     ATTRIBUTE_CODE = "属性記号:"
-    ATTRIBUTE_OPTIONS = ["S", "P", "C", "SP"]
+    ATTRIBUTE_OPTIONS = [
+        AttributeType.S.value,
+        AttributeType.P.value,
+        AttributeType.C.value,
+        AttributeType.SP.value,
+    ]
     BTN_CONFIRM_ATTRIBUTE = "属性確定 (フォーカス有効化)"
     GROUP_COLOR = "遺構カラー設定"
     BTN_COLOR_PICKER = "カラー選択"
@@ -153,7 +164,7 @@ class UIMessages:
     MSG_TITLE_INFO = "通知"
     MSG_TITLE_LIMIT = "上限通知"
     MSG_CONFIRM_TITLE = "削除確認"
-    MSG_CONFIRM_IMAGE_FIRST = "先に画像ファイルを選択し、「確定」を実行してください。"
+    MSG_CONFIRM_IMAGE_FIRST = "編集対象のレイヤを選択してから「基準点設置」を実行してください。"
     ERR_INVALID_IMAGE = "有効な画像ファイルを選択してください。"
     ERR_REQUIRED_IMAGE_NAME = "レイヤ名を入力してください。"
     ERR_INVALID_IMAGE_NAME = "レイヤ名に使用できない文字 (\\ / : * ? \" < > |) が含まれています。"

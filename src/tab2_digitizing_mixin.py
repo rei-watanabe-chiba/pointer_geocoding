@@ -52,6 +52,8 @@ from .core_logic import (
     insert_feature_to_layer,
     pixel_from_affine,
     safe_get_str,
+    ExcavationType,
+    AttributeType,
 )
 from .main_dock_constants import (
     UIConfig,
@@ -462,7 +464,7 @@ class Tab2DigitizingMixin:
         return {
             "drawing_name": d_name,
             "excavation_type": ex_type,
-            "feature_name": feat_name if ex_type == "遺構" else "",
+            "feature_name": feat_name if ex_type == ExcavationType.FEATURE.value else "",
             "attribute_type": attr_type,
         }
 
@@ -527,7 +529,7 @@ class Tab2DigitizingMixin:
 
     def _on_excavation_type_changed(self, index: int) -> None:
         """Toggle feature name and color groups based on excavation type."""
-        is_feature = self.combo_excavation_type.currentText() == "遺構"
+        is_feature = self.combo_excavation_type.currentText() == ExcavationType.FEATURE.value
         self.row_feature_selector.setVisible(is_feature)
         self.group_color.setVisible(is_feature)
 
@@ -674,7 +676,7 @@ class Tab2DigitizingMixin:
                 "error_message": UIMessages.ERR_POINT_NAME_REQUIRED,
             }
 
-        if ex_type == "遺構" and is_new_feat and not new_feat_name:
+        if ex_type == ExcavationType.FEATURE.value and is_new_feat and not new_feat_name:
             return {
                 "can_click": False,
                 "error_message": UIMessages.ERR_NEW_FEATURE_REQUIRED,
@@ -684,7 +686,7 @@ class Tab2DigitizingMixin:
             "can_click": True,
             "drawing_name": d_name,
             "excavation_type": ex_type,
-            "feature_name": new_feat_name if (ex_type == "遺構" and is_new_feat) else feat_name,
+            "feature_name": new_feat_name if (ex_type == ExcavationType.FEATURE.value and is_new_feat) else feat_name,
             "is_new_feature": is_new_feat,
             "new_feature_name": new_feat_name,
             "color_code": self.current_feature_color.name(),
@@ -697,7 +699,7 @@ class Tab2DigitizingMixin:
         """Calculate next point number based on current excavation type and feature name."""
         ex_type = self.combo_excavation_type.currentText()
         feat_name = ""
-        if ex_type == "遺構":
+        if ex_type == ExcavationType.FEATURE.value:
             feat_name = self.combo_feature_name.currentText()
             if feat_name == UILabels.FEATURE_NEW_OPTION:
                 feat_name = self.edit_new_feature.text().strip()
@@ -751,7 +753,7 @@ class Tab2DigitizingMixin:
         branch_no = state["branch_no"]
 
         # 2. Pattern B: automatic feature registration if '新規作成'
-        if excavation_type == "遺構" and state.get("is_new_feature", False):
+        if excavation_type == ExcavationType.FEATURE.value and state.get("is_new_feature", False):
             new_feat_name = state.get("new_feature_name", "").strip()
             if not new_feat_name:
                 QMessageBox.warning(self, "入力エラー", "新規遺構名を入力してください。")
@@ -764,8 +766,8 @@ class Tab2DigitizingMixin:
         ):
             ident = (
                 f"{feature_name}-{point_name}"
-                if excavation_type == "遺構"
-                else f"グリッド-{point_name}"
+                if excavation_type == ExcavationType.FEATURE.value
+                else f"{ExcavationType.GRID.value}-{point_name}"
             )
             if branch_no:
                 ident += f" ({branch_no})"
@@ -797,8 +799,8 @@ class Tab2DigitizingMixin:
             {
                 "drawing_name": drawing_name,
                 "excavation_type": excavation_type,
-                "feature_name": feature_name if excavation_type == "遺構" else "",
-                "color_code": color_code if excavation_type == "遺構" else "",
+                "feature_name": feature_name if excavation_type == ExcavationType.FEATURE.value else "",
+                "color_code": color_code if excavation_type == ExcavationType.FEATURE.value else "",
                 "attribute_type": attribute_type,
                 "point_name": point_name,
                 "branch_no": branch_no,
@@ -851,10 +853,10 @@ class Tab2DigitizingMixin:
                 self.combo_drawing_name.setCurrentIndex(idx)
             self._ensure_drawing_visible(d_name)
 
-        ex_type = str(data.get("excavation_type") or "グリッド")
+        ex_type = str(data.get("excavation_type") or ExcavationType.GRID.value)
         self.combo_excavation_type.setCurrentText(ex_type)
 
-        if ex_type == "遺構":
+        if ex_type == ExcavationType.FEATURE.value:
             feat_name = str(data.get("feature_name") or "")
             self.register_new_feature_name(feat_name)
             color_code = str(data.get("color_code") or "#FF5722")
@@ -867,7 +869,7 @@ class Tab2DigitizingMixin:
             p_val = 1
         self.edit_point_name.setValue(p_val)
         self.edit_branch_no.setText(str(data.get("branch_no") or ""))
-        self.combo_attribute.setCurrentText(str(data.get("attribute_type") or "S"))
+        self.combo_attribute.setCurrentText(str(data.get("attribute_type") or AttributeType.S.value))
 
         self.btn_delete_point.setEnabled(True)
         UIStyleHelper.update_status_panel(

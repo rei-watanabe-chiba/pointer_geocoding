@@ -17,20 +17,9 @@ from qgis.core import (
     QgsPointXY,
     QgsRectangle,
     QgsFeatureRequest,
-    QgsCategorizedSymbolRenderer,
-    QgsRendererCategory,
-    QgsMarkerSymbol,
-    QgsSimpleMarkerSymbolLayer,
-    QgsSymbolLayer,
     QgsCoordinateReferenceSystem,
     QgsSpatialIndex,
-    QgsProperty,
     QgsSymbol,
-    QgsPalLayerSettings,
-    QgsVectorLayerSimpleLabeling,
-    QgsTextFormat,
-    QgsTextBufferSettings,
-    Qgis,
 )
 from qgis.gui import (
     QgsMapTool,
@@ -42,8 +31,6 @@ from qgis.gui import (
 from qgis.PyQt.QtCore import Qt, pyqtSignal, QRectF
 from qgis.PyQt.QtGui import QColor, QCursor, QFont, QPainter
 from qgis.PyQt.QtWidgets import QInputDialog, QWidget
-
-from .symbology_mixin import SymbologyMixin
 
 class PreviewTextItem(QgsMapCanvasItem):
     """Temporary canvas item to display text labels for reference points."""
@@ -313,13 +300,16 @@ class CanvasDigitizingTool(QgsMapTool):
         self._focus_active: bool = False
         self._focus_filter: Dict[str, str] = {}
 
-        # Initialize categorised symbology for point layer
-        current_settings = (
-            self.layer_manager.load_settings()
-            if self.layer_manager and hasattr(self.layer_manager, "load_settings")
-            else None
-        )
-        self.setup_point_layer_symbology(self.point_layer, current_settings)
+        # Initialize categorised symbology for point layer (T-0017: symbology
+        # construction now lives in SymbologyMixin/symbology_mixin.py, mixed
+        # into LayerManager; this tool only delegates to it).
+        if self.layer_manager and hasattr(self.layer_manager, "apply_point_symbology"):
+            current_settings = (
+                self.layer_manager.load_settings()
+                if hasattr(self.layer_manager, "load_settings")
+                else None
+            )
+            self.layer_manager.apply_point_symbology(self.point_layer, current_settings)
 
     def activate(self) -> None:
         """Called when the map tool becomes active."""
@@ -348,217 +338,12 @@ class CanvasDigitizingTool(QgsMapTool):
         self._focus_active = bool(active)
         self._focus_filter = dict(filters) if filters else {}
 
-    @staticmethod
-    def setup_point_layer_symbology(
-        layer: QgsVectorLayer,
-        settings: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Apply categorical symbology for attribute types S, P, C, and SP.
-
-        - S: Single circle (○).
-        - P: Diamond (◇).
-        - C: Triangle (△).
-        - SP: Double concentric circle (◎).
-        - Stroke color: Configurable via settings["point_symbol_line_color"] for グリッド,
-          color_code for 遺構 via data-defined override.
-        - Fill color: Matches stroke color if point_symbol_fill_enabled is True, else transparent.
-
-        :param layer: Target point vector layer.
-        :type layer: QgsVectorLayer
-        :param settings: Optional settings dict (from settings.json). Uses point_symbol_* keys.
-        :type settings: Optional[Dict[str, Any]]
-        """
-        if not layer or not layer.isValid():
-            return
-
-        # Resolve fill enabled flag, line color, symbol size, and line width from settings or fallback
-        fill_enabled = bool((settings or {}).get("point_symbol_fill_enabled", False))
-        grid_line_color = str(
-            (settings or {}).get("point_symbol_line_color", (settings or {}).get("point_symbol_color", (settings or {}).get("symbol_color", "#E53935")))
-        )
-        sym_size = float(
-            (settings or {}).get("point_symbol_size", (settings or {}).get("symbol_size", 6.0))
-        )
-        line_width = float(
-            (settings or {}).get("point_symbol_line_width", (settings or {}).get("symbol_line_width", 0.9))
-        )
-        initial_fill_color = grid_line_color if fill_enabled else "transparent"
-
-        categories: List[QgsRendererCategory] = []
-        color_expr = (
-            f"CASE WHEN \"excavation_type\" = 'グリッド' THEN '{grid_line_color}' "
-            "ELSE coalesce(\"color_code\", '#FF5722') END"
-        )
-        prop_color = QgsProperty.fromExpression(color_expr)
-
-        # Get stroke color property key
-        prop_stroke = getattr(QgsSimpleMarkerSymbolLayer, "PropertyStrokeColor", None)
-        if prop_stroke is None:
-            prop_stroke = getattr(QgsSymbolLayer, "PropertyStrokeColor", None)
-        if prop_stroke is None and hasattr(QgsSymbolLayer, "Property"):
-            prop_stroke = getattr(QgsSymbolLayer.Property, "PropertyStrokeColor", None)
-        if prop_stroke is None:
-            prop_stroke = 2  # Standard QgsSymbolLayer::PropertyStrokeColor enum value
-
-        # Get fill color property key
-        prop_fill = getattr(QgsSimpleMarkerSymbolLayer, "PropertyFillColor", None)
-        if prop_fill is None:
-            prop_fill = getattr(QgsSymbolLayer, "PropertyFillColor", None)
-        if prop_fill is None and hasattr(QgsSymbolLayer, "Property"):
-            prop_fill = getattr(QgsSymbolLayer.Property, "PropertyFillColor", None)
-        if prop_fill is None:
-            prop_fill = 1  # Standard QgsSymbolLayer::PropertyFillColor enum value
-
-        # Determine fill property: line color expression if fill enabled, else transparent
-        if fill_enabled:
-            prop_fill_val = prop_color
-        else:
-            prop_fill_val = QgsProperty.fromValue("transparent")
-
-        # Standard hollow/filled single shapes: S (丸), P (ダイヤ), C (三角)
-        std_specs = [
-            ("S", "S (丸)",    "circle",   str(sym_size)),
-            ("P", "P (ダイヤ)", "diamond",  str(sym_size)),
-            ("C", "C (三角)",  "triangle", str(sym_size)),
-        ]
-
-        for val, label, shape, size in std_specs:
-            sym_layer = QgsSimpleMarkerSymbolLayer.create({
-                "name": shape,
-                "color": initial_fill_color,
-                "outline_color": "#FF5722",
-                "outline_width": str(line_width),
-                "size": size,
-            })
-            sym_layer.setDataDefinedProperty(prop_stroke, prop_color)
-            sym_layer.setDataDefinedProperty(prop_fill, prop_fill_val)
-            symbol = QgsMarkerSymbol()
-            symbol.changeSymbolLayer(0, sym_layer)
-            categories.append(QgsRendererCategory(val, symbol, label))
-
-        # SP: Double concentric circle (◎)
-        sp_outer = QgsSimpleMarkerSymbolLayer.create({
-            "name": "circle",
-            "color": initial_fill_color,
-            "outline_color": "#FF5722",
-            "outline_width": str(line_width),
-            "size": str(sym_size + 1.0),
-        })
-        sp_outer.setDataDefinedProperty(prop_stroke, prop_color)
-        sp_outer.setDataDefinedProperty(prop_fill, prop_fill_val)
-
-        sp_inner = QgsSimpleMarkerSymbolLayer.create({
-            "name": "circle",
-            "color": initial_fill_color,
-            "outline_color": "#FF5722",
-            "outline_width": str(line_width),
-            "size": str(max(sym_size - 2.2, 1.5)),
-        })
-        sp_inner.setDataDefinedProperty(prop_stroke, prop_color)
-        sp_inner.setDataDefinedProperty(prop_fill, prop_fill_val)
-
-        sp_symbol = QgsMarkerSymbol()
-        sp_symbol.changeSymbolLayer(0, sp_outer)
-        sp_symbol.appendSymbolLayer(sp_inner)
-        categories.append(QgsRendererCategory("SP", sp_symbol, "SP (二重丸)"))
-
-        renderer = QgsCategorizedSymbolRenderer("attribute_type", categories)
-        layer.setRenderer(renderer)
-
-        # Configure point layer labeling synchronized with symbol stroke color
-        lbl_size   = int(  (settings or {}).get("label_size",   10))
-        lbl_halo   = bool( (settings or {}).get("label_halo",   True))
-        lbl_offset = float((settings or {}).get("label_offset", 1.0))
-
-        pal = QgsPalLayerSettings()
-        pal.fieldName = (
-            "CASE WHEN \"excavation_type\" = '遺構' THEN \"feature_name\" || '_' ELSE '' END "
-            "|| \"point_name\" "
-            "|| CASE WHEN \"branch_no\" IS NOT NULL AND \"branch_no\" != '' THEN '-' || \"branch_no\" ELSE '' END"
-        )
-        pal.isExpression = True
-        pal.placement = Qgis.LabelPlacement.OverPoint
-        pal.xOffset = lbl_offset
-        pal.yOffset = -lbl_offset
-
-        SymbologyMixin.apply_above_right_label_quadrant(pal)
-
-        text_format = QgsTextFormat()
-        text_format.setSize(lbl_size)
-        text_format.setColor(QColor(grid_line_color))
-
-        buffer = QgsTextBufferSettings()
-        buffer.setEnabled(lbl_halo)
-        buffer.setSize(1.0)
-        buffer.setColor(QColor("white"))
-        text_format.setBuffer(buffer)
-
-        pal.setFormat(text_format)
-
-        # Synchronize label font color with point symbol color via data-defined property
-        prop_lbl_color = getattr(QgsPalLayerSettings, "Color", None)
-        if prop_lbl_color is None and hasattr(QgsPalLayerSettings, "Property"):
-            prop_lbl_color = getattr(QgsPalLayerSettings.Property, "Color", None)
-        if prop_lbl_color is None:
-            prop_lbl_color = 4
-
-        pal.dataDefinedProperties().setProperty(prop_lbl_color, prop_color)
-
-        labeling = QgsVectorLayerSimpleLabeling(pal)
-        layer.setLabelsEnabled(True)
-        layer.setLabeling(labeling)
-
-        layer.triggerRepaint()
-
-    @staticmethod
-    def setup_ref_point_layer_symbology(layer: QgsVectorLayer) -> None:
-        """Apply a cross symbol style for reference points.
-
-        :param layer: Target reference point layer.
-        :type layer: QgsVectorLayer
-        """
-        if not layer or not layer.isValid():
-            return
-
-        sym_layer = QgsSimpleMarkerSymbolLayer.create({
-            "name": "cross",
-            "color": "#D32F2F",
-            "outline_color": "#D32F2F",
-            "outline_width": "1.2",
-            "size": "7.0",
-        })
-        symbol = QgsMarkerSymbol()
-        symbol.changeSymbolLayer(0, sym_layer)
-
-        from qgis.core import QgsSingleSymbolRenderer
-        layer.setRenderer(QgsSingleSymbolRenderer(symbol))
-        layer.triggerRepaint()
-
-    @staticmethod
-    def update_attribute_transparency(layer: QgsVectorLayer, selected_attribute: str) -> None:
-        """Set unselected attribute category symbols to 50% opacity and selected category to 100%.
-
-        :param layer: Point layer with QgsCategorizedSymbolRenderer.
-        :type layer: QgsVectorLayer
-        :param selected_attribute: Current confirmed attribute type ('S', 'P', 'C', 'SP').
-        :type selected_attribute: str
-        """
-        if not layer or not layer.isValid():
-            return
-
-        renderer = layer.renderer()
-        if not isinstance(renderer, QgsCategorizedSymbolRenderer):
-            return
-
-        for category in renderer.categories():
-            sym = category.symbol().clone()
-            if category.value() == selected_attribute:
-                sym.setOpacity(1.0)
-            else:
-                sym.setOpacity(0.5)
-            category.setSymbol(sym)
-
-        layer.triggerRepaint()
+    # T-0017: setup_point_layer_symbology/setup_ref_point_layer_symbology/
+    # update_attribute_transparency were moved to SymbologyMixin
+    # (symbology_mixin.py) as apply_point_symbology/apply_ref_point_cross_symbology/
+    # apply_attribute_transparency, reached via self.layer_manager. This tool's
+    # responsibility is now limited to geometry selection and canvas interaction;
+    # symbology details are consolidated in symbology_mixin.py.
 
     def find_nearest_feature_id(
         self, map_point: QgsPointXY

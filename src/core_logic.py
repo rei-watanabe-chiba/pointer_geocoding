@@ -5,6 +5,7 @@
 """
 
 import math
+from enum import Enum
 from typing import Optional, Tuple, Dict, Any, List
 
 from qgis.core import (
@@ -16,6 +17,34 @@ from qgis.core import (
     NULL,
 )
 from qgis.PyQt.QtCore import QVariant
+
+
+# =============================================================================
+# 0. Excavation Type / Attribute Type Enums
+# =============================================================================
+#
+# T-0017 (アプローチA): 出土形態・属性記号の文字列比較を型安全なEnumに統一する。
+# GeoPackage属性・CSV出力・QGIS式エンジン(CASE WHEN等)は引き続き文字列を要求する
+# ため、`str`を継承したEnum(いわゆる StrEnum 相当)として定義する。これにより
+# `ExcavationType.GRID == "グリッド"` は Trueとなり、既存の文字列ベースの
+# データ形式・比較コードとの互換性を壊さない。実際の値の読み書きには明示的に
+# `.value` を用いる（feat.setAttribute等、QGIS側APIへ渡す箇所での曖昧さを避けるため）。
+
+
+class ExcavationType(str, Enum):
+    """出土形態: 'グリッド' または '遺構'。main_dock_constants.UILabels.EXCAVATION_OPTIONS と同じ値集合。"""
+
+    GRID = "グリッド"
+    FEATURE = "遺構"
+
+
+class AttributeType(str, Enum):
+    """属性記号: 'S' / 'P' / 'C' / 'SP'。main_dock_constants.UILabels.ATTRIBUTE_OPTIONS と同じ値集合。"""
+
+    S = "S"
+    P = "P"
+    C = "C"
+    SP = "SP"
 
 
 # =============================================================================
@@ -245,7 +274,7 @@ def check_point_duplicate(
 
     :param point_layer: Vector layer containing digitized points.
     :type point_layer: QgsVectorLayer
-    :param excavation_type: 'グリッド' or '遺構'.
+    :param excavation_type: ExcavationType.GRID.value ('グリッド') or ExcavationType.FEATURE.value ('遺構').
     :type excavation_type: str
     :param feature_name: Feature name string.
     :type feature_name: str
@@ -273,12 +302,12 @@ def check_point_duplicate(
         f_pname = safe_get_str(feat, "point_name")
         f_branch = safe_get_str(feat, "branch_no")
 
-        if excavation_type == "グリッド":
-            if f_type == "グリッド" and f_pname == point_name and f_branch == branch_no:
+        if excavation_type == ExcavationType.GRID.value:
+            if f_type == ExcavationType.GRID.value and f_pname == point_name and f_branch == branch_no:
                 return True
         else:
             if (
-                f_type == "遺構"
+                f_type == ExcavationType.FEATURE.value
                 and f_feat == feature_name
                 and f_pname == point_name
                 and f_branch == branch_no
@@ -296,9 +325,9 @@ def get_next_point_number(
 
     :param point_layer: Vector layer containing digitized points.
     :type point_layer: QgsVectorLayer
-    :param excavation_type: 'グリッド' or '遺構'.
+    :param excavation_type: ExcavationType.GRID.value ('グリッド') or ExcavationType.FEATURE.value ('遺構').
     :type excavation_type: str
-    :param feature_name: Feature name string (used when excavation_type == '遺構').
+    :param feature_name: Feature name string (used when excavation_type == ExcavationType.FEATURE.value).
     :type feature_name: str
     :return: Next point number (starts at 1).
     :rtype: int
@@ -309,12 +338,12 @@ def get_next_point_number(
     max_num = 0
     for feat in point_layer.getFeatures():
         ex_type = safe_get_str(feat, "excavation_type")
-        if excavation_type == "グリッド":
-            if ex_type != "グリッド":
+        if excavation_type == ExcavationType.GRID.value:
+            if ex_type != ExcavationType.GRID.value:
                 continue
         else:
             f_name = safe_get_str(feat, "feature_name")
-            if ex_type != "遺構" or f_name != feature_name:
+            if ex_type != ExcavationType.FEATURE.value or f_name != feature_name:
                 continue
 
         pname = feat["point_name"]
@@ -360,10 +389,10 @@ def build_digitized_feature(
     if "drawing_name" in field_names:
         feat.setAttribute("drawing_name", attributes.get("drawing_name", ""))
 
-    feat.setAttribute("excavation_type", attributes.get("excavation_type", "グリッド"))
+    feat.setAttribute("excavation_type", attributes.get("excavation_type", ExcavationType.GRID.value))
     feat.setAttribute("feature_name", attributes.get("feature_name", ""))
     feat.setAttribute("color_code", attributes.get("color_code", ""))
-    feat.setAttribute("attribute_type", attributes.get("attribute_type", "S"))
+    feat.setAttribute("attribute_type", attributes.get("attribute_type", AttributeType.S.value))
     feat.setAttribute("point_name", str(attributes.get("point_name", "1")))
     feat.setAttribute("branch_no", str(attributes.get("branch_no", "")))
 
