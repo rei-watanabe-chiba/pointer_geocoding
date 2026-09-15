@@ -59,6 +59,12 @@ from .main_dock_constants import (
 )
 from .main_dock_dialogs import PreviewDialog, GridInputDialog
 
+# T-0018: world file extensions recognized by this plugin's own georeferencing
+# output (see LayerManager.write_world_file()). Shared by the "既存ワールド
+# ファイル拒否" check in _on_confirm_image_clicked() and the cleanup logic in
+# _on_delete_layer_clicked().
+WORLD_FILE_EXTENSIONS = (".tfw", ".jgw", ".pgw", ".bpw", ".wld")
+
 
 class Tab1GeorefMixin:
     """Mixin providing Tab 1 (Image Addition & Pre-Georeferencing) behavior for MainDockWidget."""
@@ -242,6 +248,28 @@ class Tab1GeorefMixin:
             self._refresh_edit_layer_combo()
             self._on_edit_layer_changed()
 
+        # T-0018: keep rename/delete/setup-ref-points button enablement in
+        # sync with whether any images exist, both when switching modes and
+        # (via _on_delete_layer_clicked()) after a deletion.
+        self._update_edit_mode_button_states()
+
+    def _update_edit_mode_button_states(self) -> None:
+        """Enable/disable per-image action buttons based on image count.
+
+        In Edit/Delete mode, "レイヤ名変更"/"削除"/"基準点設置" all operate on
+        an existing image, so they are disabled once no images remain (e.g.
+        after deleting the last one). In New-Add mode, "基準点設置" must stay
+        enabled even with zero images, since it is how the very first image
+        gets added ("レイヤ名変更"/"削除" are not shown in this mode at all).
+        """
+        if self.tab1_mode_buttons[1].isChecked():
+            has_images = bool(self.layer_manager.load_image_metadata())
+            self.btn_rename_layer.setEnabled(has_images)
+            self.btn_delete_layer.setEnabled(has_images)
+            self.btn_confirm_image.setEnabled(has_images)
+        else:
+            self.btn_confirm_image.setEnabled(True)
+
     def _refresh_edit_layer_combo(self) -> None:
         meta = self.layer_manager.load_image_metadata()
         UIStyleHelper.repopulate_combo_box(
@@ -253,6 +281,11 @@ class Tab1GeorefMixin:
         if not layer_name:
             self.edit_image_name.clear()
             self.ref_points_data.clear()
+            # T-0018: without this, a stale path from a just-deleted (or
+            # previously selected) layer would remain valid enough for
+            # _on_setup_ref_points_clicked()'s os.path.isfile() guard to pass,
+            # allowing a "ghost" preview to be opened once the combo is empty.
+            self.current_copied_image_path = None
             self._refresh_ref_points_table_and_markers()
             return
 
@@ -317,6 +350,11 @@ class Tab1GeorefMixin:
                 project.removeMapLayer(l.id())
                 break
 
+        # T-0018: force an immediate canvas redraw so the removed layer's
+        # image does not linger on screen as a "ghost" until the user pans
+        # or zooms (removeMapLayer() alone does not repaint the canvas).
+        self.canvas.refresh()
+
         # Delete metadata and file
         meta = self.layer_manager.load_image_metadata()
         if layer_name in meta:
@@ -326,21 +364,29 @@ class Tab1GeorefMixin:
                     os.remove(file_path)
                 except Exception:
                     pass
-                    
+
             # Also remove world files if exist
             base, _ = os.path.splitext(file_path)
-            for ext in [".tfw", ".jgw", ".pgw", ".bpw", ".wld"]:
+            for ext in WORLD_FILE_EXTENSIONS:
                 if os.path.exists(base + ext):
                     try:
                         os.remove(base + ext)
                     except Exception:
                         pass
-            
+
             self.layer_manager.delete_image_metadata(layer_name)
+
+        # T-0018: unconditionally tear down the preview dialog after any
+        # deletion. If other images remain, the user simply re-opens "基準点
+        # 設置" for the desired one and a fresh preview is built; this avoids
+        # leaving a stale/ghost raster_layer reference around that could be
+        # (mis)reused by _on_setup_ref_points_clicked()/_on_confirm_image_clicked().
+        self._destroy_preview_canvas()
 
         QMessageBox.information(self, "削除完了", f"レイヤ '{layer_name}' を削除しました。")
         self._refresh_edit_layer_combo()
         self._on_edit_layer_changed()
+        self._update_edit_mode_button_states()
 
     def _on_rename_layer_clicked(self) -> None:
         """Rename the currently selected layer (T-0015: metadata-only rename).
@@ -460,10 +506,14 @@ class Tab1GeorefMixin:
     def _on_confirm_image_clicked(self) -> None:
         """Handle the "基準点設置" button.
 
-        New-add mode: copy the source image into the session (keeping its
-        original file name; T-0015 no longer derives the on-disk file name
-        from the layer name) and open the preview canvas for reference-point
-        setup. Edit/delete mode: renaming is handled separately by
+        New-add mode: validate the source image (layer name, duplicate check,
+        rejects images with an existing world file) and open the preview
+        canvas directly against the original source file for reference-point
+        setup. T-0018: the file is NOT copied into the session here anymore
+        (see ``_on_export_layer_clicked``, which performs the copy just
+        before writing the world file); this avoids leaving an orphaned copy
+        under image/ if setup is cancelled before "レイヤ出力" completes.
+        Edit/delete mode: renaming is handled separately by
         ``_on_rename_layer_clicked`` (metadata-only, no file I/O), so here we
         simply (re)open the preview canvas for the currently selected layer.
         """
@@ -517,15 +567,32 @@ class Tab1GeorefMixin:
             self.edit_image_path.setFocus()
             return
 
-        # Copy image to session, keeping its original file name unchanged
-        # (T-0015: layer name and physical file name are no longer coupled).
-        success, msg, dest_path = self.layer_manager.copy_image_to_session(src_path)
-        if not success:
-            QMessageBox.warning(self, UIMessages.ERR_TITLE_FILE, msg)
+        # T-0018: reject source images that already carry a world file. This
+        # plugin always derives its own world file from the computed affine/
+        # Helmert transform at "レイヤ出力" time, so an existing world file
+        # would create ambiguity about which georeferencing is authoritative.
+        src_base, _ = os.path.splitext(src_path)
+        if any(os.path.isfile(src_base + ext) for ext in WORLD_FILE_EXTENSIONS):
+            QMessageBox.warning(
+                self,
+                UIMessages.ERR_TITLE_FILE,
+                UIMessages.ERR_SOURCE_HAS_WORLDFILE,
+            )
+            self.edit_image_path.setFocus()
             return
 
+        # T-0018: do NOT copy the image into the session yet here. Copying at
+        # "基準点設置" time (as before) meant a setup that was interrupted or
+        # cancelled before "レイヤ出力" left an orphaned copy under image/,
+        # which then made copy_image_to_session()'s destination-exists check
+        # reject a later retry with the same source file. The physical copy
+        # is now deferred until _on_export_layer_clicked(), immediately
+        # before the world file is written; until then, current_copied_image_path
+        # simply points at the original (uncopied) source file, which the
+        # preview dialog can load directly (load_preview_raster() only needs
+        # a readable file path, independent of where it lives).
         self.confirmed_layer_name = layer_name
-        self.current_copied_image_path = dest_path
+        self.current_copied_image_path = src_path
 
         # Clear old reference points for newly added image
         self.ref_points_data.clear()
@@ -932,17 +999,18 @@ class Tab1GeorefMixin:
             return
 
         layer_name = self.confirmed_layer_name or self.edit_image_name.text().strip()
-        if not self.current_copied_image_path or not os.path.isfile(self.current_copied_image_path):
-            session_img_dir = self.layer_manager.session_image_dir
-            if session_img_dir and os.path.exists(session_img_dir):
-                candidates = [
-                    os.path.join(session_img_dir, f)
-                    for f in os.listdir(session_img_dir)
-                    if os.path.splitext(f)[0] == layer_name
-                ]
-                if candidates:
-                    self.current_copied_image_path = candidates[0]
 
+        # T-0018: previously this block had a fallback that searched
+        # session_image_dir for a file whose basename matched layer_name when
+        # current_copied_image_path looked invalid. That search predates
+        # T-0015's decoupling of the on-disk file name from the layer name,
+        # so a filename == layer_name match is no longer reliable, and it is
+        # unreachable in practice anyway: by the time this button is
+        # reachable (enabled only after a successful "座標変換"), a valid
+        # preview session must already have set current_copied_image_path,
+        # either to the original source file (new-add mode, not yet copied)
+        # or to the existing session file (edit mode). The fallback has been
+        # removed; an invalid path here now indicates a genuine error.
         if not self.current_copied_image_path or not os.path.isfile(self.current_copied_image_path):
             QMessageBox.critical(
                 self,
@@ -950,6 +1018,26 @@ class Tab1GeorefMixin:
                 "対象画像ファイルが見つかりません。",
             )
             return
+
+        # T-0018: new-add mode defers the physical copy into the session's
+        # image/ directory until export time (see _on_confirm_image_clicked()).
+        # Detect the not-yet-copied case by checking whether the current path
+        # already lives inside the session's image/ directory; if not, copy
+        # it now, before writing the world file. Edit/delete mode's path
+        # already lives in image/ (set from metadata by
+        # _on_edit_layer_changed()), so this is a no-op for that mode.
+        session_img_dir = self.layer_manager.session_image_dir
+        current_dir = os.path.normpath(os.path.dirname(self.current_copied_image_path))
+        already_in_session = bool(session_img_dir) and current_dir == os.path.normpath(session_img_dir)
+
+        if not already_in_session:
+            success, msg, dest_path = self.layer_manager.copy_image_to_session(
+                self.current_copied_image_path
+            )
+            if not success:
+                QMessageBox.critical(self, UIMessages.ERR_TITLE_FILE, msg)
+                return
+            self.current_copied_image_path = dest_path
 
         # 1. Write world file
         success, msg, _ = self.layer_manager.write_world_file(

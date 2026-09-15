@@ -166,6 +166,11 @@ class UIMessages:
     MSG_CONFIRM_TITLE = "削除確認"
     MSG_CONFIRM_IMAGE_FIRST = "編集対象のレイヤを選択してから「基準点設置」を実行してください。"
     ERR_INVALID_IMAGE = "有効な画像ファイルを選択してください。"
+    ERR_SOURCE_HAS_WORLDFILE = (
+        "選択した画像には既にワールドファイルが付随しています。"
+        "本プラグインは座標変換により独自のワールドファイルを生成するため、"
+        "既存のワールドファイルを持つ画像は使用できません。"
+    )
     ERR_REQUIRED_IMAGE_NAME = "レイヤ名を入力してください。"
     ERR_INVALID_IMAGE_NAME = "レイヤ名に使用できない文字 (\\ / : * ? \" < > |) が含まれています。"
     MSG_IMAGE_LOADED_TITLE = "画像読み込み完了"
