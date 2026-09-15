@@ -432,7 +432,7 @@ class Tab1GeorefMixin:
                         # Release any QGIS raster layer already holding this file
                         # BEFORE renaming, otherwise Windows refuses to rename a file
                         # that is still open (GDAL file handle) -> [WinError 32].
-                        released_info = self._release_raster_layer_for_rename(old_path)
+                        released_info = self._release_raster_layer_for_rename(old_path, old_name)
 
                         try:
                             # Rename file
@@ -496,7 +496,7 @@ class Tab1GeorefMixin:
         else:
             self._create_preview_canvas(self.current_copied_image_path)
 
-    def _release_raster_layer_for_rename(self, file_path: str) -> Optional[dict]:
+    def _release_raster_layer_for_rename(self, file_path: str, old_name: str) -> Optional[dict]:
         """Find the QGIS raster layer backed by ``file_path`` (if any) and remove it from
         the project so its GDAL file handle is released before the file is renamed on disk.
 
@@ -518,6 +518,18 @@ class Tab1GeorefMixin:
 
         Returns None if no matching layer/reference is currently held anywhere (in which
         case the caller should simply rename the file without any layer-tree sync).
+
+        NOTE (T-0012): the project-tree layer lookup below matches by the layer's display
+        name (``old_name``), mirroring ``_on_delete_layer_clicked()`` (``l.name() ==
+        layer_name``), which has been reported as reliably releasing the GDAL file handle.
+        The previous T-0010/T-0011 implementation matched by
+        ``os.path.normpath(layer.source())`` instead; QGIS/GDAL can normalize
+        ``source()`` differently from the path used to construct the layer (path
+        separators, drive-letter case, etc.), so that comparison may simply never have
+        matched on the reporter's environment, meaning this function silently returned
+        None and none of the T-0010/T-0011 mitigations below ever ran. This is a
+        hypothesis based on report analysis, not a confirmed root cause; whether it
+        actually resolves the Windows [WinError 32] recurrence has not been verified.
         """
         norm_target = os.path.normpath(file_path)
         project = QgsProject.instance()
@@ -528,7 +540,7 @@ class Tab1GeorefMixin:
             layer = tree_layer.layer()
             if layer is None or not isinstance(layer, QgsRasterLayer):
                 continue
-            if os.path.normpath(layer.source()) != norm_target:
+            if layer.name() != old_name:
                 continue
 
             parent_group = tree_layer.parent()
@@ -559,6 +571,12 @@ class Tab1GeorefMixin:
             project.removeMapLayer(layer.id())
             del layer
             break
+        # NOTE: if no project-tree layer's name() matched old_name above, released_info
+        # is still None here. That means no project-tree raster layer was recognized as
+        # holding this file, so its release step (and the T-0010/T-0011 style/position
+        # restore, layer_manager.raster_layer clear, gc.collect()) is skipped entirely.
+        # If [WinError 32] is still reproduced after this change, re-check this branch
+        # first (e.g. log layer.name()/old_name here) before assuming the fix is correct.
 
         # The modeless preview dialog owns its own standalone QgsRasterLayer (never added
         # to QgsProject). If it currently displays the file being renamed, its GDAL
@@ -567,7 +585,8 @@ class Tab1GeorefMixin:
         if (
             self.preview_dialog is not None
             and self.preview_dialog.raster_layer is not None
-            and os.path.normpath(self.preview_dialog.raster_layer.source()) == norm_target
+            and os.path.normcase(os.path.normpath(self.preview_dialog.raster_layer.source()))
+            == os.path.normcase(norm_target)
         ):
             if released_info is None:
                 released_info = {}
