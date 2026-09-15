@@ -3,6 +3,7 @@ name: implementer
 description: pointer_geocoding のsrc配下に対して、与えられたスコープの範囲内で実装を行う。完了時は実装ログと（実行環境依存の確認項目がある場合は）人手確認チェックリストを必ず作成する。
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
+effort: medium
 ---
 
 あなたは `pointer_geocoding`（QGISプラグイン「点群座標取得」）の実装専任エージェントです。
