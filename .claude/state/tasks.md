@@ -12,7 +12,7 @@
 | T-0006 | Stage D+E: 低リスク共通化（レイヤ編集ヘルパー化/JSON IO統一/QMessageBoxヘルパー化、シンボロジ・透過度操作の一元化） | 完了 | `.claude/logs/implement/2026-09-15-stage-d-common-helpers.md`, `.claude/logs/implement/2026-09-15-stageE-symbology-opacity-consolidation.md` | 静的検証問題なし | ユーザーがQGIS上で動作確認済み（「安定動作を確認しました」） |
 | T-0007 | Stage F: `_on_canvas_clicked()`の責務分解（次点ID採番ロジックを`get_next_point_id()`、GeoPackage書き込みを`insert_feature_to_layer()`として`core_logic.py`へ抽出） | 完了 | `.claude/logs/implement/2026-09-15-stageF-on-canvas-clicked-decomposition.md` | 静的検証問題なし | ユーザーがQGIS上で動作確認済み（「動作確認した。問題ない」） |
 | T-0008 | 第1フェーズ アプローチB+G: UIコンボ/リスト更新パターンの共通ヘルパー化（`_update_drawing_combo`/`_refresh_edit_layer_combo`/`_refresh_ref_points_table_and_markers`等）＋UIコンポーネント生成ヘルパー拡張（Tab3のみ実施、Tab1/2は未着手）を`style_helper.py`へ集約（ファイル分割なし） | 完了 | `.claude/logs/implement/2026-09-15-T-0008-ui-helper-consolidation.md` | 静的検証問題なし（`rebuild_table_rows`内add_marker呼び出し順序の軽微な差異あり、実害なしと判断） | ユーザーがQGIS上で動作確認済み（チェックリスト全項目クリア）。人手確認中に報告された読込速度低下は、diff比較の結果T-0008のコード変更とは無関係と判明。QGIS再起動を挟んだ再テストで速度低下も解消したため、プラグインリロードを繰り返した際のシグナル接続蓄積等、環境要因と結論 |
-| T-0009 | 第2フェーズ アプローチF: 属性値取得・型変換の統一ヘルパー（`core_logic.py`にNULL/型変換を一元化する`safe_get_str()`/`safe_get_float()`等を新設し、`core_logic.py`/`tab1_georef_mixin.py`/`tab2_digitizing_mixin.py`/`main_dock_dialogs.py`内の`str(feat[...] or "").strip()`等の重複パターンを置換、ファイル分割なし） | 実装中 | - | - | - |
+| T-0009 | 第2フェーズ アプローチF: 属性値取得・型変換の統一ヘルパー（`core_logic.py`にNULL/型変換を一元化する`safe_get_str()`/`safe_get_float()`等を新設し、`core_logic.py`/`tab1_georef_mixin.py`/`tab2_digitizing_mixin.py`内の重複パターンを置換、`main_dock_dialogs.py`は該当パターンなしのため無変更、ファイル分割なし） | 静的検証中 | `.claude/logs/implement/2026-09-15-T-0009-attr-safe-get-helpers.md` | - | - |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
