@@ -295,6 +295,18 @@ class CanvasDigitizingTool(QgsMapTool):
         self.hover_marker.setIconSize(14)
         self.hover_marker.hide()
 
+        # T-0023: Selected-point marker (same red box style as hover_marker),
+        # displayed persistently while an existing point is selected for
+        # editing/number-correction/deletion, independent of mouse hover.
+        # Cleared on: selecting another point, a plain canvas click, or the
+        # dock's "reset" button (see MainDockWidget._reset_point_selection).
+        self.selected_marker = QgsVertexMarker(self.canvas)
+        self.selected_marker.setIconType(QgsVertexMarker.ICON_BOX)
+        self.selected_marker.setColor(QColor("#D32F2F"))
+        self.selected_marker.setPenWidth(2)
+        self.selected_marker.setIconSize(14)
+        self.selected_marker.hide()
+
         # Focus mode state cache, pushed one-way from MainDockWidget via
         # update_focus_state() (Step3: replaces pulling dock_widget getters).
         self._focus_active: bool = False
@@ -320,7 +332,29 @@ class CanvasDigitizingTool(QgsMapTool):
         """Called when the map tool is deactivated."""
         if self.hover_marker:
             self.hover_marker.hide()
+        if self.selected_marker:
+            self.selected_marker.hide()
         super().deactivate()
+
+    def show_selected_marker(self, map_point: QgsPointXY) -> None:
+        """Display the persistent selection marker at the given point (T-0023).
+
+        :param map_point: Location of the selected existing point (canvas coordinates).
+        :type map_point: QgsPointXY
+        """
+        if self.selected_marker:
+            self.selected_marker.setCenter(map_point)
+            self.selected_marker.show()
+
+    def clear_selected_marker(self) -> None:
+        """Hide the persistent selection marker (T-0023).
+
+        Called when selection is cleared: another point is selected (marker is
+        immediately repositioned instead), a plain canvas click occurs, or the
+        dock's "reset" button is pressed.
+        """
+        if self.selected_marker:
+            self.selected_marker.hide()
 
     def update_focus_state(self, active: bool, filters: Dict[str, str]) -> None:
         """Receive Focus Mode state pushed from MainDockWidget and cache it locally.
@@ -520,14 +554,20 @@ class CanvasDigitizingTool(QgsMapTool):
                     "canvas_y": feat["canvas_y"],
                     "feature_id": feat.id(),
                 }
+                # T-0023: show the persistent selection marker at the hit point's
+                # exact stored location (independent of hover, remains until
+                # selection changes).
+                self.show_selected_marker(QgsPointXY(feat["canvas_x"], feat["canvas_y"]))
                 self.existing_point_selected.emit(data)
                 return
 
-        # 2. No existing point hit: this is a plain canvas click. Input validation,
-        # duplicate checking, feature construction and the layer write are all
-        # handled by MainDockWidget._on_canvas_clicked (Step3: event-driven
+        # 2. No existing point hit: this is a plain canvas click, which clears
+        # any active selection marker (T-0023). Input validation, duplicate
+        # checking, feature construction and the layer write are all handled
+        # by MainDockWidget._on_canvas_clicked (Step3: event-driven
         # decoupling — this tool no longer reads dock_widget state or touches
         # point_layer directly).
+        self.clear_selected_marker()
         self.canvas_clicked.emit(map_point)
 
     def clean_up(self) -> None:
@@ -538,3 +578,9 @@ class CanvasDigitizingTool(QgsMapTool):
             except Exception:
                 pass
             self.hover_marker = None
+        if self.selected_marker:
+            try:
+                self.canvas.scene().removeItem(self.selected_marker)
+            except Exception:
+                pass
+            self.selected_marker = None

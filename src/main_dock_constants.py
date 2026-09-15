@@ -109,6 +109,7 @@ class UILabels:
     EDIT_STATUS_INIT = "状態: 新規打刻モード (メインキャンバスをクリックして打刻)"
     BTN_RESET_SELECTION = "連番再開"
     BTN_DELETE_POINT = "削除"
+    BTN_CORRECT_NUMBER = "番号修正を確定"
     EXCAVATION_TYPE = "出土形態:"
     EXCAVATION_OPTIONS = [ExcavationType.GRID.value, ExcavationType.FEATURE.value]
     FEATURE_SELECTOR = "遺構名セレクタ:"
@@ -149,6 +150,7 @@ class UIPlaceholders:
     IMAGE_NAME = "例: plan_01"
     NEW_FEATURE = "例: SK01, Pit12"
     BRANCH_NO = "例: a, 1 (未入力可)"
+    POINT_NAME_SP = "半角英数字・ハイフン・アンダースコアのみ (例: SP-01)"
     CSV_PATH = "CSV出力先ファイルを指定してください"
 
 class UIDialogTitles:
@@ -206,6 +208,8 @@ class UIMessages:
     MSG_DELETE_SUCCESS_TITLE = "ポイント削除"
     MSG_DELETE_SUCCESS = "ポイントを削除しました。"
     MSG_EXPORT_CSV_TITLE = "CSV出力完了"
+    MSG_CORRECT_NUMBER_SUCCESS_TITLE = "番号修正"
+    MSG_CORRECT_NUMBER_SUCCESS = "ポイントの番号を修正しました。"
 
 
 MAIN_RATIO = UIConfig.MAIN_RATIO
