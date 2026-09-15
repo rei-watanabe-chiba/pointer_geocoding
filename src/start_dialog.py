@@ -26,6 +26,7 @@ from qgis.PyQt.QtWidgets import (
     QFrame,
     QLineEdit,
     QSpinBox,
+    QButtonGroup,
 )
 
 try:
@@ -56,6 +57,9 @@ UI_CONFIG = {
         "BTN_BROWSE": "参照...",
         "SESSION_NAME": "セッション名:",
         "GRID_CSV": "グリッドCSV選択:",
+        "GRID_MODE": "グリッドモード:",
+        "RADIO_GRID_MODE_NEW": "新規作成・更新",
+        "RADIO_GRID_MODE_USE_CSV": "CSVファイル利用",
         "ORIGIN_GROUP": "原点 (1A-00):",
         "RANGE_X_GROUP": "X範囲:",
         "RANGE_Y_GROUP": "Y範囲:",
@@ -71,7 +75,7 @@ UI_CONFIG = {
         "FOLDER_NEW": "セッションフォルダを新規作成する親ディレクトリを選択してください",
         "FOLDER_EXISTING": "既存のセッションフォルダ（.qgzが存在するフォルダ）を選択してください",
         "SESSION_NAME": "例: session_01 (半角英数推奨)",
-        "GRID_CSV": "既存のPointGeo_grid.csvを選択（指定時は原点・範囲を無効化）",
+        "GRID_CSV": "既存のPointGeo_grid.csvを選択（下のモードにより新規作成の初期値、または利用CSVとして扱われます）",
         "PREVIEW_Y": "A",
     },
     "DIALOG_TITLES": {
@@ -190,7 +194,7 @@ class StartDialog(QDialog):
         self._init_ui()
         UIStyleHelper.apply_theme(self)
         self._on_session_type_changed()
-        self._update_grid_coordinate_preview()
+        self._apply_grid_mode_state()
 
     def _init_ui(self) -> None:
         """Construct the user interface programmatically using native QGIS widgets and flexbox builders."""
@@ -273,6 +277,28 @@ class StartDialog(QDialog):
             row_height=UI_CONFIG["ROW_HEIGHT"],
         )
         grid_group_layout.addWidget(row_grid_csv)
+
+        # Row 0.5: Grid Mode Selection (New/Update vs. Use existing CSV as-is)
+        self.lbl_grid_mode = QLabel(UI_CONFIG["LABELS"]["GRID_MODE"], self.grid_group)
+        self.radio_grid_mode_new = QRadioButton(
+            UI_CONFIG["LABELS"]["RADIO_GRID_MODE_NEW"], self.grid_group
+        )
+        self.radio_grid_mode_new.setChecked(True)
+        self.radio_grid_mode_use_csv = QRadioButton(
+            UI_CONFIG["LABELS"]["RADIO_GRID_MODE_USE_CSV"], self.grid_group
+        )
+        self.grid_mode_group = QButtonGroup(self.grid_group)
+        self.grid_mode_group.addButton(self.radio_grid_mode_new)
+        self.grid_mode_group.addButton(self.radio_grid_mode_use_csv)
+        self.radio_grid_mode_new.toggled.connect(self._on_grid_mode_changed)
+
+        row_grid_mode = UIStyleHelper.build_flex_row(
+            self.lbl_grid_mode,
+            [(self.radio_grid_mode_new, 1), (self.radio_grid_mode_use_csv, 1), (None, 1)],
+            main_ratio=MAIN_RATIO,
+            row_height=UI_CONFIG["ROW_HEIGHT"],
+        )
+        grid_group_layout.addWidget(row_grid_mode)
 
         # Row 1: Flat Status Panel containing Origin and Grid Count Settings in 2 rows
         self.panel_grid_settings = QFrame(self.grid_group)
@@ -586,27 +612,48 @@ class StartDialog(QDialog):
         return None
 
     def _on_grid_csv_changed(self, text: str) -> None:
-        """Handle grid CSV file selection: extract metadata and update UI state.
+        """Handle grid CSV path changes by refreshing the grid input state.
 
-        Disables origin and range inputs when a CSV is selected, but keeps
-        preview UI elements always enabled. Populates origin and range fields
-        with values calculated from the CSV.
-
-        :param text: Current text in the grid CSV line edit.
+        :param text: Current text in the grid CSV line edit (unused; the
+            authoritative value is re-read from the widget inside
+            :meth:`_apply_grid_mode_state`).
         :type text: str
         """
-        csv_path = text.strip()
-        has_csv = bool(csv_path)
-        enable_inputs = not has_csv
+        self._apply_grid_mode_state()
 
-        # Origin inputs disabled when CSV is specified
+    def _on_grid_mode_changed(self) -> None:
+        """Handle toggling between the 'new/update' and 'use existing CSV' grid modes."""
+        self._apply_grid_mode_state()
+
+    def _apply_grid_mode_state(self) -> None:
+        """Refresh origin/range input enabled state and reflect CSV metadata.
+
+        Two grid modes are supported (see ``self.radio_grid_mode_new`` /
+        ``self.radio_grid_mode_use_csv``):
+
+        - "新規作成・更新" (new/update): origin and range inputs remain always
+          editable. If a grid CSV path is set, its metadata is loaded and
+          used to overwrite the inputs every time the path changes, acting
+          as a one-shot template that the user may further adjust by hand.
+        - "CSVファイル利用" (use existing CSV as-is): origin and range inputs
+          are always disabled (display-only). Valid CSV metadata is reflected
+          into them; when no valid CSV is selected, the inputs stay disabled
+          with their last known values.
+
+        Preview UI elements remain always enabled regardless of grid mode.
+        """
+        csv_path = self.edit_grid_csv.text().strip()
+        use_csv_mode = self.radio_grid_mode_use_csv.isChecked()
+        enable_inputs = not use_csv_mode
+
+        # Origin inputs: editable only in "new/update" mode
         self.lbl_origin_group.setEnabled(enable_inputs)
         self.lbl_origin_x.setEnabled(enable_inputs)
         self.spin_origin_x.setEnabled(enable_inputs)
         self.lbl_origin_y.setEnabled(enable_inputs)
         self.spin_origin_y.setEnabled(enable_inputs)
 
-        # Range inputs disabled when CSV is specified
+        # Range inputs: editable only in "new/update" mode
         self.lbl_range_x_group.setEnabled(enable_inputs)
         self.lbl_range_x_min.setEnabled(enable_inputs)
         self.spin_range_x_min.setEnabled(enable_inputs)
@@ -618,7 +665,7 @@ class StartDialog(QDialog):
         self.lbl_range_y_max.setEnabled(enable_inputs)
         self.spin_range_y_max.setEnabled(enable_inputs)
 
-        # Preview inputs are ALWAYS enabled regardless of CSV selection
+        # Preview inputs are ALWAYS enabled regardless of grid mode / CSV selection
         self.lbl_preview_title.setEnabled(True)
         self.lbl_preview_x.setEnabled(True)
         self.spin_preview_x.setEnabled(True)
@@ -626,8 +673,12 @@ class StartDialog(QDialog):
         self.edit_preview_y.setEnabled(True)
         self.panel_preview_status.setEnabled(True)
 
-        # Extract metadata from CSV if valid file exists
-        if has_csv and os.path.isfile(csv_path):
+        # Extract metadata from CSV if a valid file exists, in either mode.
+        # In "new/update" mode this overwrites the (still-editable) inputs as
+        # a template; in "use existing CSV" mode it populates the
+        # display-only inputs. An invalid/missing CSV leaves prior values
+        # untouched (and, in "use existing CSV" mode, inputs stay disabled).
+        if csv_path and os.path.isfile(csv_path):
             metadata = self._extract_csv_metadata(csv_path)
             if metadata:
                 # Extend the X-axis numeric spinbox maxima if the CSV exceeds current limits.
@@ -766,8 +817,9 @@ class StartDialog(QDialog):
             self.edit_grid_csv.setFocus()
             return
 
-        # Validate X/Y grid range (min must not exceed max) when generating a new grid CSV
-        if not grid_csv:
+        # Validate X/Y grid range (min must not exceed max) when generating a new/updated
+        # grid CSV. Skipped only when trusting an existing CSV's values as-is (use-csv mode).
+        if not (self.radio_grid_mode_use_csv.isChecked() and grid_csv):
             if self.spin_range_x_min.value() > self.spin_range_x_max.value():
                 UIStyleHelper.show_warning_dialog(
                     self,
@@ -796,9 +848,11 @@ class StartDialog(QDialog):
         is_new = self.radio_new.isChecked()
         folder_path = self.edit_folder.text().strip()
         grid_csv = self.edit_grid_csv.text().strip()
+        use_csv_mode = self.radio_grid_mode_use_csv.isChecked()
 
         grid_config: Dict[str, Any] = {
-            "use_existing_csv": bool(grid_csv),
+            "grid_mode": "USE_CSV" if use_csv_mode else "NEW",
+            "use_existing_csv": bool(use_csv_mode and grid_csv),
             "csv_path": grid_csv,
             "origin_x": self.spin_origin_x.value(),
             "origin_y": self.spin_origin_y.value(),
