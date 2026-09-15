@@ -14,6 +14,7 @@ export).
 import os
 import re
 import math
+import gc
 from typing import Optional, List, Tuple
 
 from qgis.core import (
@@ -501,11 +502,27 @@ class Tab1GeorefMixin:
 
         Captures the layer's style, layer-tree parent group, position and checked state
         so the layer can be recreated afterwards via ``_reload_raster_layer_after_rename``.
-        Returns None if no matching layer is currently loaded in the project (in which
+
+        Also clears any other long-lived Python reference to the same raster layer object
+        that would otherwise keep its GDAL dataset (and Windows file handle) open even
+        after ``removeMapLayer()`` runs:
+          - ``self.layer_manager.raster_layer``: a reference kept for the lifetime of the
+            plugin session (set by ``load_georeferenced_raster``/``load_existing_session``
+            in ``session_io_mixin.py``) and read elsewhere (e.g. ``main_dock.py``) to
+            determine whether an active raster is currently loaded.
+          - ``self.preview_dialog.raster_layer``: a separate standalone raster layer
+            (never added to ``QgsProject``, created via
+            ``LayerManager.load_preview_raster()``) used by the modeless preview canvas;
+            if it currently displays the same file, it is released independently via
+            ``PreviewDialog.clean_up()``.
+
+        Returns None if no matching layer/reference is currently held anywhere (in which
         case the caller should simply rename the file without any layer-tree sync).
         """
         norm_target = os.path.normpath(file_path)
         project = QgsProject.instance()
+
+        released_info: Optional[dict] = None
 
         for tree_layer in project.layerTreeRoot().findLayers():
             layer = tree_layer.layer()
@@ -528,15 +545,46 @@ class Tab1GeorefMixin:
                 "checked": checked,
             }
 
+            # LayerManager keeps a session-lifetime reference to the "current" raster
+            # layer. If it points at the very layer we are about to remove, clear it so
+            # it does not keep the GDAL dataset alive; _reload_raster_layer_after_rename()
+            # restores it to the recreated layer afterwards.
+            if (
+                self.layer_manager.raster_layer is not None
+                and self.layer_manager.raster_layer.id() == layer.id()
+            ):
+                released_info["was_layer_manager_raster"] = True
+                self.layer_manager.raster_layer = None
+
             project.removeMapLayer(layer.id())
-            # removeMapLayer() may defer the underlying C++ object deletion to the Qt
-            # event loop; flush pending events so the GDAL dataset (and Windows file
-            # handle) is actually released before the caller attempts os.rename().
+            del layer
+            break
+
+        # The modeless preview dialog owns its own standalone QgsRasterLayer (never added
+        # to QgsProject). If it currently displays the file being renamed, its GDAL
+        # dataset independently holds the file handle open, so release it too, regardless
+        # of whether a project-tree layer matched above.
+        if (
+            self.preview_dialog is not None
+            and self.preview_dialog.raster_layer is not None
+            and os.path.normpath(self.preview_dialog.raster_layer.source()) == norm_target
+        ):
+            if released_info is None:
+                released_info = {}
+            released_info["was_preview_raster"] = True
+            self.preview_dialog.clean_up()
+
+        if released_info is not None:
+            # removeMapLayer()/clean_up() may defer the underlying C++ object deletion to
+            # the Qt event loop; flush pending events, then force a GC pass so any
+            # remaining Python-side reference to the removed layer wrapper is collected.
+            # This is a defensive mitigation for delayed GDAL/Windows file handle release
+            # after a QGIS raster layer is torn down (reported as recurring under
+            # T-0011 even after the T-0010 removeMapLayer()+processEvents() fix).
             QCoreApplication.processEvents()
+            gc.collect()
 
-            return released_info
-
-        return None
+        return released_info
 
     def _reload_raster_layer_after_rename(
         self, file_path: str, layer_name: str, released_info: dict
@@ -545,40 +593,65 @@ class Tab1GeorefMixin:
         restoring its style, parent group, layer-tree position and checked state.
         Mirrors the '画像ファイル' group placement pattern used by
         LayerManager.load_georeferenced_raster().
+
+        Also restores ``self.layer_manager.raster_layer`` and/or the preview dialog's
+        standalone raster layer if they were cleared for this same file by
+        ``_release_raster_layer_for_rename``.
         """
         if not file_path or not os.path.isfile(file_path):
             return
 
         project = QgsProject.instance()
 
-        with suppress_crs_prompt():
-            raster_layer = QgsRasterLayer(file_path, layer_name)
-            if not raster_layer.isValid():
-                return
-            raster_layer.setCrs(get_local_crs())
+        # Only recreate a project-tree layer if one was actually captured above (i.e. a
+        # matching layer/parent group/position was found before removal). A preview-only
+        # release has no parent_group/position to restore into the layer tree.
+        if "parent_group" in released_info:
+            with suppress_crs_prompt():
+                raster_layer = QgsRasterLayer(file_path, layer_name)
+                if not raster_layer.isValid():
+                    raster_layer = None
+                else:
+                    raster_layer.setCrs(get_local_crs())
 
-            style_xml = released_info.get("style_xml")
-            if style_xml:
-                style_doc = QDomDocument()
-                if style_doc.setContent(style_xml):
-                    raster_layer.importNamedStyle(style_doc)
+                    style_xml = released_info.get("style_xml")
+                    if style_xml:
+                        style_doc = QDomDocument()
+                        if style_doc.setContent(style_xml):
+                            raster_layer.importNamedStyle(style_doc)
 
-            project.addMapLayer(raster_layer, addToLegend=False)
+                    project.addMapLayer(raster_layer, addToLegend=False)
 
-            parent_group = released_info.get("parent_group")
-            if parent_group is not None:
-                position = released_info.get("position", -1)
-                try:
-                    parent_group.insertLayer(position, raster_layer)
-                except Exception:
-                    parent_group.addLayer(raster_layer)
-                node = parent_group.findLayer(raster_layer.id())
-                if node is not None:
-                    node.setItemVisibilityChecked(released_info.get("checked", True))
-            else:
-                project.layerTreeRoot().addLayer(raster_layer)
+                    parent_group = released_info.get("parent_group")
+                    if parent_group is not None:
+                        position = released_info.get("position", -1)
+                        try:
+                            parent_group.insertLayer(position, raster_layer)
+                        except Exception:
+                            parent_group.addLayer(raster_layer)
+                        node = parent_group.findLayer(raster_layer.id())
+                        if node is not None:
+                            node.setItemVisibilityChecked(released_info.get("checked", True))
+                    else:
+                        project.layerTreeRoot().addLayer(raster_layer)
 
-        raster_layer.triggerRepaint()
+            if raster_layer is not None:
+                raster_layer.triggerRepaint()
+
+                if released_info.get("was_layer_manager_raster"):
+                    self.layer_manager.raster_layer = raster_layer
+
+        # If the preview dialog's standalone raster was released for this same file,
+        # recreate it too so the preview canvas is left with a live raster layer rather
+        # than a cleaned-up (georef_tool/raster_layer == None) state.
+        if released_info.get("was_preview_raster") and self.preview_dialog is not None:
+            success, _msg, preview_raster = self.layer_manager.load_preview_raster(file_path)
+            if success and preview_raster is not None:
+                self.preview_dialog.setup_raster(
+                    preview_raster,
+                    self._on_preview_canvas_point_clicked,
+                    self.ref_points_data,
+                )
 
     def _create_preview_canvas(self, image_path: str) -> bool:
         """Create or update modeless PreviewDialog with preview raster."""
