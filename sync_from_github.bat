@@ -13,7 +13,7 @@ if not "%size%"=="0" (
     exit /b 1
 )
 del "%TEMP%\git_status_check.txt"
-git pull origin main
+git pull origin HEAD
 echo.
 echo === 同期完了。QGISでプラグインをリロードしてください。 ===
 pause
