@@ -46,3 +46,10 @@ UI操作・プラグインの実動作・図面上でのクリック/打刻挙�
 ## 使い方
 - `/explore-report <調査したい内容>` : explorerサブエージェントに調査を依頼
 - `/implement-scope <実装スコープ>` : implementerサブエージェントに実装を依頼
+
+## Git運用（ハイブリッド開発環境）
+本プロジェクトは https://github.com/rei-watanabe-chiba/pointer_geocoding をバックアップ・複数端末同期の基盤とする。
+
+- **通常はローカル(このPC)で開発する**。implementerはローカル作業時、git commit/pushのタイミングを統括の指示に委ねてよい(毎タスクでの必須ではない)。
+- **クラウドセッション(claude.ai/code等)で作業する場合**、サンドボックスの永続性が保証されないため、implementerはタスク完了時に必ず`git add && git commit && git push`まで実行すること。統括はクラウドセッションからimplementerへ委譲する際、その旨を指示に明記すること。
+- ローカルでQGIS動作確認を行う前にGitHubから最新化する場合は、リポジトリ直下の`sync_from_github.bat`を実行する。
