@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 cd /d "C:\claude\project\pointer_geocoding"
 echo === GitHubから最新化します ===
 git fetch origin
