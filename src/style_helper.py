@@ -193,6 +193,27 @@ class UIStyleHelper:
             background: transparent;
         }
 
+        /* T-0020: Left icon rail navigation buttons (図面管理・設定 side panel
+           toggles). Checked state indicates the corresponding side panel is
+           currently open. */
+        QToolButton[navButton="true"] {
+            background-color: transparent;
+            color: palette(window-text);
+            border: none;
+            border-radius: 4px;
+            padding: 4px 2px;
+        }
+
+        QToolButton[navButton="true"]:hover {
+            background-color: rgba(128, 128, 128, 0.15);
+        }
+
+        QToolButton[navButton="true"]:checked {
+            background-color: palette(highlight);
+            color: palette(highlighted-text);
+            font-weight: bold;
+        }
+
         /* Segmented Toggle Container */
         QWidget[segmentedContainer="true"] {
             background-color: rgba(128, 128, 128, 0.15);
@@ -369,6 +390,16 @@ class UIStyleHelper:
         """Mark a QFrame as a status panel."""
         frame.setProperty("statusPanel", True)
         frame.style().polish(frame)
+
+    @staticmethod
+    def set_nav_button(button: QWidget) -> None:
+        """Mark a checkable QToolButton as a left icon-rail navigation button.
+
+        Used by the T-0020 collapsible side panel (図面管理・設定), whose
+        open/closed state is reflected by the button's checked state.
+        """
+        button.setProperty("navButton", True)
+        button.style().polish(button)
 
     @staticmethod
     def build_flex_row(

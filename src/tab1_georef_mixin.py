@@ -80,7 +80,9 @@ class Tab1GeorefMixin:
         layout.setContentsMargins(4, 4, 16, 4)
         layout.setSpacing(12)
 
-        # 1. Information Panel
+        # Information Panel (T-0020: constructed here, but placed at the
+        # bottom of the side panel below; see layout.addWidget(...) near the
+        # end of this method instead of here).
         self.panel_tab1_info = QFrame(container)
         UIStyleHelper.set_status_panel(self.panel_tab1_info)
         panel_layout = QVBoxLayout(self.panel_tab1_info)
@@ -109,8 +111,6 @@ class Tab1GeorefMixin:
         self.lbl_tab1_info_3_6.setWordWrap(True)
         self.lbl_tab1_info_3_6.setMinimumHeight(14 * 4) # Space for approx 4 lines
         panel_layout.addWidget(self.lbl_tab1_info_3_6)
-        
-        layout.addWidget(self.panel_tab1_info)
 
         # 2. Mode Toggle
         self.tab1_mode_container, self.tab1_mode_buttons = UIStyleHelper.build_segmented_toggle(
@@ -225,6 +225,12 @@ class Tab1GeorefMixin:
         trans_layout.addLayout(trans_btn_layout)
 
         layout.addWidget(self.sec_transform)
+
+        # T-0020: Information Panel is placed at the bottom of the 図面管理
+        # side panel (moved from the top of this tab in the pre-T-0020
+        # QTabWidget layout).
+        layout.addWidget(self.panel_tab1_info)
+
         layout.addStretch()
 
         scroll.setWidget(container)
@@ -1114,6 +1120,7 @@ class Tab1GeorefMixin:
             self.confirmed_layer_name = None
             self._refresh_ref_points_table_and_markers()
 
-        # 7. Automatically switch to Tab 2
-        self.tab_widget.setCurrentIndex(1)
+        # 7. Automatically close the 図面管理 side panel, returning to the
+        # main digitizing area (T-0020; formerly "switch to Tab 2").
+        self._close_side_panel()
 

@@ -75,7 +75,7 @@
 ### 1.4 モジュール構成と役割
 * **plugin.py**: エントリポイント。QGISメニューへの登録と StartDialog の起動。独立ツールバーボタンも構築。
 * **start_dialog.py**: 新規・既存セッションの選択と、入力値のバリデーション、グリッド座標の動的プレビュー。
-* **main_dock.py**: メイン操作UI (QDockWidget) の共通基盤。Tab1 (画像管理), Tab2 (遺物点作成), **Tab3 (設定)** のUI・イベント制御自体は下記のMixinクラス群に分割されており、`MainDockWidget`はそれらを多重継承して束ねる（Stage B: 機械的分割、ロジック変更なし）。本体には`__init__`（各種状態初期化・シグナル接続）、`preview_canvas`/`preview_raster_layer`/`georef_tool`の後方互換プロパティ、`_init_ui`（タブ全体の組み立て）、タブ切替処理(`_on_tab_changed`)、プロジェクト保存(`_save_project`)、終了処理(`closeEvent`)、および Tab2 のフォーカスモードと Tab3 の設定適用の両方から呼ばれる共有メソッド`update_symbology_opacity`のみが残る。`update_symbology_opacity`自体は現在のUI状態（フォーカスモードの有無・4カテゴリの選択値・スライダー値）を収集するだけの薄い委譲メソッドであり、透過度条件式の組み立てと`QgsCategorizedSymbolRenderer`への適用は`symbology_mixin.py`の`SymbologyMixin.build_opacity_expression`/`apply_opacity_expression`（`self.layer_manager`経由で呼び出し）に委譲している（Stage E: シンボロジ/透明度操作の一元化。呼び出し名・シグネチャ、およびTab2/Tab3から見た挙動は変更なし）。打刻データの入力検証・重複チェック・フィーチャ組み立て・GeoPackageへの書き込みは`tab2_digitizing_mixin.py`側の`_on_canvas_clicked()`等が行う（`map_tool.py`からは`canvas_clicked`シグナルでキャンバス座標のみ通知を受ける。Step3: イベント駆動化）。
+* **main_dock.py**: メイン操作UI (QDockWidget) の共通基盤。画像管理(旧Tab1)・遺物点作成(旧Tab2)・設定(旧Tab3)のUI構築・イベント制御自体は下記のMixinクラス群に分割されており、`MainDockWidget`はそれらを多重継承して束ねる（Stage B: 機械的分割、ロジック変更なし）。T-0020より、これら3画面は`QTabWidget`によるタブ切替ではなく、**左端アイコンレール＋開閉可能な固定幅サイドパネル**（VSCodeアクティビティバー方式）＋常時表示のメインエリアという構成に再編されている。左端の`nav_btn_drawing`（図面管理）／`nav_btn_settings`（設定）の2つの`QToolButton`（`QButtonGroup`で排他制御）をクリックすると`self.side_panel`内の`QStackedWidget`（`self.side_stack`）が対応するコンテナ（`tab1_container`／`tab3_container`）に切り替わり表示される。既に開いているパネルのボタンを再クリックすると`side_panel`ごと非表示になり閉じる（同時に2つのパネルは開かない）。遺物点作成の`tab2_container`はタブ化されておらず、常にメインエリアとして表示される。本体には`__init__`（各種状態初期化・シグナル接続）、`preview_canvas`/`preview_raster_layer`/`georef_tool`の後方互換プロパティ、`_init_ui`（アイコンレール・サイドパネル・メインエリアの組み立て）、パネル開閉クリック処理(`_on_nav_button_clicked`)、開いているパネルに応じたマップツール有効/無効・UI更新処理(`_on_panel_changed`。旧`_on_tab_changed`をパネル開閉状態ベースに再設計したもので、`self._active_panel`（`"drawing"`/`"settings"`/`None`）の変化のたびに呼ばれ、`_init_ui`完了直後にも一度呼ばれて既定状態（両パネル閉・メインエリアのみ表示）を適用する）、サイドパネルを閉じてメインエリアへ戻す(`_close_side_panel`。旧・座標変換完了後のTab2自動遷移に相当)、プロジェクト保存(`_save_project`)、終了処理(`closeEvent`)、および Tab2 のフォーカスモードと Tab3 の設定適用の両方から呼ばれる共有メソッド`update_symbology_opacity`のみが残る。`update_symbology_opacity`自体は現在のUI状態（フォーカスモードの有無・4カテゴリの選択値・スライダー値）を収集するだけの薄い委譲メソッドであり、透過度条件式の組み立てと`QgsCategorizedSymbolRenderer`への適用は`symbology_mixin.py`の`SymbologyMixin.build_opacity_expression`/`apply_opacity_expression`（`self.layer_manager`経由で呼び出し）に委譲している（Stage E: シンボロジ/透明度操作の一元化。呼び出し名・シグネチャ、およびTab2/Tab3から見た挙動は変更なし）。打刻データの入力検証・重複チェック・フィーチャ組み立て・GeoPackageへの書き込みは`tab2_digitizing_mixin.py`側の`_on_canvas_clicked()`等が行う（`map_tool.py`からは`canvas_clicked`シグナルでキャンバス座標のみ通知を受ける。Step3: イベント駆動化）。
 * **main_dock_constants.py**: `main_dock.py`および各Tab Mixin・ダイアログが共有するUI文字列/設定定数クラス群 (`UIConfig`, `UILabels`, `UIPlaceholders`, `UIDialogTitles`, `UIMessages`, `MAIN_RATIO`)。QGIS/PyQt標準ライブラリ以外への依存を持たない（循環import回避）。なお`symbology_mixin.py`(旧`layer_manager.py`)・`map_tool.py`は既存の`from .main_dock import UIConfig`呼び出しを維持しており、`main_dock.py`が`main_dock_constants.py`から`UIConfig`を再exportすることで後方互換を保っている。
 * **main_dock_dialogs.py**: `main_dock.py`系の独立ダイアログ/ウィジェットクラス群。`PreviewDialog`（Tab1のモードレス基準点設定プレビュー）、`TwoDigitSpinBox`（00-99表示スピンボックス）、`GridInputDialog`（基準点グリッド入力モーダル）を提供。`main_dock_constants.py`と`style_helper.py`・`core_logic.py`・`map_tool.py`にのみ依存する。
 * **tab1_georef_mixin.py**: `Tab1GeorefMixin`。Tab1 (画像管理・事前ジオリファレンス) のUI構築(`_create_tab1_ui`)と、画像確定・基準点設定・プレビュー操作・座標変換・レイヤ出力までの一連のイベントハンドラを提供する`MainDockWidget`用Mixin。
@@ -118,15 +118,16 @@
     * QGIS特有の「未定義CRS警告ダイアログ」を抑制しつつ、ローカルCRSをプロジェクトに適用。
     * **CSVデータのメモリキャッシュ**: 対象グリッドCSVを読み込み、座標変換用辞書をメモリにキャッシュ。
 
-### 2.2 Tab 1: 画像管理と事前ジオリファレンス
-**起点**: main_dock.py (Tab 1) -> map_tool.py:ImageGeorefTool -> transform.py
+### 2.2 図面管理サイドパネル（旧Tab 1）: 画像管理と事前ジオリファレンス
+**起点**: main_dock.py (図面管理サイドパネル; `tab1_georef_mixin.py`) -> map_tool.py:ImageGeorefTool -> transform.py
 
 * **UX/UI フロー**:
+  0. 左端アイコンレールの「図面」ボタン（`nav_btn_drawing`）をクリックすると、固定幅のサイドパネルが開き本画面が表示される（T-0020）。同ボタンを再クリックするとパネルが閉じ、常時表示のメインエリア（遺物点作成）のみに戻る。パネル最下部には情報パネル（画像名・基準点登録数・座標変換状態・残差）が配置されている。
   1. 「新規追加 / 編集削除」の汎用トグルボタンでモードを切り替える。
   2. **新規追加モード**: 画像ファイルを選択・レイヤ名を入力し、「基準点設置」をクリック。この時点では画像はまだセッションへコピーされず、選択された元ファイルをそのまま参照してプレビューダイアログが起動する（画像ファイルの物理名はレイヤ名変更に追従しない設計。T-0015）。選択した元画像に既存のワールドファイルが付随している場合は、本プラグインが生成する変換結果との整合性が取れなくなるため、「基準点設置」の時点でエラー表示し処理を拒否する（この制約は新規追加モードのみが対象で、次項の編集削除モードにおける既存レイヤの「基準点設置」〈基準点再編集〉には適用されない）。画像の `image/` フォルダへの複製は、後述の「座標変換」→「レイヤ出力」完了時点で、ワールドファイルの生成と合わせて行われる（T-0018）。
   3. **編集削除モード**: 既存のレイヤ（図面）をセレクタで選び、「基準点設置」で保存されたメタデータから基準点を復元してプレビューダイアログを起動する。レイヤ名を変更したい場合は「レイヤ名変更」ボタンで `image_metadata.json` のキー付け替えと QGIS レイヤの表示名 (`setName()`) のみを更新する（画像ファイル自体のコピー・削除・リネームは発生しない）。「削除」で対象を安全に削除（紐づく点群はグローバル化）する。
   4. プレビューキャンバス上で既存基準点へスナップさせるか、新規の空白部分をクリックして **グリッド入力ダイアログ (モーダル, GridInputDialog)** で実座標を割り当てる。
-  5. 「座標変換」を実行して残差を確認し、「レイヤ出力」で画像（ワールドファイル更新）をメインキャンバスへ再配置。同時に、その画像に紐づく過去の打刻点群も自動で新しい位置へ追従移動し、Tab 2へ遷移する。
+  5. 「座標変換」を実行して残差を確認し、「レイヤ出力」で画像（ワールドファイル更新）をメインキャンバスへ再配置。同時に、その画像に紐づく過去の打刻点群も自動で新しい位置へ追従移動し、図面管理サイドパネルが自動的に閉じてメインエリア（遺物点作成）の表示に戻る（`MainDockWidget._close_side_panel()`）。
 * **主要ロジック & State**:
   * **State 変数 & メタデータ管理**: 
     * `self.current_copied_image_path`: セッションの `session_image_dir` 内に配置された画像のパス。
@@ -137,8 +138,10 @@
     * 「レイヤ出力」でワールドファイルを生成・上書き。
     * メインキャンバスへ変換済み画像をロード/更新し、「画像ファイル」グループへ格納。さらに `pixel_x`, `pixel_y` を基に既存の打刻点群の実座標とキャンバス座標を再計算・追従再配置する。
 
-### 2.3 Tab 2: 遺物点作成・連続打刻とCSV出力
-**起点**: main_dock.py (Tab 2) -> map_tool.py:CanvasDigitizingTool
+### 2.3 メインエリア（旧Tab 2）: 遺物点作成・連続打刻とCSV出力
+**起点**: main_dock.py (常時表示のメインエリア; `tab2_digitizing_mixin.py`) -> map_tool.py:CanvasDigitizingTool
+
+本画面はT-0020以降タブ化されておらず、図面管理・設定いずれのサイドパネルも閉じている（＝既定の）状態で常時表示されるメインエリアである。図面管理・設定パネルのどちらかが開いている間はメインキャンバス上でのマップツール（`CanvasDigitizingTool`）が無効化され打刻できない。
 
 * **UX/UI フロー**:
   1. 出土形態（遺構 / グリッド）、遺構名（新規作成対応）、属性（S/P/C/SP）、カラーを選択。
@@ -157,11 +160,11 @@
     * 打刻時はキャンバス座標を実空間座標 (`real_x`, `real_y`) としてGeoPackageに追加するだけでなく、対象図面のローカル座標 (`pixel_x`, `pixel_y`) も、アフィン逆変換（`core_logic.pixel_from_affine`）により算出して併せて保存する。これにより画像再変換時の点群自動追従を実現する。
     * **CSV出力**: 打刻データは「出土形態, 遺構名, 属性, 点名, 枝番, Ｘ座標(南北), Ｙ座標(東西)」の7項目のみにスリム化されてエクスポートされる。
 
-### 2.4 Tab 3: 設定と動的シンボロジ更新
-**起点**: main_dock.py (Tab 3) -> layer_manager.py -> map_tool.py
+### 2.4 設定サイドパネル（旧Tab 3）: 設定と動的シンボロジ更新
+**起点**: main_dock.py (設定サイドパネル; `tab3_settings_mixin.py`) -> layer_manager.py -> map_tool.py
 
 * **UX/UI フロー**:
-  1. タブを「設定」に切り替えると、保存された `settings.json` の内容が各コンポーネント（基準点・遺物点のサイズ/線幅/線色/塗り有無、ラベルのサイズ/配置間隔/白線有無、大・小グリッドの表示縮尺）に反映される。
+  1. 左端アイコンレールの「設定」ボタン（`nav_btn_settings`）をクリックしてサイドパネルを開くと、保存された `settings.json` の内容が各コンポーネント（基準点・遺物点のサイズ/線幅/線色/塗り有無、ラベルのサイズ/配置間隔/白線有無、大・小グリッドの表示縮尺）に反映される（`update_settings_ui_from_dict`。パネルを開くたびに`_on_panel_changed`から呼ばれる）。
   2. 各項目を調整し「適用」ボタンを押すと、即座にキャンバス上のすべてのレイヤの見た目が更新される。
   3. 遺物点のラベル文字色や塗り色は、UI上で明示的に指定しなくても、ポイント枠線の色（出土形態が「グリッド」なら設定色、「遺構」等なら各遺構の設定色）に自動追従して描画される。
 * **主要ロジック & State**:

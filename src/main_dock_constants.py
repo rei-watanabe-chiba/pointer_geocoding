@@ -29,6 +29,9 @@ class UILabels:
     TAB_1_TITLE = "画像管理"
     TAB_2_TITLE = "遺物点作成"
     TAB_3_TITLE = "設定"
+    # --- T-0020: Left icon rail navigation (collapsible side panel) ---
+    NAV_DRAWING = "図面"
+    NAV_SETTINGS = "設定"
     # --- Settings Tab ---
     TAB3_SECTION_REF_SYMBOL   = "基準点"
     TAB3_SECTION_POINT_SYMBOL = "遺物点"
