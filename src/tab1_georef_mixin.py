@@ -1026,9 +1026,14 @@ class Tab1GeorefMixin:
         # it now, before writing the world file. Edit/delete mode's path
         # already lives in image/ (set from metadata by
         # _on_edit_layer_changed()), so this is a no-op for that mode.
+        # T-0019: normcase() is combined with normpath() to absorb Windows
+        # drive-letter case differences, matching the pattern established in
+        # T-0012 for other file path comparisons in this module.
         session_img_dir = self.layer_manager.session_image_dir
-        current_dir = os.path.normpath(os.path.dirname(self.current_copied_image_path))
-        already_in_session = bool(session_img_dir) and current_dir == os.path.normpath(session_img_dir)
+        current_dir = os.path.normcase(os.path.normpath(os.path.dirname(self.current_copied_image_path)))
+        already_in_session = bool(session_img_dir) and current_dir == os.path.normcase(
+            os.path.normpath(session_img_dir)
+        )
 
         if not already_in_session:
             success, msg, dest_path = self.layer_manager.copy_image_to_session(
