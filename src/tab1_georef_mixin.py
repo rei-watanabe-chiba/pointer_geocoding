@@ -19,10 +19,12 @@ from typing import Optional, List, Tuple
 from qgis.core import (
     QgsProject,
     QgsPointXY,
+    QgsRasterLayer,
     Qgis,
 )
 from qgis.gui import QgsFilterLineEdit
-from qgis.PyQt.QtCore import Qt, pyqtSlot
+from qgis.PyQt.QtCore import Qt, pyqtSlot, QCoreApplication
+from qgis.PyQt.QtXml import QDomDocument
 from qgis.PyQt.QtWidgets import (
     QWidget,
     QDialog,
@@ -57,6 +59,7 @@ from .main_dock_constants import (
     UIMessages,
     MAIN_RATIO,
 )
+from .layer_manager_models import get_local_crs, suppress_crs_prompt
 from .main_dock_dialogs import PreviewDialog, GridInputDialog
 
 
@@ -419,24 +422,43 @@ class Tab1GeorefMixin:
                 if old_name in meta:
                     layer_meta = meta[old_name]
                     old_path = layer_meta.get("file_path", "")
-                    
+
                     if old_path and os.path.exists(old_path):
                         base, ext = os.path.splitext(old_path)
                         new_base = os.path.join(os.path.dirname(old_path), layer_name)
                         new_path = new_base + ext
+
+                        # Release any QGIS raster layer already holding this file
+                        # BEFORE renaming, otherwise Windows refuses to rename a file
+                        # that is still open (GDAL file handle) -> [WinError 32].
+                        released_info = self._release_raster_layer_for_rename(old_path)
+
                         try:
                             # Rename file
                             os.rename(old_path, new_path)
                             self.current_copied_image_path = new_path
                             layer_meta["file_path"] = new_path
-                            
+
                             # Rename world files
                             for w_ext in [".tfw", ".jgw", ".pgw", ".bpw", ".wld"]:
                                 if os.path.exists(base + w_ext):
                                     os.rename(base + w_ext, new_base + w_ext)
                         except Exception as e:
+                            # Restore the released layer under its original path so the
+                            # canvas is not left without the image after a failed rename.
+                            if released_info is not None:
+                                restore_path = new_path if os.path.exists(new_path) else old_path
+                                restore_name = layer_name if os.path.exists(new_path) else old_name
+                                self._reload_raster_layer_after_rename(
+                                    restore_path, restore_name, released_info
+                                )
                             QMessageBox.warning(self, "Rename Error", f"ファイルの名称変更に失敗しました:\n{e}")
                             return
+
+                        # Rename succeeded: recreate the raster layer under the new path,
+                        # restoring its style, parent group, position and checked state.
+                        if released_info is not None:
+                            self._reload_raster_layer_after_rename(new_path, layer_name, released_info)
 
                     # Update metadata key
                     meta[layer_name] = layer_meta
@@ -452,13 +474,6 @@ class Tab1GeorefMixin:
                             if safe_get_str(f, "drawing_name") == old_name:
                                 self.point_layer.changeAttributeValue(f.id(), idx, layer_name)
                         self.point_layer.commitChanges()
-                        
-                    # Update QGIS layer name if it exists in project
-                    project = QgsProject.instance()
-                    for tree_layer in project.layerTreeRoot().findLayers():
-                        l = tree_layer.layer()
-                        if l and l.name() == old_name:
-                            l.setName(layer_name)
 
                     self._refresh_edit_layer_combo()
                     index = self.combo_edit_layer.findText(layer_name)
@@ -480,6 +495,90 @@ class Tab1GeorefMixin:
         else:
             self._create_preview_canvas(self.current_copied_image_path)
 
+    def _release_raster_layer_for_rename(self, file_path: str) -> Optional[dict]:
+        """Find the QGIS raster layer backed by ``file_path`` (if any) and remove it from
+        the project so its GDAL file handle is released before the file is renamed on disk.
+
+        Captures the layer's style, layer-tree parent group, position and checked state
+        so the layer can be recreated afterwards via ``_reload_raster_layer_after_rename``.
+        Returns None if no matching layer is currently loaded in the project (in which
+        case the caller should simply rename the file without any layer-tree sync).
+        """
+        norm_target = os.path.normpath(file_path)
+        project = QgsProject.instance()
+
+        for tree_layer in project.layerTreeRoot().findLayers():
+            layer = tree_layer.layer()
+            if layer is None or not isinstance(layer, QgsRasterLayer):
+                continue
+            if os.path.normpath(layer.source()) != norm_target:
+                continue
+
+            parent_group = tree_layer.parent()
+            position = parent_group.children().index(tree_layer) if parent_group else -1
+            checked = tree_layer.itemVisibilityChecked()
+
+            style_doc = QDomDocument()
+            layer.exportNamedStyle(style_doc)
+
+            released_info = {
+                "style_xml": style_doc.toString(),
+                "parent_group": parent_group,
+                "position": position,
+                "checked": checked,
+            }
+
+            project.removeMapLayer(layer.id())
+            # removeMapLayer() may defer the underlying C++ object deletion to the Qt
+            # event loop; flush pending events so the GDAL dataset (and Windows file
+            # handle) is actually released before the caller attempts os.rename().
+            QCoreApplication.processEvents()
+
+            return released_info
+
+        return None
+
+    def _reload_raster_layer_after_rename(
+        self, file_path: str, layer_name: str, released_info: dict
+    ) -> None:
+        """Recreate a raster layer previously released by ``_release_raster_layer_for_rename``,
+        restoring its style, parent group, layer-tree position and checked state.
+        Mirrors the '画像ファイル' group placement pattern used by
+        LayerManager.load_georeferenced_raster().
+        """
+        if not file_path or not os.path.isfile(file_path):
+            return
+
+        project = QgsProject.instance()
+
+        with suppress_crs_prompt():
+            raster_layer = QgsRasterLayer(file_path, layer_name)
+            if not raster_layer.isValid():
+                return
+            raster_layer.setCrs(get_local_crs())
+
+            style_xml = released_info.get("style_xml")
+            if style_xml:
+                style_doc = QDomDocument()
+                if style_doc.setContent(style_xml):
+                    raster_layer.importNamedStyle(style_doc)
+
+            project.addMapLayer(raster_layer, addToLegend=False)
+
+            parent_group = released_info.get("parent_group")
+            if parent_group is not None:
+                position = released_info.get("position", -1)
+                try:
+                    parent_group.insertLayer(position, raster_layer)
+                except Exception:
+                    parent_group.addLayer(raster_layer)
+                node = parent_group.findLayer(raster_layer.id())
+                if node is not None:
+                    node.setItemVisibilityChecked(released_info.get("checked", True))
+            else:
+                project.layerTreeRoot().addLayer(raster_layer)
+
+        raster_layer.triggerRepaint()
 
     def _create_preview_canvas(self, image_path: str) -> bool:
         """Create or update modeless PreviewDialog with preview raster."""
