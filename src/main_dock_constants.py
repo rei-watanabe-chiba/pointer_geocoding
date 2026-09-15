@@ -22,6 +22,21 @@ class UIConfig:
     LABEL_SIZE_REF = 10
     SYMBOL_SIZE_REF = 4.0
     SYMBOL_SIZE_POINT = 3.0
+    # --- T-0025: fixed width of the right dock (root_widget passed to
+    # QDockWidget.setWidget in main_dock.py), so the dock no longer relies
+    # on QGIS's default auto-sizing. ---
+    DOCK_WIDTH = 300
+
+
+class UIDialogSizes:
+    """T-0025: dialog-level width/height constants for the modeless/modal
+    dialogs built in main_dock_dialogs.py, extracted from the previously
+    hardcoded resize()/setMinimumWidth() call sites so they have a single,
+    named source of truth alongside UIConfig."""
+
+    IMAGE_DIALOG_WIDTH = 1100
+    IMAGE_DIALOG_HEIGHT = 650
+    GRID_DIALOG_MIN_WIDTH = 380
 
 class UILabels:
     DOCK_TITLE = "点群座標取得パネル"
@@ -211,6 +226,46 @@ class UIMessages:
     MSG_EXPORT_CSV_TITLE = "CSV出力完了"
     MSG_CORRECT_NUMBER_SUCCESS_TITLE = "番号修正"
     MSG_CORRECT_NUMBER_SUCCESS = "ポイントの番号を修正しました。"
+
+    # --- T-0025: undefined-literal cleanup (main_dock_dialogs.py) ---
+    MSG_CONFIRM_DELETE_REF = "この基準点を削除しますか？"
+
+    # --- T-0025: undefined-literal cleanup (tab1_georef_mixin.py) ---
+    MSG_CONFIRM_DELETE_LAYER_TITLE = "レイヤ削除"
+    MSG_CONFIRM_DELETE_LAYER = "レイヤ '{name}' を削除しますか？\n関連するファイルやメタデータも削除されます。"
+    MSG_CONFIRM_POINTS_EXIST_TITLE = "ポイントが存在します"
+    MSG_CONFIRM_POINTS_EXIST = (
+        "この図面に関連づけられた打刻点が存在します。\n"
+        "削除を続行すると、これらの点の対象図面はクリアされグローバル点になります。\n"
+        "続行しますか？"
+    )
+    MSG_DELETE_LAYER_SUCCESS_TITLE = "削除完了"
+    MSG_DELETE_LAYER_SUCCESS = "レイヤ '{name}' を削除しました。"
+    ERR_LAYER_META_NOT_FOUND = "レイヤ '{name}' のメタデータが見つかりません。"
+    MSG_RENAME_LAYER_SUCCESS_TITLE = "レイヤ名変更完了"
+    MSG_TRANSFORM_COMPLETE_TITLE = "座標変換完了"
+    ERR_IMAGE_FILE_NOT_FOUND = "対象画像ファイルが見つかりません。"
+
+    # --- T-0025: undefined-literal cleanup (tab2_digitizing_mixin.py) ---
+    ERR_TITLE_DIGITIZE = "打刻エラー"
+    ERR_DIGITIZE_REQUIRED = "必須項目が未入力のため打刻できません。"
+    ERR_TITLE_DUPLICATE_DIGITIZE = "重複打刻エラー"
+    MSG_DUPLICATE_POINT = "同じ点（{ident}）が既に登録されています。\n点名または枝番を変更してください。"
+
+    # --- T-0025: undefined-literal cleanup (plugin.py) ---
+    MSG_TITLE_PLUGIN = "点群座標取得"
+    MSG_UNSAVED_CHANGES_TITLE = "未保存の変更"
+    MSG_UNSAVED_CHANGES = (
+        "現在のQGISプロジェクトに変更が加えられています。\n"
+        "保存せずに新しいセッションを開始すると、未保存のデータは破棄されます。\n"
+        "続行しますか？"
+    )
+    ERR_TITLE_SESSION = "セッションエラー"
+    ERR_SESSION_INIT_FAILED = "セッションの初期化に失敗しました:\n{message}"
+    MSG_STEP1_READY = (
+        "Step 1（セッション管理基盤）の準備が完了しました。"
+        "ドックパネルモジュール (Step 2) を待機しています。"
+    )
 
 
 MAIN_RATIO = UIConfig.MAIN_RATIO

@@ -319,7 +319,9 @@ class Tab1GeorefMixin:
             return
             
         reply = QMessageBox.question(
-            self, "レイヤ削除", f"レイヤ '{layer_name}' を削除しますか？\n関連するファイルやメタデータも削除されます。",
+            self,
+            UIMessages.MSG_CONFIRM_DELETE_LAYER_TITLE,
+            UIMessages.MSG_CONFIRM_DELETE_LAYER.format(name=layer_name),
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No
         )
         if reply != QMessageBox.Yes:
@@ -334,8 +336,9 @@ class Tab1GeorefMixin:
                     break
             if has_points:
                 pts_reply = QMessageBox.question(
-                    self, "ポイントが存在します",
-                    f"この図面に関連づけられた打刻点が存在します。\n削除を続行すると、これらの点の対象図面はクリアされグローバル点になります。\n続行しますか？",
+                    self,
+                    UIMessages.MSG_CONFIRM_POINTS_EXIST_TITLE,
+                    UIMessages.MSG_CONFIRM_POINTS_EXIST,
                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No
                 )
                 if pts_reply != QMessageBox.Yes:
@@ -389,7 +392,11 @@ class Tab1GeorefMixin:
         # (mis)reused by _on_setup_ref_points_clicked()/_on_confirm_image_clicked().
         self._destroy_preview_canvas()
 
-        QMessageBox.information(self, "削除完了", f"レイヤ '{layer_name}' を削除しました。")
+        QMessageBox.information(
+            self,
+            UIMessages.MSG_DELETE_LAYER_SUCCESS_TITLE,
+            UIMessages.MSG_DELETE_LAYER_SUCCESS.format(name=layer_name),
+        )
         self._refresh_edit_layer_combo()
         self._on_edit_layer_changed()
         self._update_edit_mode_button_states()
@@ -431,7 +438,7 @@ class Tab1GeorefMixin:
             QMessageBox.warning(
                 self,
                 UIMessages.ERR_TITLE_GENERIC,
-                f"レイヤ '{old_name}' のメタデータが見つかりません。",
+                UIMessages.ERR_LAYER_META_NOT_FOUND.format(name=old_name),
             )
             return
 
@@ -485,7 +492,7 @@ class Tab1GeorefMixin:
 
         QMessageBox.information(
             self,
-            "レイヤ名変更完了",
+            UIMessages.MSG_RENAME_LAYER_SUCCESS_TITLE,
             UIMessages.MSG_RENAME_LAYER_SUCCESS.format(old=old_name, new=new_name),
         )
 
@@ -1000,7 +1007,7 @@ class Tab1GeorefMixin:
         )
         QMessageBox.information(
             self,
-            "座標変換完了",
+            UIMessages.MSG_TRANSFORM_COMPLETE_TITLE,
             info_dialog_msg,
         )
 
@@ -1031,7 +1038,7 @@ class Tab1GeorefMixin:
             QMessageBox.critical(
                 self,
                 UIMessages.ERR_TITLE_FILE,
-                "対象画像ファイルが見つかりません。",
+                UIMessages.ERR_IMAGE_FILE_NOT_FOUND,
             )
             return
 

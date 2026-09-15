@@ -832,8 +832,8 @@ class Tab2DigitizingMixin:
         if not state.get("can_click", False):
             QMessageBox.warning(
                 self,
-                "打刻エラー",
-                state.get("error_message", "必須項目が未入力のため打刻できません。"),
+                UIMessages.ERR_TITLE_DIGITIZE,
+                state.get("error_message", UIMessages.ERR_DIGITIZE_REQUIRED),
             )
             return
 
@@ -849,7 +849,7 @@ class Tab2DigitizingMixin:
         if excavation_type == ExcavationType.FEATURE.value and state.get("is_new_feature", False):
             new_feat_name = state.get("new_feature_name", "").strip()
             if not new_feat_name:
-                QMessageBox.warning(self, "入力エラー", "新規遺構名を入力してください。")
+                QMessageBox.warning(self, UIMessages.ERR_TITLE_INPUT, UIMessages.ERR_NEW_FEATURE_REQUIRED)
                 return
             feature_name = self.register_new_feature_name(new_feat_name)
 
@@ -868,8 +868,8 @@ class Tab2DigitizingMixin:
                 ident = f"[{drawing_name}] {ident}"
             QMessageBox.warning(
                 self,
-                "重複打刻エラー",
-                f"同じ点（{ident}）が既に登録されています。\n点名または枝番を変更してください。",
+                UIMessages.ERR_TITLE_DUPLICATE_DIGITIZE,
+                UIMessages.MSG_DUPLICATE_POINT.format(ident=ident),
             )
             return
 
@@ -1119,7 +1119,7 @@ class Tab2DigitizingMixin:
             QMessageBox.warning(
                 self,
                 UIMessages.ERR_TITLE_DUPLICATE,
-                f"同じ点（{ident}）が既に登録されています。\n点名または枝番を変更してください。",
+                UIMessages.MSG_DUPLICATE_POINT.format(ident=ident),
             )
             return
 

@@ -283,6 +283,10 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
         self.tab2_container = self._create_tab2_ui()
         root_layout.addWidget(self.tab2_container, 1)
 
+        # T-0025: fix the right dock's width instead of relying on QGIS's
+        # default dock sizing.
+        root_widget.setFixedWidth(UIConfig.DOCK_WIDTH)
+
         self.setWidget(root_widget)
 
     def _show_image_dialog(self) -> None:
