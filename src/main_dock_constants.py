@@ -149,6 +149,7 @@ class UIPlaceholders:
     IMAGE_NAME = "例: plan_01"
     NEW_FEATURE = "例: SK01, Pit12"
     BRANCH_NO = "例: a, 1 (未入力可)"
+    POINT_NAME_SP = "半角英数字・ハイフン・アンダースコアのみ (例: SP-01)"
     CSV_PATH = "CSV出力先ファイルを指定してください"
 
 class UIDialogTitles:

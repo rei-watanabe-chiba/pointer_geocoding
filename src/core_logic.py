@@ -5,6 +5,7 @@
 """
 
 import math
+import re
 from enum import Enum
 from typing import Optional, Tuple, Dict, Any, List
 
@@ -321,7 +322,16 @@ def get_next_point_number(
     excavation_type: str,
     feature_name: str,
 ) -> int:
-    """Determine the next available sequential integer point number for the active group.
+    """Determine the next point number by following the most recently digitized point.
+
+    T-0022 (直前打刻追従型): Among the features matching the active
+    excavation_type/feature_name group, finds the feature with the maximum
+    point_id (auto-incrementing primary key, i.e. the most recently
+    digitized point in that group), extracts the leading numeric "body"
+    portion of its point_name (e.g. '5' from a branch-suffixed '5-a'), and
+    returns that body number + 1. This replaces the previous
+    "max of all purely-numeric point_name values" strategy so that manual
+    edits to older points no longer disturb the auto-numbering sequence.
 
     :param point_layer: Vector layer containing digitized points.
     :type point_layer: QgsVectorLayer
@@ -329,13 +339,15 @@ def get_next_point_number(
     :type excavation_type: str
     :param feature_name: Feature name string (used when excavation_type == ExcavationType.FEATURE.value).
     :type feature_name: str
-    :return: Next point number (starts at 1).
+    :return: Next point number (starts at 1 when no matching feature exists, or when the
+        latest matching feature's point_name has no leading numeric body).
     :rtype: int
     """
     if not point_layer or not point_layer.isValid():
         return 1
 
-    max_num = 0
+    max_point_id = None
+    latest_point_name = None
     for feat in point_layer.getFeatures():
         ex_type = safe_get_str(feat, "excavation_type")
         if excavation_type == ExcavationType.GRID.value:
@@ -346,11 +358,20 @@ def get_next_point_number(
             if ex_type != ExcavationType.FEATURE.value or f_name != feature_name:
                 continue
 
-        pname = feat["point_name"]
-        if pname is not None and str(pname).isdigit():
-            max_num = max(max_num, int(pname))
+        pid = feat["point_id"]
+        if pid is None or not isinstance(pid, int):
+            continue
+        if max_point_id is None or pid > max_point_id:
+            max_point_id = pid
+            latest_point_name = feat["point_name"]
 
-    return max_num + 1
+    if max_point_id is None:
+        return 1
+
+    pname = "" if latest_point_name is None else str(latest_point_name)
+    match = re.match(r"^(\d+)", pname)
+    body_num = int(match.group(1)) if match else 0
+    return body_num + 1
 
 
 def build_digitized_feature(

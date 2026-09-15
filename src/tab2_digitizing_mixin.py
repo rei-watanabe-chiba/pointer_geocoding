@@ -40,7 +40,19 @@ from qgis.PyQt.QtWidgets import (
     QSlider,
     QListWidget,
     QListWidgetItem,
+    QLineEdit,
 )
+
+# T-0022: SP属性専用の点名QLineEditで使用する入力バリデータ。
+# PyQt5/PyQt6両対応パターンは start_dialog.py (L31-38付近) を踏襲する。
+try:
+    from qgis.PyQt.QtGui import QRegularExpressionValidator
+    from qgis.PyQt.QtCore import QRegularExpression
+    HAS_QT_REGEX = True
+except ImportError:
+    from qgis.PyQt.QtGui import QRegExpValidator
+    from qgis.PyQt.QtCore import QRegExp
+    HAS_QT_REGEX = False
 
 from .transform import export_points_to_csv
 from .style_helper import UIStyleHelper
@@ -258,11 +270,30 @@ class Tab2DigitizingMixin:
         pt_layout.setSpacing(6)
 
         # Row 1: Point Name
+        # [EXCEPTION PROTECTION: QSpinBox preserved for S/P/C attributes per
+        # OSネイティブUI保護原則]. T-0022: SP属性選択時のみ、専用の自由入力
+        # QLineEdit(半角英数字・ハイフン・アンダースコアのみ)をこれと並置し、
+        # 表示/非表示を切り替える(QSpinBoxは変更しない)。
         self.lbl_point_name = QLabel(UILabels.POINT_NAME, self.group_individual)
         self.edit_point_name = UIStyleHelper.create_spinbox(1, 999999, 1, self.group_individual)
+
+        self.edit_point_name_sp = QLineEdit(self.group_individual)
+        self.edit_point_name_sp.setPlaceholderText(UIPlaceholders.POINT_NAME_SP)
+        if HAS_QT_REGEX:
+            self.edit_point_name_sp.setValidator(
+                QRegularExpressionValidator(
+                    QRegularExpression(r"^[A-Za-z0-9_-]+$"), self.edit_point_name_sp
+                )
+            )
+        else:
+            self.edit_point_name_sp.setValidator(
+                QRegExpValidator(QRegExp(r"^[A-Za-z0-9_-]+$"), self.edit_point_name_sp)
+            )
+        self.edit_point_name_sp.hide()
+
         row_point_name = UIStyleHelper.build_flex_row(
             self.lbl_point_name,
-            [(self.edit_point_name, 1)],
+            [(self.edit_point_name, 1), (self.edit_point_name_sp, 1)],
             main_ratio=MAIN_RATIO,
             row_height=UIConfig.ROW_HEIGHT,
         )
@@ -512,7 +543,12 @@ class Tab2DigitizingMixin:
             self.update_symbology_opacity()
 
     def _on_category_changed(self, *args: Any) -> None:
-        """Synchronize symbology opacity, drawing visibility, and point number when category changes."""
+        """Synchronize symbology opacity, drawing visibility, and point number when category changes.
+
+        Triggered whenever attribute type (S/P/C/SP), excavation type, or
+        feature name changes (see _on_excavation_type_changed /
+        _on_feature_combo_changed below, both of which delegate here).
+        """
         current_drawing = (
             self.combo_drawing_name.currentText().strip()
             if hasattr(self, "combo_drawing_name")
@@ -521,8 +557,7 @@ class Tab2DigitizingMixin:
         if current_drawing:
             self._ensure_drawing_visible(current_drawing)
 
-        next_num = self._get_next_point_number()
-        self.edit_point_name.setValue(next_num)
+        self._apply_next_point_number()
         self._push_focus_state_to_tool()
         if self.is_focus_mode_active():
             self.update_symbology_opacity()
@@ -666,9 +701,13 @@ class Tab2DigitizingMixin:
         is_new_feat = feat_name == UILabels.FEATURE_NEW_OPTION
         new_feat_name = self.edit_new_feature.text().strip()
 
-        pname = str(self.edit_point_name.value())
-        branch = self.edit_branch_no.text().strip()
         attr_type = self.combo_attribute.currentText()
+        pname = (
+            self.edit_point_name_sp.text().strip()
+            if attr_type == AttributeType.SP.value
+            else str(self.edit_point_name.value())
+        )
+        branch = self.edit_branch_no.text().strip()
 
         if not pname:
             return {
@@ -695,8 +734,34 @@ class Tab2DigitizingMixin:
             "branch_no": branch,
         }
 
+    def _is_sp_attribute(self) -> bool:
+        """Return True when the currently selected attribute code is 'SP'.
+
+        :return: True if combo_attribute is currently set to AttributeType.SP.value.
+        :rtype: bool
+        """
+        return (
+            hasattr(self, "combo_attribute")
+            and self.combo_attribute.currentText() == AttributeType.SP.value
+        )
+
+    def _update_point_name_widget_visibility(self) -> None:
+        """Show the widget matching the current attribute type, hide the other.
+
+        S/P/C attributes use the QSpinBox (edit_point_name); SP uses the
+        free-text QLineEdit (edit_point_name_sp). See T-0022.
+        """
+        is_sp = self._is_sp_attribute()
+        self.edit_point_name.setVisible(not is_sp)
+        self.edit_point_name_sp.setVisible(is_sp)
+
     def _get_next_point_number(self) -> int:
-        """Calculate next point number based on current excavation type and feature name."""
+        """Calculate next point number based on current excavation type and feature name.
+
+        Queries the point layer on-demand for the group matching the current
+        excavation_type/feature_name selection (see core_logic.get_next_point_number
+        for the "直前打刻追従型" (max point_id) numbering strategy).
+        """
         ex_type = self.combo_excavation_type.currentText()
         feat_name = ""
         if ex_type == ExcavationType.FEATURE.value:
@@ -710,12 +775,25 @@ class Tab2DigitizingMixin:
             feat_name,
         )
 
+    def _apply_next_point_number(self) -> None:
+        """Refresh the point-name entry widget(s) for the current attribute/category selection.
+
+        For S/P/C attributes, auto-increments the QSpinBox using the
+        "直前打刻追従型" numbering logic. For SP, auto-numbering is skipped
+        entirely and the free-text QLineEdit is cleared, awaiting manual entry.
+        """
+        self._update_point_name_widget_visibility()
+        if self._is_sp_attribute():
+            self.edit_point_name_sp.clear()
+        else:
+            next_num = self._get_next_point_number()
+            self.edit_point_name.setValue(next_num)
+
     @pyqtSlot(str)
     def _on_branch_text_changed(self, text: str) -> None:
         """Handle branch number cleared to increment point number if previously digitized with branch."""
         if not text.strip() and self._has_digitized_with_branch:
-            next_num = self._get_next_point_number()
-            self.edit_point_name.setValue(next_num)
+            self._apply_next_point_number()
             self._has_digitized_with_branch = False
 
     def _on_canvas_clicked(self, map_point: QgsPointXY) -> None:
@@ -828,8 +906,7 @@ class Tab2DigitizingMixin:
             self._has_digitized_with_branch = True
         else:
             self._has_digitized_with_branch = False
-            next_num = self._get_next_point_number()
-            self.edit_point_name.setValue(next_num)
+            self._apply_next_point_number()
 
         UIStyleHelper.update_status_panel(
             self.panel_edit_status,
@@ -863,13 +940,25 @@ class Tab2DigitizingMixin:
             self.current_feature_color = QColor(color_code)
             self._update_color_picker_button()
 
-        try:
-            p_val = int(data.get("point_name") or 1)
-        except ValueError:
-            p_val = 1
-        self.edit_point_name.setValue(p_val)
+        # T-0022: attribute must be applied before the point-name value, since
+        # changing combo_attribute triggers _on_category_changed ->
+        # _apply_next_point_number() (auto-numbering side effect), which we
+        # then override below with the actual loaded point_name value.
+        attr_type = str(data.get("attribute_type") or AttributeType.S.value)
+        self.combo_attribute.setCurrentText(attr_type)
+
+        pname_raw = str(data.get("point_name") or "")
+        if attr_type == AttributeType.SP.value:
+            self.edit_point_name_sp.setText(pname_raw)
+        else:
+            try:
+                p_val = int(pname_raw or 1)
+            except ValueError:
+                p_val = 1
+            self.edit_point_name.setValue(p_val)
+        self._update_point_name_widget_visibility()
+
         self.edit_branch_no.setText(str(data.get("branch_no") or ""))
-        self.combo_attribute.setCurrentText(str(data.get("attribute_type") or AttributeType.S.value))
 
         self.btn_delete_point.setEnabled(True)
         UIStyleHelper.update_status_panel(
@@ -892,8 +981,7 @@ class Tab2DigitizingMixin:
             status_type="info",
         )
 
-        next_num = self._get_next_point_number()
-        self.edit_point_name.setValue(next_num)
+        self._apply_next_point_number()
         self.edit_branch_no.clear()
         self._has_digitized_with_branch = False
 
