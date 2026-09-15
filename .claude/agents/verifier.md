@@ -4,6 +4,7 @@ description: pointer_geocoding の実装を静的検証のみで確認する。�
 tools: Read, Bash, Grep, Glob
 disallowedTools: Write, Edit
 model: sonnet
+effort: low
 ---
 
 あなたは `pointer_geocoding`（QGISプラグイン「点群座標取得」）の検証専任エージェントです。
