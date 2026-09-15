@@ -2,24 +2,29 @@
 
 状態遷移: 承認待ち → 実装中 → 静的検証中 → 人手確認待ち → 完了
 
+詳細な実装内容・検証根拠は各タスクの実装ログ（`.claude/logs/implement/{日付}-T-XXXX-*.md`、
+タスクIDでglob検索可能）を参照。本表は要約のみとし、定期的に完了・統合済みタスクを圧縮する
+（下記「圧縮ルール」参照）。
+
+## 完了・統合済み（圧縮済み、詳細はログ参照）
+
+| タスクID | 概要 | 状態 |
+|---|---|---|
+| T-0002〜T-0007 | Stage A-F基盤リファクタリング（Excel列ユーティリティ統合／main_dock.py・layer_manager.pyのMixin分割／デッドコード削除／低リスク共通化／`_on_canvas_clicked`責務分解） | 完了 |
+| T-0008 | UI系ヘルパー共通化（コンボ/リスト更新パターン・UIコンポーネント生成をstyle_helper.pyへ集約） | 完了 |
+| T-0009 | 属性値取得・型変換の統一ヘルパー（`safe_get_str`/`safe_get_float`/`safe_get_int`） | 完了 |
+| T-0010〜T-0014 | 画像レイヤ名変更時`[WinError 32]`の対症療法（レイヤ解放・一致判定修正・リトライ・コピー方式、試行錯誤の末T-0015へ設計転換） | 統合済み(T-0015へ) |
+| T-0015 | 画像ファイルの物理名を変更しない設計へ転換（レイヤ名変更=メタデータキー付替+`setName()`のみでWinError32を構造的に解消）。UI再構成（基準点設置/レイヤ名変更/削除ボタン分離） | 完了 |
+| T-0016 | 文言修正（`MSG_CONFIRM_IMAGE_FIRST`をボタン名「基準点設置」に追従） | 人手確認待ち |
+| T-0017 | シンボロジ統合（map_tool.py→symbology_mixin.py）＋出土形態/属性のEnum化 | 人手確認待ち |
+| T-0020〜T-0021 | UI改修: 左右ドック分割方式（左ドックにアイコンレール＋サイドパネル、右ドックに保存ボタン＋遺物点作成エリア）。T-0020（単一ドック内レイアウト分割）では要望と異なると判明し、T-0021で左右ドックへの分離に設計修正 | 完了 |
+
+## 進行中
+
 | タスクID | 内容 | 状態 | 実装ログ | 検証結果 | 人手確認 |
 |---|---|---|---|---|---|
-| (例) T-0001 | (タスク概要をここに) | 承認待ち | - | - | - |
-| T-0002 | Stage A: to_excel_column/from_excel_column 重複統合（layer_manager.py, start_dialog.py → core_logic.py） | 完了 | `.claude/logs/implement/2026-09-14-stageA-excel-column-utility-consolidation.md` | 静的検証問題なし | ユーザーがQGIS上で動作確認済み（グリッド座標プレビュー・グリッドCSV生成・既存セッション読込） |
-| T-0003 | Stage B: main_dock.py のMixinベース分割（main_dock.py 3,088行→308行、tab1_georef_mixin.py/tab2_digitizing_mixin.py/tab3_settings_mixin.py/main_dock_constants.py/main_dock_dialogs.pyへ分割） | 完了 | `.claude/logs/implement/2026-09-14-stageB-main-dock-mixin-split.md`（+差し戻し修正ログ `.claude/logs/implement/2026-09-14-stageB-docs-checklist-fix.md`） | 静的検証問題なし（差し戻し修正後、再検証で確認済み） | ユーザーがQGIS上で動作確認済み（プラグイン起動、Tab1画像管理〜変換〜レイヤ出力、Tab1編集削除、Tab2打刻〜CSV出力〜フォーカスモード、Tab3設定適用、いずれも問題なし） |
-| T-0004 | Stage C: layer_manager.py のMixinベース分割（layer_manager.py 約1,380行→大幅縮小、layer_manager_models.py/settings_metadata_mixin.py/symbology_mixin.py/gpkg_cache_mixin.py/grid_csv_mixin.py/session_io_mixin.pyへ分割） | 完了 | `.claude/logs/implement/2026-09-14-layer-manager-mixin-split.md` | 静的検証問題なし | ユーザーがQGIS上で動作確認済み（プラグインロード、新規/既存セッション、Tab1〜3操作、打刻時のObserver同期、設定適用、プロジェクト保存、いずれも問題なし） |
-| T-0005 | デッドコード削除（A+B+C区分：後方互換エイリアス2メソッド・未使用属性・未使用UI定数5個・defensive re-export削除） | 完了 | `.claude/logs/implement/2026-09-15-deadcode-removal.md` | 静的検証問題なし | ユーザーがQGIS上で動作確認済み |
-| T-0006 | Stage D+E: 低リスク共通化（レイヤ編集ヘルパー化/JSON IO統一/QMessageBoxヘルパー化、シンボロジ・透過度操作の一元化） | 完了 | `.claude/logs/implement/2026-09-15-stage-d-common-helpers.md`, `.claude/logs/implement/2026-09-15-stageE-symbology-opacity-consolidation.md` | 静的検証問題なし | ユーザーがQGIS上で動作確認済み（「安定動作を確認しました」） |
-| T-0007 | Stage F: `_on_canvas_clicked()`の責務分解（次点ID採番ロジックを`get_next_point_id()`、GeoPackage書き込みを`insert_feature_to_layer()`として`core_logic.py`へ抽出） | 完了 | `.claude/logs/implement/2026-09-15-stageF-on-canvas-clicked-decomposition.md` | 静的検証問題なし | ユーザーがQGIS上で動作確認済み（「動作確認した。問題ない」） |
-| T-0008 | 第1フェーズ アプローチB+G: UIコンボ/リスト更新パターンの共通ヘルパー化（`_update_drawing_combo`/`_refresh_edit_layer_combo`/`_refresh_ref_points_table_and_markers`等）＋UIコンポーネント生成ヘルパー拡張（Tab3のみ実施、Tab1/2は未着手）を`style_helper.py`へ集約（ファイル分割なし） | 完了 | `.claude/logs/implement/2026-09-15-T-0008-ui-helper-consolidation.md` | 静的検証問題なし（`rebuild_table_rows`内add_marker呼び出し順序の軽微な差異あり、実害なしと判断） | ユーザーがQGIS上で動作確認済み（チェックリスト全項目クリア）。人手確認中に報告された読込速度低下は、diff比較の結果T-0008のコード変更とは無関係と判明。QGIS再起動を挟んだ再テストで速度低下も解消したため、プラグインリロードを繰り返した際のシグナル接続蓄積等、環境要因と結論 |
-| T-0009 | 第2フェーズ アプローチF: 属性値取得・型変換の統一ヘルパー（`core_logic.py`にNULL/型変換を一元化する`safe_get_str()`/`safe_get_float()`等を新設し、`core_logic.py`/`tab1_georef_mixin.py`/`tab2_digitizing_mixin.py`内の重複パターンを置換、`main_dock_dialogs.py`は該当パターンなしのため無変更、ファイル分割なし） | 完了 | `.claude/logs/implement/2026-09-15-T-0009-attr-safe-get-helpers.md` | 静的検証問題なし（`_apply_feature_color_group`の`.strip()`新規付与について、書き込み経路を追跡し実運用上の挙動差なしと判断） | 人手確認手順4実施中に既存バグ(T-0010〜T-0015で対応)を発見したため中断していたが、その後のT-0010〜T-0015の一連のテストを通じて`safe_get_str`等が重複チェック・採番・遺構カラー適用・打刻点追従等で繰り返し使用され問題報告なし。ユーザーの了承を得て間接的な人手確認完了とみなす |
-| T-0010 | バグ修正: 画像レイヤ名変更時の`os.rename()`が`[WinError 32]`で失敗する不具合（`tab1_georef_mixin.py`の`_on_confirm_image_clicked()`編集モード分岐。QGISにラスタレイヤが読み込まれたままファイルリネームを行いGDALのファイルハンドルと衝突、Windows環境で再現）。改修前(Initial commit)から存在する既存バグでT-0008/T-0009由来ではないことをgit logで確認済み。リネーム前にレイヤを解放→リネーム→新パスで再読込（スタイル/グループ/位置/表示状態を復元）する方式に変更 | 人手確認待ち→再オープン | `.claude/logs/implement/2026-09-15-T-0010-image-rename-winerror32-fix.md` | 静的検証問題なし（レイヤ特定はファイルパス一致方式で旧コードより堅牢と判断も、大文字小文字表記違い等のエッジケースは人手確認推奨。ロールバック時のメタデータ未保存挙動は既存仕様の踏襲であり本タスクの退行ではないことを確認） | ユーザー確認の結果、依然として`[WinError 32]`が再現。統括調査によりT-0011の追加原因を特定、T-0011で追加修正後に再確認 |
-| T-0011 | バグ修正(T-0010の追加原因): 画像レイヤ名変更後も`[WinError 32]`が再現する件。`LayerManager.raster_layer`属性（`session_io_mixin.py`の`load_georeferenced_raster()`/`load_existing_session()`で設定）がプラグイン生存期間中、リネーム対象レイヤオブジェクトへの参照を保持し続けており、T-0010の`removeMapLayer()`だけではPython参照が残りGDALファイルハンドルが解放されない可能性が高いと統括が特定。リネーム前に該当参照をクリア＋`gc.collect()`追加、リネーム後に新レイヤへ更新。さらに`PreviewDialog.raster_layer`（プレビュー表示中に開いたまま）も同様の問題があると判明し追加対応 | 人手確認待ち→再オープン | `.claude/logs/implement/2026-09-15-T-0011-image-rename-winerror32-additional-fix.md` | 静的検証問題なし（仮説の裏付けをコードで確認、ロジック上妥当と評価。ただし「プレビューを開いたままリネームした場合、基準点マーカーが再描画されない」コード上のギャップを発見、実装ログ・チェックリストに既記載で隠蔽なし） | ユーザー確認の結果、依然として`[WinError 32]`が再現。一方で削除処理は安定動作するとの報告あり。統括再調査によりT-0012の追加原因を特定 |
-| T-0012 | バグ修正(T-0010/T-0011の追加原因): `_release_raster_layer_for_rename`のレイヤ一致判定が`os.path.normpath(layer.source())`というファイルパス比較方式になっており、QGIS/GDALのパス正規化差異（区切り文字・ドライブレター大文字小文字等）で不一致となりマッチせず、レイヤが一切解放されないまま`os.rename()`が実行されていた可能性を統括が特定。安定動作する削除処理（`_on_delete_layer_clicked`）と同じ「レイヤ表示名（`old_name`）での一致判定」に変更する | 人手確認待ち→再オープン | `.claude/logs/implement/2026-09-15-T-0012-image-rename-layer-match-fix.md` | 静的検証問題なし。一致判定が削除処理と完全同一ロジックに置換されたこと、通常フローで`layer.name()==old_name`が成立する設計であることをコードを辿って確認。T-0010/T-0011実装済みロジックへの影響もなし | ユーザー確認の結果、依然として`[WinError 32]`が再現。ただし確定時にレイヤが一瞬明滅（＝removeMapLayer()による解放は今回実際に発動＝T-0012の一致判定修正自体は効いている）。「解放は起きているがos.rename()実行までにWindows側のファイルハンドル解放が間に合っていない」タイミング競合と統括が再特定、T-0013で追加対応 |
-| T-0013 | バグ修正(T-0012後も残るタイミング競合対応): `removeMapLayer()`実行後、Windows側のファイルハンドル解放が`os.rename()`実行時点までに間に合わない競合状態と統括が特定（レイヤの明滅＝解放処理自体は発動している事実から推定）。`os.rename()`（本体・ワールドファイル）を、短い待機を挟んだリトライループで包み、WinError32発生時のみ数回再試行する対応を追加（対症療法であり根本解消ではない旨をログに明記） | 人手確認待ち→再オープン | `.claude/logs/implement/2026-09-15-T-0013-image-rename-retry-fix.md` | 静的検証問題なし。例外の握りつぶしなし、既存ロールバック経路との整合性確認済み、リトライ設計（最大5回×0.2秒）も過大でないと評価 | ユーザー確認の結果、依然として`[WinError 32]`が再現。ただし挙動変化あり（明滅→消えて古い名前で復活＝約1秒のリトライ全て失敗しロールバック）。ユーザーから設計変更案（rename方式をやめ、新名でコピー保存→旧レイヤ削除→旧ファイルはbest-effort削除に格下げ→新レイヤ追加、という方式）が提案され、統括もこれを採用しT-0014で対応 |
-| T-0014 | 設計変更(ユーザー提案採用): 画像レイヤ名変更処理を`os.rename()`（排他アクセス必須で失敗しやすい）方式から、「新しい名前でコピー保存→旧レイヤ解放・削除→旧ファイルはbest-effort削除（失敗しても致命的にしない）→新ファイルで新規レイヤ追加」方式へ転換。コピーは読み取り共有ロック中でも通常成功するためWinError32を根本的に回避できる設計。旧ファイル削除失敗時は警告表示のみで処理は成功扱いとする | T-0015へ設計変更のため差し戻し | `.claude/logs/implement/2026-09-15-T-0014-image-rename-copy-and-delete.md` | 静的検証問題なし | リネーム・レイヤ更新は成功したが、旧ファイルが削除されない（best-effort削除の失敗）ことをユーザーが確認。ユーザーから「ファイル名を変更しない」という根本的な設計転換の提案があり、T-0010〜T-0014のリネーム関連対症療法一式をT-0015で置き換える方針にユーザー・統括双方が合意 |
-| T-0010〜T-0013 | (T-0014と同様、T-0015の設計転換により内容が不要化。個別レコードは履歴として残置) | 統合済み(T-0015へ) | 各回の実装ログ参照 | 各回の検証ログ参照 | - |
-| T-0015 | 設計転換(ユーザー提案): 画像ファイルの物理名を変更しない設計へ転換。①新規追加時は読込画像を元のファイル名のまま`image/`フォルダへ複製（`copy_image_to_session()`の既存オプションを活用）②メタデータの「レイヤ名」と「ファイルパス」を分離し、レイヤ名変更はメタデータキーの付け替え＋`layer.setName()`のみで完結させる（ファイルI/O・レイヤ解放/再作成が一切不要になり、WinError32が構造的に発生し得なくなる）③UI変更: 「確定」ボタンを「基準点設置」に改称し、新規追加時は登録＋プレビュー表示、編集削除時はプレビュー表示のみに機能限定。新設「レイヤ名変更」ボタンを編集削除モードに追加（`[レイヤ名変更][削除]`の1行＋その下に`[基準点設置]`）。「レイヤ削除」は「削除」に改称。④新規追加時のレイヤ名重複チェックをファイル存在チェック依存からメタデータキー（レイヤ名）依存へ変更⑤セッション開始時点で「画像ファイル」レイヤグループが未作成なら作成するよう保証。T-0010〜T-0014のリネーム関連コード（`_release_raster_layer_for_rename`/`_reload_raster_layer_after_rename`/`_rename_with_retry`/`_remove_with_retry`等）は不要になるため削除。レイヤグループの手動削除ガードは今回のスコープ外（ユーザー判断） | 完了 | `.claude/logs/implement/2026-09-15-T-0015-image-name-decoupling.md` | 静的検証問題なし。デッドコード削除の安全性を独立再確認（src配下から参照ゼロ）、レイヤ名変更処理がファイルI/Oを一切含まないことをgrepで確認、メタデータキー付け替えのKeyErrorガードも確認。軽微な指摘: `UIMessages.MSG_CONFIRM_IMAGE_FIRST`の文言が旧ボタン名「確定」のまま未更新（機能的ブロッカーではない、フォローアップ推奨） | ユーザーがQGIS上で安定動作を確認済み（レイヤ名変更を含む一連の操作でWinError32が再発しないことを含む） |
+| T-0018 | バグ修正: 画像追加/削除まわりのガード不足。①複製タイミングを「レイヤ出力」完了時まで遅延、既存ワールドファイル付き画像は「基準点設置」を拒否（新規追加モードのみ対象）②キャンバス即時再描画・ゴースト画像ガード（`current_copied_image_path`クリア・`preview_dialog`後片付け）・画像0件時のボタン無効化 | 人手確認待ち | `.claude/logs/implement/2026-09-15-T-0018-image-guard-fixes.md` | 静的検証問題なし | - |
+| T-0019 | T-0018フォローアップ: ①`_on_export_layer_clicked()`の未複製判定に`os.path.normcase()`追加（T-0012堅牢化パターンとの一貫性）②設計書126行目付近をT-0018の複製タイミング変更に追随更新 | 人手確認待ち | `.claude/logs/implement/2026-09-15-T-0019-t0018-followup-normcase-doc.md` | 静的検証問題なし | - |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
@@ -29,3 +34,11 @@
   implementerが作成した `.claude/logs/implement/{日付}-{タスク名}-checklist.md` の内容をユーザーに提示する
 - ユーザーから人手確認完了の報告を受けたら「完了」に更新する
 - verifierが不整合を報告した場合は「実装中」に戻し、implementerに再依頼する
+
+## 圧縮ルール（トークン消費抑制のため）
+- 「完了」または「統合済み」になったタスクは、次にtasks.mdを編集するタイミングで
+  「完了・統合済み」表へ1行（タスクID・概要・状態のみ）に要約して移動する
+  （検証結果・人手確認欄の詳細な経緯はここでは保持しない。実装ログに残っているため参照可能）
+- 一連の試行錯誤（バグ調査で複数タスクに分岐した場合等）は、最終的に解決したタスクへの
+  誘導コメント1行にまとめ、個別の経緯は展開しない（例: 本ファイルのT-0010〜T-0014の扱いを参照）
+- 「進行中」表の行は、人手確認完了まで詳細を保持してよいが、完了確認後は上記ルールで圧縮する

@@ -343,17 +343,18 @@ class Tab3SettingsMixin:
         :param new_settings: The settings dict that was just saved.
         :type new_settings: dict
         """
-        from .map_tool import CanvasDigitizingTool
-
         # Re-apply ref_points symbology
         ref_layer = self.layer_manager.ref_point_layer
         if ref_layer and ref_layer.isValid():
             self.layer_manager.apply_ref_point_symbology(ref_layer, new_settings)
 
         # Re-apply point layer symbology (grid color + symbol size + line width)
+        # T-0017: symbology construction moved from CanvasDigitizingTool
+        # (map_tool.py) to SymbologyMixin.apply_point_symbology, reached via
+        # self.layer_manager for consistency with apply_ref_point_symbology above.
         point_layer = self.layer_manager.point_layer
         if point_layer and point_layer.isValid():
-            CanvasDigitizingTool.setup_point_layer_symbology(point_layer, new_settings)
+            self.layer_manager.apply_point_symbology(point_layer, new_settings)
 
         # Refresh canvas
         if hasattr(self, "canvas") and self.canvas:

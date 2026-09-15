@@ -6,7 +6,13 @@
 Stage B split (mechanical, logic-preserving): extracted from main_dock.py.
 Contains UI string/config constant classes shared across MainDockWidget,
 its tab mixins, and the standalone dialog classes in main_dock_dialogs.py.
+
+T-0017 (アプローチA): EXCAVATION_OPTIONS/ATTRIBUTE_OPTIONS は core_logic.py の
+ExcavationType/AttributeType Enum の .value から構築し、コンボボックス文字列と
+Enum定義の単一情報源化を図る（一覧の中身・順序は変更前と同一）。
 """
+
+from .core_logic import ExcavationType, AttributeType
 
 # UI Configuration dictionary and layout ratios
 class UIConfig:
@@ -19,10 +25,15 @@ class UIConfig:
 
 class UILabels:
     DOCK_TITLE = "点群座標取得パネル"
+    # --- T-0021: left dock (icon rail + collapsible side panel) title ---
+    LEFT_DOCK_TITLE = "点群座標取得（図面管理・設定）"
     BTN_SAVE_PROJECT = "💾 プロジェクトを保存"
     TAB_1_TITLE = "画像管理"
     TAB_2_TITLE = "遺物点作成"
     TAB_3_TITLE = "設定"
+    # --- T-0020: Left icon rail navigation (collapsible side panel) ---
+    NAV_DRAWING = "図面"
+    NAV_SETTINGS = "設定"
     # --- Settings Tab ---
     TAB3_SECTION_REF_SYMBOL   = "基準点"
     TAB3_SECTION_POINT_SYMBOL = "遺物点"
@@ -99,7 +110,7 @@ class UILabels:
     BTN_RESET_SELECTION = "連番再開"
     BTN_DELETE_POINT = "削除"
     EXCAVATION_TYPE = "出土形態:"
-    EXCAVATION_OPTIONS = ["グリッド", "遺構"]
+    EXCAVATION_OPTIONS = [ExcavationType.GRID.value, ExcavationType.FEATURE.value]
     FEATURE_SELECTOR = "遺構名セレクタ:"
     FEATURE_NEW_OPTION = "新規作成"
     NEW_FEATURE_NAME = "新規遺構名:"
@@ -108,7 +119,12 @@ class UILabels:
     BRANCH_NO = "枝番 (任意):"
     GROUP_ATTRIBUTE = "属性設定 & 透過強調表示"
     ATTRIBUTE_CODE = "属性記号:"
-    ATTRIBUTE_OPTIONS = ["S", "P", "C", "SP"]
+    ATTRIBUTE_OPTIONS = [
+        AttributeType.S.value,
+        AttributeType.P.value,
+        AttributeType.C.value,
+        AttributeType.SP.value,
+    ]
     BTN_CONFIRM_ATTRIBUTE = "属性確定 (フォーカス有効化)"
     GROUP_COLOR = "遺構カラー設定"
     BTN_COLOR_PICKER = "カラー選択"
@@ -153,8 +169,13 @@ class UIMessages:
     MSG_TITLE_INFO = "通知"
     MSG_TITLE_LIMIT = "上限通知"
     MSG_CONFIRM_TITLE = "削除確認"
-    MSG_CONFIRM_IMAGE_FIRST = "先に画像ファイルを選択し、「確定」を実行してください。"
+    MSG_CONFIRM_IMAGE_FIRST = "編集対象のレイヤを選択してから「基準点設置」を実行してください。"
     ERR_INVALID_IMAGE = "有効な画像ファイルを選択してください。"
+    ERR_SOURCE_HAS_WORLDFILE = (
+        "選択した画像には既にワールドファイルが付随しています。"
+        "本プラグインは座標変換により独自のワールドファイルを生成するため、"
+        "既存のワールドファイルを持つ画像は使用できません。"
+    )
     ERR_REQUIRED_IMAGE_NAME = "レイヤ名を入力してください。"
     ERR_INVALID_IMAGE_NAME = "レイヤ名に使用できない文字 (\\ / : * ? \" < > |) が含まれています。"
     MSG_IMAGE_LOADED_TITLE = "画像読み込み完了"
