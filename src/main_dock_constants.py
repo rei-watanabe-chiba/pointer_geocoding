@@ -25,15 +25,16 @@ class UIConfig:
 
 class UILabels:
     DOCK_TITLE = "点群座標取得パネル"
-    # --- T-0021: left dock (icon rail + collapsible side panel) title ---
-    LEFT_DOCK_TITLE = "点群座標取得（図面管理・設定）"
     BTN_SAVE_PROJECT = "💾 プロジェクトを保存"
     TAB_1_TITLE = "画像管理"
     TAB_2_TITLE = "遺物点作成"
     TAB_3_TITLE = "設定"
-    # --- T-0020: Left icon rail navigation (collapsible side panel) ---
-    NAV_DRAWING = "図面"
-    NAV_SETTINGS = "設定"
+    # --- T-0024: right-dock top button row (image / settings / output / save) ---
+    BTN_TOP_IMAGE = "画像"
+    BTN_TOP_SETTINGS = "設定"
+    BTN_TOP_OUTPUT = "出力"
+    BTN_TOP_SAVE = "保存"
+    OUTPUT_DIALOG_TITLE = "CSV出力"
     # --- Settings Tab ---
     TAB3_SECTION_REF_SYMBOL   = "基準点"
     TAB3_SECTION_POINT_SYMBOL = "遺物点"

@@ -10,10 +10,11 @@ modules (tab1_georef_mixin.py, tab2_digitizing_mixin.py,
 tab3_settings_mixin.py) plus shared constant/dialog modules
 (main_dock_constants.py, main_dock_dialogs.py). MainDockWidget now mixes
 those tab mixins in and keeps only the shared/common members: __init__,
-the preview_* backward-compatible properties, _init_ui, _on_panel_changed
-(formerly _on_tab_changed; see T-0020 note below), _save_project,
-closeEvent, and update_symbology_opacity (shared by Tab 2's Focus Mode and
-Tab 3's settings-apply flow).
+the preview_* backward-compatible properties, _init_ui,
+_update_main_map_tool_state (formerly _on_tab_changed / _on_panel_changed;
+see T-0020/T-0024 notes below), _save_project, closeEvent, and
+update_symbology_opacity (shared by Tab 2's Focus Mode and Tab 3's
+settings-apply flow).
 
 Stage E split (logic-preserving relocation): update_symbology_opacity()'s
 expression-construction and renderer-mutation logic now lives in
@@ -21,46 +22,46 @@ SymbologyMixin (symbology_mixin.py) as build_opacity_expression()/
 apply_opacity_expression(), reached here via self.layer_manager (which
 mixes SymbologyMixin in). update_symbology_opacity() itself remains as a
 thin delegator that only gathers current UI state, so its name/signature
-and all call sites (tab2_digitizing_mixin.py, and _on_panel_changed below)
-are unchanged.
+and all call sites (tab2_digitizing_mixin.py, and
+_update_main_map_tool_state below) are unchanged.
 
-T-0020 (UI restructure): the former QTabWidget (Tab1/Tab2/Tab3) has been
-replaced with a left icon rail + collapsible side panel layout. Tab 1
-(図面管理) and Tab 3 (設定) now live inside a fixed-width side panel
-(self.side_panel / self.side_stack) toggled open/closed by checkable nav
-buttons (self.nav_btn_drawing / self.nav_btn_settings) on a left icon rail,
-VSCode-activity-bar style: clicking a nav button opens its panel, clicking
-the already-open panel's button closes it, and opening one panel
-automatically closes the other. Tab 2 (遺物点作成) is no longer a tab at
-all; its container is always visible as the main area. The former
-_on_tab_changed(index) QTabWidget.currentChanged handler is replaced by
-_on_panel_changed(), driven by self._active_panel ("drawing" / "settings"
-/ None), which is invoked whenever the open side panel changes (including
-once at __init__ time, matching the old initial currentChanged fire).
-self.tab1_container / self.tab2_container / self.tab3_container attribute
-names are kept unchanged for backward compatibility with tab*_mixin.py.
+T-0020 (UI restructure, superseded by T-0021/T-0024, kept for history): the
+former QTabWidget (Tab1/Tab2/Tab3) was replaced with a left icon rail +
+collapsible side panel layout. Tab 2 (遺物点作成) became a permanently
+visible main area rather than a tab.
 
-T-0021 (dock split): the icon rail + collapsible side panel widget tree
-built above (self.side_panel / self.side_stack / self.nav_btn_drawing /
-self.nav_btn_settings / self.tab1_container / self.tab3_container) is no
-longer embedded inside this class's own QDockWidget layout. It is instead
-built by _init_left_dock() into a second, independent QDockWidget instance
-(self.left_dock), which plugin.py registers separately in
-Qt.LeftDockWidgetArea (this class, self, remains registered in
-Qt.RightDockWidgetArea as before). This exposes the QGIS map canvas between
-the two docks, matching the requested "left dock / canvas / right dock"
-layout, instead of the T-0020 layout where everything lived inside one
-right-hand dock's internal QHBoxLayout. self's own root widget now holds
-only the save-project button and the always-visible main digitizing area
-(self.tab2_container). All event-handling logic (_on_nav_button_clicked,
-_on_panel_changed, _close_side_panel, self._active_panel state machine) is
-unchanged and still lives on this class (self); only the container widget
-each piece of UI is parented into has changed. plugin.py is responsible for
-iface.addDockWidget()-registering and removeDockWidget()-unregistering
-self.left_dock alongside self.
+T-0021 (dock split, superseded by T-0024, kept for history): the icon rail
++ collapsible side panel was moved out of this class's own QDockWidget
+layout into a second, independent QDockWidget (self.left_dock), registered
+by plugin.py in Qt.LeftDockWidgetArea.
+
+T-0024 (left dock removal, top 4-button row + modeless dialogs): the left
+dock (self.left_dock) and its icon rail / collapsible side panel
+(self.side_panel / self.side_stack / self.nav_btn_drawing /
+self.nav_btn_settings) have been removed entirely. self (the single
+remaining dock, Qt.RightDockWidgetArea) now starts with a top row of four
+buttons -- 画像 / 設定 / 出力 / 保存 -- built by _init_ui(), followed by the
+always-visible main digitizing area (self.tab2_container, former Tab 2,
+unchanged). 画像/設定/出力 each open their own independent modeless dialog
+(self.image_dialog / self.settings_dialog / self.output_dialog, see
+main_dock_dialogs.py's ImageDialog / ModelessSectionDialog) hosting the
+content Tab1GeorefMixin/Tab3SettingsMixin/Tab2DigitizingMixin's
+_create_tab1_ui() / _create_tab3_ui() / _create_output_ui() build; 保存
+keeps calling _save_project() directly as before, just relocated into the
+button row. Since all three dialogs are modeless and independently
+reopenable, the former single side-panel-driven digitizing-tool
+suspend/resume logic (_on_nav_button_clicked / _on_panel_changed /
+_close_side_panel / self._active_panel) has been replaced by
+_update_main_map_tool_state(), which any dialog's on_show/on_close callback
+invokes: the main canvas digitizing tool (self.map_tool) is suspended while
+at least one of the three dialogs is open, and restored once none remain
+open. self.tab1_container / self.tab2_container / self.tab3_container
+attribute names are kept unchanged for backward compatibility with
+tab*_mixin.py.
 """
 # 【変更不可侵の絶対的ルール】 測量座標系（X軸=南北, Y軸=東西）を採用。QGISキャンバス上のX座標(東西)はSurvey Y、Y座標(南北)はSurvey Xに対応する。
 
+import os
 from typing import Optional, Dict, Any, List, Tuple
 
 from qgis.core import (
@@ -73,16 +74,13 @@ from qgis.gui import (
     QgisInterface,
     QgsMapCanvas,
 )
-from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtGui import QColor, QIcon
 from qgis.PyQt.QtWidgets import (
     QDockWidget,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QPushButton,
-    QToolButton,
-    QButtonGroup,
-    QStackedWidget,
 )
 
 from .map_tool import CanvasDigitizingTool, ImageGeorefTool
@@ -93,7 +91,7 @@ from .style_helper import UIStyleHelper
 # at call time. Keeping this import preserves that existing cross-module
 # contract unchanged after the Stage B mechanical split.
 from .main_dock_constants import UIConfig, UILabels, UIMessages
-from .main_dock_dialogs import PreviewDialog
+from .main_dock_dialogs import ImageDialog, ModelessSectionDialog
 from .tab1_georef_mixin import Tab1GeorefMixin
 from .tab2_digitizing_mixin import Tab2DigitizingMixin
 from .tab3_settings_mixin import Tab3SettingsMixin
@@ -133,7 +131,7 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
         self.canvas: QgsMapCanvas = self.iface.mapCanvas()
 
         # Tab 1: Georeferencing preview state
-        self.preview_dialog: Optional[PreviewDialog] = None
+        self.image_dialog: Optional[ImageDialog] = None
         self.current_copied_image_path: Optional[str] = None
         self.confirmed_layer_name: Optional[str] = None
         self.calculated_affine_params: Optional[Tuple[float, float, float, float, float, float]] = None
@@ -158,7 +156,9 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
 
         self._init_ui()
         UIStyleHelper.apply_theme(self)
-        UIStyleHelper.apply_theme(self.left_dock)
+        UIStyleHelper.apply_theme(self.image_dialog)
+        UIStyleHelper.apply_theme(self.settings_dialog)
+        UIStyleHelper.apply_theme(self.output_dialog)
         self._restore_feature_names()
         self._update_drawing_combo()
         self.update_settings_ui_from_dict()
@@ -172,177 +172,165 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
             project.layersAdded.connect(self._update_drawing_combo)
             project.layersRemoved.connect(self._update_drawing_combo)
 
-        # Initial panel state (T-0020): both side panels start closed, so the
-        # digitizing main area (former Tab 2) is shown by default. This
-        # mirrors the old QTabWidget.currentChanged() initial fire that used
-        # to run once at startup, now driven explicitly since there is no
-        # tab-change signal to trigger it.
-        self._on_panel_changed()
+        # Initial map tool state (T-0024): no dialog is open by default, so
+        # the digitizing main area (former Tab 2) is active immediately.
+        self._update_main_map_tool_state()
 
     @property
     def preview_canvas(self) -> Optional[QgsMapCanvas]:
         """Backward compatible preview canvas reference."""
-        return self.preview_dialog.canvas if self.preview_dialog else None
+        return self.image_dialog.canvas if self.image_dialog else None
 
     @property
     def preview_raster_layer(self) -> Optional[QgsRasterLayer]:
         """Backward compatible preview raster layer reference."""
-        return self.preview_dialog.raster_layer if self.preview_dialog else None
+        return self.image_dialog.raster_layer if self.image_dialog else None
 
     @property
     def georef_tool(self) -> Optional[ImageGeorefTool]:
         """Backward compatible preview georef tool reference."""
-        return self.preview_dialog.georef_tool if self.preview_dialog else None
+        return self.image_dialog.georef_tool if self.image_dialog else None
 
-    # T-0020: fixed pixel widths for the left icon rail and the collapsible
-    # side panel it toggles open/closed (VSCode activity-bar style).
-    ICON_RAIL_WIDTH = 52
-    SIDE_PANEL_WIDTH = 300
+    def _load_icon(self, filename: str) -> QIcon:
+        """Load a top-row button icon from src/icon/<filename> (T-0024).
+
+        :param filename: SVG file name under the plugin's icon/ directory.
+        :type filename: str
+        :return: QIcon instance (empty/null icon if the file is missing).
+        :rtype: QIcon
+        """
+        icon_path = os.path.join(os.path.dirname(__file__), "icon", filename)
+        return QIcon(icon_path)
 
     def _init_ui(self) -> None:
-        """Construct the two-dock interface programmatically using native PyQt classes.
+        """Construct the single right-dock interface programmatically (T-0024).
 
-        T-0021: builds self.left_dock (icon rail + collapsible side panel)
-        via _init_left_dock(), then constructs this dock's (self, the
-        right-hand "main operation" dock) own contents: only the permanent
-        save-project button and the always-visible main digitizing area
-        (former Tab 2). See the T-0021 module-docstring note above for the
-        rationale (QGIS dock-area split vs. T-0020's single-dock layout).
+        Builds a top row of four buttons (画像/設定/出力/保存) followed by the
+        always-visible main digitizing area (self.tab2_container, former
+        Tab 2). 画像/設定/出力 each own an independent modeless dialog
+        (self.image_dialog / self.settings_dialog / self.output_dialog)
+        hosting the content the corresponding tab mixin builds; see the
+        T-0024 module-docstring note above.
         """
-        # No side panel open by default; the digitizing main area (former
-        # Tab 2) is shown on its own until a nav button opens one.
-        self._active_panel: Optional[str] = None
-
-        # 1. Left dock: icon rail + collapsible side panel (図面管理/設定)
-        self._init_left_dock()
-
-        # 2. Right dock (self): permanent save button + main digitizing area
         root_widget = QWidget(self)
         root_layout = QVBoxLayout(root_widget)
         root_layout.setContentsMargins(6, 6, 6, 6)
         root_layout.setSpacing(6)
 
-        self.btn_save_project = QPushButton(UILabels.BTN_SAVE_PROJECT, root_widget)
+        # 1. Top button row: 画像 / 設定 / 出力 / 保存
+        top_row = QWidget(root_widget)
+        top_layout = QHBoxLayout(top_row)
+        top_layout.setContentsMargins(0, 0, 0, 0)
+        top_layout.setSpacing(6)
+
+        self.btn_top_image = QPushButton(UILabels.BTN_TOP_IMAGE, top_row)
+        self.btn_top_image.setObjectName("btnTopImage")
+        self.btn_top_image.setIcon(self._load_icon("image.svg"))
+        self.btn_top_image.clicked.connect(self._show_image_dialog)
+        top_layout.addWidget(self.btn_top_image)
+
+        self.btn_top_settings = QPushButton(UILabels.BTN_TOP_SETTINGS, top_row)
+        self.btn_top_settings.setObjectName("btnTopSettings")
+        self.btn_top_settings.setIcon(self._load_icon("setting.svg"))
+        self.btn_top_settings.clicked.connect(self._show_settings_dialog)
+        top_layout.addWidget(self.btn_top_settings)
+
+        self.btn_top_output = QPushButton(UILabels.BTN_TOP_OUTPUT, top_row)
+        self.btn_top_output.setObjectName("btnTopOutput")
+        self.btn_top_output.setIcon(self._load_icon("output.svg"))
+        self.btn_top_output.clicked.connect(self._show_output_dialog)
+        top_layout.addWidget(self.btn_top_output)
+
+        self.btn_save_project = QPushButton(UILabels.BTN_TOP_SAVE, top_row)
+        self.btn_save_project.setObjectName("btnTopSave")
+        self.btn_save_project.setIcon(self._load_icon("save.svg"))
         UIStyleHelper.set_success_button(self.btn_save_project)
         self.btn_save_project.clicked.connect(self._save_project)
-        root_layout.addWidget(self.btn_save_project)
+        top_layout.addWidget(self.btn_save_project)
 
-        # Main area: 遺物点作成 (former Tab 2), always visible, no tab chrome
+        root_layout.addWidget(top_row)
+
+        # 2. 画像 dialog content (former Tab 1) + embedded preview canvas
+        self.tab1_container = self._create_tab1_ui()
+        self.image_dialog = ImageDialog(
+            self.tab1_container,
+            on_show=self._update_main_map_tool_state,
+            on_close=self._update_main_map_tool_state,
+            parent=self,
+        )
+
+        # 3. 設定 dialog content (former Tab 3)
+        self.tab3_container = self._create_tab3_ui()
+        self.settings_dialog = ModelessSectionDialog(
+            UILabels.TAB_3_TITLE,
+            self.tab3_container,
+            on_show=self._update_main_map_tool_state,
+            on_close=self._update_main_map_tool_state,
+            parent=self,
+        )
+
+        # 4. 出力 dialog content (CSV export, split out of former Tab 2)
+        self.output_container = self._create_output_ui()
+        self.output_dialog = ModelessSectionDialog(
+            UILabels.OUTPUT_DIALOG_TITLE,
+            self.output_container,
+            on_show=self._update_main_map_tool_state,
+            on_close=self._update_main_map_tool_state,
+            parent=self,
+        )
+
+        # 5. Main area: 遺物点作成 (former Tab 2), always visible, no tab chrome
         self.tab2_container = self._create_tab2_ui()
         root_layout.addWidget(self.tab2_container, 1)
 
         self.setWidget(root_widget)
 
-    def _init_left_dock(self) -> None:
-        """Construct self.left_dock: icon rail + collapsible side panel (T-0021).
+    def _show_image_dialog(self) -> None:
+        """Show (or raise) the 画像 (image management) dialog."""
+        self.image_dialog.show()
+        self.image_dialog.raise_()
+        self.image_dialog.activateWindow()
 
-        Hosts 図面管理 (former Tab 1) and 設定 (former Tab 3) inside a fixed-width
-        side panel (self.side_panel / self.side_stack), toggled open/closed by
-        checkable nav buttons (self.nav_btn_drawing / self.nav_btn_settings) on
-        a left icon rail (VSCode-activity-bar style; the open/close/exclusivity
-        interaction itself is unchanged from T-0020 and lives in
-        _on_nav_button_clicked/_on_panel_changed below).
+    def _show_settings_dialog(self) -> None:
+        """Show (or raise) the 設定 (settings) dialog, refreshing it from disk first."""
+        self.update_settings_ui_from_dict()
+        self.settings_dialog.show()
+        self.settings_dialog.raise_()
+        self.settings_dialog.activateWindow()
 
-        self.left_dock is a standalone QDockWidget (parent=None, mirroring how
-        self itself starts parentless before plugin.py's iface.addDockWidget()
-        reparents it); plugin.py is responsible for registering it in
-        Qt.LeftDockWidgetArea and for removeDockWidget()/deleteLater()-ing it
-        alongside self during teardown/re-setup, since Qt's automatic
-        parent-child cleanup does not apply once addDockWidget() reparents a
-        dock widget into the QGIS main window's internal dock area.
+    def _show_output_dialog(self) -> None:
+        """Show (or raise) the 出力 (CSV export) dialog."""
+        self.output_dialog.show()
+        self.output_dialog.raise_()
+        self.output_dialog.activateWindow()
+
+    def _update_main_map_tool_state(self) -> None:
+        """Suspend/restore the main canvas digitizing tool based on open dialogs (T-0024).
+
+        Invoked as the on_show/on_close callback of all three modeless
+        dialogs (self.image_dialog / self.settings_dialog /
+        self.output_dialog). Since they are independently reopenable, the
+        main digitizing tool (self.map_tool) is kept suspended as long as at
+        least one of them is open, and only restored (plus a drawing-combo
+        refresh, selection reset and Focus Mode re-application, mirroring
+        the former _on_panel_changed()'s "both panels closed" branch) once
+        none remain open.
         """
-        self.left_dock = QDockWidget(UILabels.LEFT_DOCK_TITLE, None)
-        self.left_dock.setObjectName("PointerGeocodingLeftDock")
+        dialogs = (
+            getattr(self, "image_dialog", None),
+            getattr(self, "settings_dialog", None),
+            getattr(self, "output_dialog", None),
+        )
+        any_open = any(d is not None and d.isVisible() for d in dialogs)
 
-        left_root = QWidget(self.left_dock)
-        left_layout = QHBoxLayout(left_root)
-        left_layout.setContentsMargins(6, 6, 6, 6)
-        left_layout.setSpacing(6)
-
-        # Icon rail: nav buttons toggling the side panel open/closed
-        icon_rail = QWidget(left_root)
-        icon_rail.setFixedWidth(self.ICON_RAIL_WIDTH)
-        icon_rail_layout = QVBoxLayout(icon_rail)
-        icon_rail_layout.setContentsMargins(2, 4, 2, 4)
-        icon_rail_layout.setSpacing(4)
-
-        self.nav_btn_drawing = QToolButton(icon_rail)
-        self.nav_btn_drawing.setObjectName("navBtnDrawing")
-        self.nav_btn_drawing.setText(UILabels.NAV_DRAWING)
-        self.nav_btn_drawing.setToolTip(UILabels.TAB_1_TITLE)
-        self.nav_btn_drawing.setCheckable(True)
-        self.nav_btn_drawing.setFixedHeight(48)
-        UIStyleHelper.set_nav_button(self.nav_btn_drawing)
-        icon_rail_layout.addWidget(self.nav_btn_drawing)
-
-        self.nav_btn_settings = QToolButton(icon_rail)
-        self.nav_btn_settings.setObjectName("navBtnSettings")
-        self.nav_btn_settings.setText(UILabels.NAV_SETTINGS)
-        self.nav_btn_settings.setToolTip(UILabels.TAB_3_TITLE)
-        self.nav_btn_settings.setCheckable(True)
-        self.nav_btn_settings.setFixedHeight(48)
-        UIStyleHelper.set_nav_button(self.nav_btn_settings)
-        icon_rail_layout.addWidget(self.nav_btn_settings)
-
-        icon_rail_layout.addStretch()
-
-        # QButtonGroup provides the "opening one panel closes the other"
-        # exclusivity. Re-clicking the already-open panel's button to close
-        # it is handled explicitly in _on_nav_button_clicked(), since an
-        # exclusive QButtonGroup does not let its checked button become
-        # unchecked purely by clicking it again.
-        self.nav_button_group = QButtonGroup(icon_rail)
-        self.nav_button_group.setExclusive(True)
-        self.nav_button_group.addButton(self.nav_btn_drawing)
-        self.nav_button_group.addButton(self.nav_btn_settings)
-
-        self.nav_btn_drawing.clicked.connect(lambda: self._on_nav_button_clicked("drawing"))
-        self.nav_btn_settings.clicked.connect(lambda: self._on_nav_button_clicked("settings"))
-
-        left_layout.addWidget(icon_rail)
-
-        # Side panel: 図面管理 (Tab 1) / 設定 (Tab 3), hidden by default
-        self.side_panel = QWidget(left_root)
-        self.side_panel.setFixedWidth(self.SIDE_PANEL_WIDTH)
-        side_panel_layout = QVBoxLayout(self.side_panel)
-        side_panel_layout.setContentsMargins(0, 0, 0, 0)
-        side_panel_layout.setSpacing(0)
-
-        self.side_stack = QStackedWidget(self.side_panel)
-        side_panel_layout.addWidget(self.side_stack)
-
-        # 図面管理 (former Tab 1: Image Add & Pre-Georeferencing)
-        self.tab1_container = self._create_tab1_ui()
-        self.side_stack.addWidget(self.tab1_container)
-
-        # 設定 (former Tab 3: Settings)
-        self.tab3_container = self._create_tab3_ui()
-        self.side_stack.addWidget(self.tab3_container)
-
-        self.side_panel.hide()
-        left_layout.addWidget(self.side_panel)
-        left_layout.addStretch()
-
-        self.left_dock.setWidget(left_root)
-
-    def _on_nav_button_clicked(self, panel: str) -> None:
-        """Handle a click on a left icon-rail nav button (図面管理/設定).
-
-        Clicking a closed panel's button opens it (and, via the exclusive
-        QButtonGroup, closes the other one automatically). Clicking the
-        already-open panel's button closes it, returning to the default
-        state where only the main digitizing area is shown.
-
-        :param panel: Which nav button was clicked ("drawing" or "settings").
-        :type panel: str
-        """
-        if self._active_panel == panel:
-            button = self.nav_btn_drawing if panel == "drawing" else self.nav_btn_settings
-            button.setChecked(False)
-            self._active_panel = None
+        if any_open:
+            self.canvas.unsetMapTool(self.map_tool)
         else:
-            self._active_panel = panel
-        self._on_panel_changed()
+            self._update_drawing_combo()
+            self.canvas.setMapTool(self.map_tool)
+            self._reset_point_selection()
+            if self.is_focus_mode_active():
+                self.update_symbology_opacity()
 
     def update_symbology_opacity(self) -> None:
         """Update point layer symbol opacity dynamically using QgsProperty expression override.
@@ -360,7 +348,8 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
         off to SymbologyMixin (via layer_manager), which owns both halves of
         this logic alongside apply_point_labeling/apply_ref_point_symbology.
         Kept under this same name/signature so Tab2's Focus Mode toggle and
-        Tab3's settings-apply flow (via _on_panel_changed) need no changes.
+        Tab3's settings-apply flow (via _update_main_map_tool_state) need no
+        changes.
         """
         if not self.point_layer or not self.point_layer.isValid():
             return
@@ -387,48 +376,6 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
             self.canvas.refresh()
 
 
-    def _on_panel_changed(self) -> None:
-        """Handle a change in which side panel is open (T-0020).
-
-        Driven by self._active_panel: "drawing" (former Tab 1 open),
-        "settings" (former Tab 3 open), or None (both closed, main
-        digitizing area shown - the default state). Replaces the old
-        QTabWidget.currentChanged()-driven _on_tab_changed(index).
-        """
-        if self._active_panel == "drawing":
-            # 図面管理 side panel open: unset main map tool
-            self.side_panel.show()
-            self.side_stack.setCurrentWidget(self.tab1_container)
-            self.canvas.unsetMapTool(self.map_tool)
-        elif self._active_panel == "settings":
-            # 設定 side panel open: unset main map tool, refresh settings UI
-            self.side_panel.show()
-            self.side_stack.setCurrentWidget(self.tab3_container)
-            self.canvas.unsetMapTool(self.map_tool)
-            self.update_settings_ui_from_dict()
-        else:
-            # Both panels closed: main digitizing area (former Tab 2) is
-            # active. Activate main digitizing tool and refresh drawings.
-            self.side_panel.hide()
-            self._update_drawing_combo()
-            self.canvas.setMapTool(self.map_tool)
-            self._reset_point_selection()
-            if self.is_focus_mode_active():
-                self.update_symbology_opacity()
-
-    def _close_side_panel(self) -> None:
-        """Close any open side panel (図面管理/設定), returning to the
-        default view where only the main digitizing area is shown.
-
-        Replaces the old self.tab_widget.setCurrentIndex(1) auto-switch to
-        Tab 2, e.g. after 図面管理's "レイヤ出力" (coordinate transform +
-        layer export) completes (see tab1_georef_mixin.py).
-        """
-        self.nav_btn_drawing.setChecked(False)
-        self.nav_btn_settings.setChecked(False)
-        self._active_panel = None
-        self._on_panel_changed()
-
     def _save_project(self) -> None:
         """Save project state through LayerManager and display notification."""
         success = self.layer_manager.save_project()
@@ -448,7 +395,7 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
             )
 
     def closeEvent(self, event: Any) -> None:
-        """Clean up map tools and canvases when dock is closed."""
+        """Clean up map tools, canvases and auxiliary dialogs when dock is closed (T-0024)."""
         try:
             project = QgsProject.instance()
             if project is not None:
@@ -458,6 +405,9 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
             pass
 
         self._destroy_preview_canvas()
+        for dialog in (self.image_dialog, self.settings_dialog, self.output_dialog):
+            if dialog is not None:
+                dialog.close()
         if self.map_tool:
             self.map_tool.clean_up()
         super().closeEvent(event)

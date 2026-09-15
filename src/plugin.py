@@ -42,7 +42,9 @@ class PointerGeocodingPlugin:
         :rtype: QIcon
         """
         # 1. Prioritize icon.svg for crisp High DPI scaling
-        svg_path = os.path.join(self.plugin_dir, "icon.svg")
+        # T-0024: icon assets moved under plugin_dir/icon/ (alongside the new
+        # top-row button icons image.svg/setting.svg/output.svg/save.svg).
+        svg_path = os.path.join(self.plugin_dir, "icon", "icon.svg")
         if os.path.exists(svg_path):
             return QIcon(svg_path)
 
@@ -100,22 +102,17 @@ class PointerGeocodingPlugin:
         self._teardown_dock_widget()
 
     def _teardown_dock_widget(self) -> None:
-        """Unregister and dispose of the main dock widget and its left dock (T-0021).
+        """Unregister and dispose of the main dock widget (T-0024).
 
-        self.dock_widget (Qt.RightDockWidgetArea) and its left dock
-        (self.dock_widget.left_dock, Qt.LeftDockWidgetArea) are two
-        independent QDockWidget instances; Qt's parent-child auto-cleanup
-        does not reach left_dock since it is registered as its own top-level
-        dock rather than as a child widget of self.dock_widget. Both must
-        therefore be explicitly removed/deleted here.
+        T-0024: the former left dock (self.dock_widget.left_dock,
+        Qt.LeftDockWidgetArea, introduced in T-0021) has been removed; the
+        plugin now registers only a single dock widget (self.dock_widget,
+        Qt.RightDockWidgetArea). Its own auxiliary dialogs (image/settings/
+        output) are plain child QDialogs, so Qt's normal parent-child
+        cleanup via deleteLater() below is sufficient for them.
         """
         if self.dock_widget is None:
             return
-
-        left_dock = getattr(self.dock_widget, "left_dock", None)
-        if left_dock is not None:
-            self.iface.removeDockWidget(left_dock)
-            left_dock.deleteLater()
 
         self.iface.removeDockWidget(self.dock_widget)
         self.dock_widget.deleteLater()
@@ -176,16 +173,15 @@ class PointerGeocodingPlugin:
         self._setup_dock_widget(layers_dict)
 
     def _setup_dock_widget(self, layers_dict: Optional[Dict[str, Any]]) -> None:
-        """Instantiate and attach the main dock widget (and its left dock) to QGIS interface.
+        """Instantiate and attach the main dock widget to the QGIS interface.
 
         Gracefully notifies if MainDockWidget is not yet created (during Step 1).
 
-        T-0021: MainDockWidget now spans two independent QDockWidget
-        instances: self.dock_widget itself (Qt.RightDockWidgetArea; save
-        button + main digitizing area) and self.dock_widget.left_dock
-        (Qt.LeftDockWidgetArea; icon rail + collapsible 図面管理/設定 side
-        panel), which MainDockWidget builds internally. Both are registered
-        here so the QGIS map canvas is exposed between them.
+        T-0024: MainDockWidget is now a single QDockWidget (Qt.RightDockWidgetArea)
+        hosting a top row of 画像/設定/出力/保存 buttons plus the always-visible
+        main digitizing area; the former left dock (T-0021) has been removed,
+        and 画像/設定/出力 now each open their own independent modeless dialog
+        (built internally by MainDockWidget) instead.
 
         :param layers_dict: Dictionary containing session and layer references.
         :type layers_dict: Optional[Dict[str, Any]]
@@ -198,8 +194,6 @@ class PointerGeocodingPlugin:
             self.dock_widget = MainDockWidget(
                 self.iface, self.layer_manager, layers_dict
             )
-            self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dock_widget.left_dock)
-            self.dock_widget.left_dock.show()
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dock_widget)
             self.dock_widget.show()
 
