@@ -15,6 +15,7 @@ import os
 import re
 import math
 import gc
+import time
 from typing import Optional, List, Tuple
 
 from qgis.core import (
@@ -435,15 +436,16 @@ class Tab1GeorefMixin:
                         released_info = self._release_raster_layer_for_rename(old_path, old_name)
 
                         try:
-                            # Rename file
-                            os.rename(old_path, new_path)
+                            # Rename file (retried briefly on [WinError 32]-style
+                            # failures; see _rename_with_retry() for rationale)
+                            self._rename_with_retry(old_path, new_path)
                             self.current_copied_image_path = new_path
                             layer_meta["file_path"] = new_path
 
                             # Rename world files
                             for w_ext in [".tfw", ".jgw", ".pgw", ".bpw", ".wld"]:
                                 if os.path.exists(base + w_ext):
-                                    os.rename(base + w_ext, new_base + w_ext)
+                                    self._rename_with_retry(base + w_ext, new_base + w_ext)
                         except Exception as e:
                             # Restore the released layer under its original path so the
                             # canvas is not left without the image after a failed rename.
@@ -495,6 +497,42 @@ class Tab1GeorefMixin:
             self.preview_dialog.activateWindow()
         else:
             self._create_preview_canvas(self.current_copied_image_path)
+
+    def _rename_with_retry(
+        self, src: str, dst: str, max_attempts: int = 5, delay_sec: float = 0.2
+    ) -> None:
+        """Rename ``src`` to ``dst`` via ``os.rename()``, retrying on failure.
+
+        NOTE (T-0013): even after ``_release_raster_layer_for_rename()`` releases the
+        QGIS raster layer holding ``src`` (``removeMapLayer()`` + ``processEvents()`` +
+        ``gc.collect()``), reports indicate the rename can still fail with
+        ``[WinError 32]`` immediately afterwards, with the layer observed to briefly
+        flash on screen (evidence the release path is actually running, not being
+        skipped). The working hypothesis is that this is a timing race: Windows may
+        take a short additional moment after the GDAL dataset/layer object is torn
+        down to actually release the underlying file handle, so ``os.rename()`` called
+        immediately afterward can still observe the file as locked.
+
+        This is NOT a fix for a confirmed root cause; it is a defensive retry that
+        absorbs a possible timing gap between "layer released in QGIS/Python" and "OS
+        has actually released the file handle". On ``PermissionError``/``OSError``
+        (which is what ``[WinError 32]`` surfaces as on Windows), this waits briefly
+        while pumping the Qt event loop (so the UI does not appear fully frozen) and
+        retries up to ``max_attempts`` times before re-raising the last exception, so
+        the caller's existing ``except`` block (error dialog + rollback) is unchanged.
+        """
+        last_error: Optional[OSError] = None
+        for attempt in range(max_attempts):
+            try:
+                os.rename(src, dst)
+                return
+            except (PermissionError, OSError) as e:
+                last_error = e
+                if attempt == max_attempts - 1:
+                    break
+                QCoreApplication.processEvents()
+                time.sleep(delay_sec)
+        raise last_error
 
     def _release_raster_layer_for_rename(self, file_path: str, old_name: str) -> Optional[dict]:
         """Find the QGIS raster layer backed by ``file_path`` (if any) and remove it from
