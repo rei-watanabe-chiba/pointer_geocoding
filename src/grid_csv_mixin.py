@@ -33,8 +33,10 @@ class GridCsvMixin:
         output_path: str,
         origin_x: int,
         origin_y: int,
-        range_x: int,
-        range_y: int,
+        range_x_min: int,
+        range_x_max: int,
+        range_y_min: int,
+        range_y_max: int,
     ) -> Tuple[bool, str]:
         """Generate PointGeo_grid.csv containing coordinates for all small grids in the specified range.
         # 【変更不可侵の絶対的ルール】 測量座標系（X軸=南北, Y軸=東西）を採用。QGISキャンバス上のX座標(東西)はSurvey Y、Y座標(南北)はSurvey Xに対応する。
@@ -46,6 +48,9 @@ class GridCsvMixin:
         - Small grid: 4m x 4m (10x10 inside large grid), named as 00..99
         - Output coordinates: Upper-left vertex of each small grid in real-world space.
         - Encoding: UTF-8 with BOM (utf-8-sig).
+        - The origin (origin_x, origin_y) always represents the theoretical 1A-00 point;
+          range_x_min/range_y_min need not be 1, in which case grids are generated starting
+          from the specified minimum while the offset formula still measures from 1A-00.
 
         :param output_path: Destination path of PointGeo_grid.csv.
         :type output_path: str
@@ -53,10 +58,14 @@ class GridCsvMixin:
         :type origin_x: int
         :param origin_y: Origin Y coordinate (1A-00).
         :type origin_y: int
-        :param range_x: Number of large grids along X axis (1-300).
-        :type range_x: int
-        :param range_y: Number of large grids along Y axis (1-300).
-        :type range_y: int
+        :param range_x_min: Minimum (inclusive) large grid number along the X axis (>=1).
+        :type range_x_min: int
+        :param range_x_max: Maximum (inclusive) large grid number along the X axis (<=300).
+        :type range_x_max: int
+        :param range_y_min: Minimum (inclusive) large grid letter index along the Y axis (>=1, 'A').
+        :type range_y_min: int
+        :param range_y_max: Maximum (inclusive) large grid letter index along the Y axis (<=702, 'ZZ').
+        :type range_y_max: int
         :return: Tuple of (success, message).
         :rtype: Tuple[bool, str]
         """
@@ -65,9 +74,9 @@ class GridCsvMixin:
             with open(output_path, mode="w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
                 writer.writerow(["大グリッドＸ", "大グリッドＹ", "小グリッド", "Ｘ座標", "Ｙ座標"])
-                for gx in range(1, range_x + 1):
+                for gx in range(range_x_min, range_x_max + 1):
                     gx_offset = origin_x - (gx - 1) * 40
-                    for gy in range(1, range_y + 1):
+                    for gy in range(range_y_min, range_y_max + 1):
                         grid_y_str = to_excel_column(gy)
                         gy_offset = origin_y + (gy - 1) * 40
                         for sx in range(10):
@@ -104,8 +113,10 @@ class GridCsvMixin:
                 "use_existing_csv": False,
                 "origin_x": 0,
                 "origin_y": 0,
-                "range_x": 10,
-                "range_y": 10,
+                "range_x_min": 1,
+                "range_x_max": 10,
+                "range_y_min": 1,
+                "range_y_max": 10,
             }
 
         use_existing = grid_config.get("use_existing_csv", False)
@@ -124,9 +135,13 @@ class GridCsvMixin:
         else:
             origin_x = int(grid_config.get("origin_x", 0))
             origin_y = int(grid_config.get("origin_y", 0))
-            range_x = int(grid_config.get("range_x", 10))
-            range_y = int(grid_config.get("range_y", 10))
-            return cls.generate_grid_csv(dest_path, origin_x, origin_y, range_x, range_y)
+            range_x_min = int(grid_config.get("range_x_min", 1))
+            range_x_max = int(grid_config.get("range_x_max", 10))
+            range_y_min = int(grid_config.get("range_y_min", 1))
+            range_y_max = int(grid_config.get("range_y_max", 10))
+            return cls.generate_grid_csv(
+                dest_path, origin_x, origin_y, range_x_min, range_x_max, range_y_min, range_y_max
+            )
 
     def load_grid_csv_to_memory(self, csv_path: Optional[str] = None) -> bool:
         """Load PointGeo_grid.csv into memory cache.

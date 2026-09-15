@@ -37,7 +37,7 @@ except ImportError:
     from qgis.PyQt.QtCore import QRegExp
     HAS_QT_REGEX = False
 
-from .core_logic import from_excel_column
+from .core_logic import from_excel_column, to_excel_column
 from .style_helper import UIStyleHelper
 
 # UI Configuration dictionary and layout ratios
@@ -57,7 +57,10 @@ UI_CONFIG = {
         "SESSION_NAME": "セッション名:",
         "GRID_CSV": "グリッドCSV選択:",
         "ORIGIN_GROUP": "原点 (1A-00):",
-        "RANGE_GROUP": "グリッド数:",
+        "RANGE_X_GROUP": "X範囲:",
+        "RANGE_Y_GROUP": "Y範囲:",
+        "RANGE_MIN": "最小:",
+        "RANGE_MAX": "最大:",
         "PREVIEW_TITLE": "グリッドプレビュー:",
         "COORD_X": "X:",
         "COORD_Y": "Y:",
@@ -91,10 +94,80 @@ UI_CONFIG = {
         "ERR_SESSION_EXISTS": "指定された親ディレクトリ内に同名のフォルダが既に存在します:\n{name}\n別のセッション名を指定してください。",
         "ERR_NO_QGZ": "選択されたフォルダ内にQGISプロジェクトファイル (.qgz) が見つかりません:\n{path}\n有効なセッションフォルダを選択してください。",
         "ERR_CSV_NOT_FOUND": "指定されたグリッドCSVファイルが存在しません:\n{path}",
+        "ERR_RANGE_INVALID": "X範囲・Y範囲は、それぞれ最小値が最大値以下になるように指定してください。",
+    },
+    "LIMITS": {
+        "RANGE_X_MIN_VALUE": 1,
+        "RANGE_X_MAX_VALUE": 300,
+        "RANGE_X_DEFAULT_MIN": 1,
+        "RANGE_X_DEFAULT_MAX": 10,
+        "RANGE_Y_DEFAULT_MIN": 1,
+        "RANGE_Y_DEFAULT_MAX": 10,
     },
 }
 
 MAIN_RATIO = UI_CONFIG["MAIN_RATIO"]
+
+
+class ExcelColumnSpinBox(QSpinBox):
+    """QSpinBox variant that displays/accepts an Excel-style column letter
+    (A, B, ..., Z, AA, AB, ..., ZZ) while internally storing the equivalent
+    1-based integer index (1..702). Used for the Y-axis grid range inputs,
+    where the large-grid axis is identified by a 1-2 character uppercase
+    alphabetic label (see grid_csv_mixin.generate_grid_csv / core_logic.
+    to_excel_column / from_excel_column)."""
+
+    MIN_VALUE = 1
+    MAX_VALUE = 702  # 'ZZ'
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        """Initialize the spinbox with a fixed 'A'..'ZZ' range.
+
+        :param parent: Optional parent QWidget.
+        :type parent: Optional[QWidget]
+        """
+        super().__init__(parent)
+        self.setRange(self.MIN_VALUE, self.MAX_VALUE)
+        if HAS_QT_REGEX:
+            self._validator = QRegularExpressionValidator(
+                QRegularExpression(r"^[A-Za-z]{1,2}$"), self
+            )
+        else:
+            self._validator = QRegExpValidator(QRegExp(r"^[A-Za-z]{1,2}$"), self)
+
+    def textFromValue(self, value: int) -> str:
+        """Render the internal integer as an Excel-style column letter.
+
+        :param value: 1-based integer value.
+        :type value: int
+        :return: Excel-style column letter representation.
+        :rtype: str
+        """
+        return to_excel_column(value)
+
+    def valueFromText(self, text: str) -> int:
+        """Parse an Excel-style column letter back into a 1-based integer.
+
+        :param text: Excel-style column letter string.
+        :type text: str
+        :return: 1-based integer value (clamped to the valid range).
+        :rtype: int
+        """
+        value = from_excel_column(text)
+        if value <= 0:
+            return self.MIN_VALUE
+        return min(value, self.MAX_VALUE)
+
+    def validate(self, text: str, pos: int):
+        """Restrict input to 1-2 half-width uppercase (or lowercase) letters.
+
+        :param text: Current editor text.
+        :type text: str
+        :param pos: Cursor position within the text.
+        :type pos: int
+        :return: Validation result tuple (state, text, pos).
+        """
+        return self._validator.validate(text, pos)
 
 
 class StartDialog(QDialog):
@@ -227,26 +300,54 @@ class StartDialog(QDialog):
         )
         panel_settings_layout.addWidget(row_origin)
 
-        # 2nd Row: Grid Count Settings
-        self.lbl_range_group = QLabel(UI_CONFIG["LABELS"]["RANGE_GROUP"], self.panel_grid_settings)
-        self.lbl_range_group.setStyleSheet("font-weight: bold;")
-        self.lbl_range_x = QLabel(UI_CONFIG["LABELS"]["COORD_X"], self.panel_grid_settings)
-        self.spin_range_x = UIStyleHelper.create_spinbox(1, 300, 10, self.panel_grid_settings)
-        child_range_x = UIStyleHelper.build_child_container(self.lbl_range_x, self.spin_range_x)
+        # 2nd Row: X-axis Grid Range (numeric, min/max, both ends inclusive)
+        limits = UI_CONFIG["LIMITS"]
+        self.lbl_range_x_group = QLabel(UI_CONFIG["LABELS"]["RANGE_X_GROUP"], self.panel_grid_settings)
+        self.lbl_range_x_group.setStyleSheet("font-weight: bold;")
+        self.lbl_range_x_min = QLabel(UI_CONFIG["LABELS"]["RANGE_MIN"], self.panel_grid_settings)
+        self.spin_range_x_min = UIStyleHelper.create_spinbox(
+            limits["RANGE_X_MIN_VALUE"], limits["RANGE_X_MAX_VALUE"], limits["RANGE_X_DEFAULT_MIN"],
+            self.panel_grid_settings,
+        )
+        child_range_x_min = UIStyleHelper.build_child_container(self.lbl_range_x_min, self.spin_range_x_min)
 
-        self.lbl_range_y = QLabel(UI_CONFIG["LABELS"]["COORD_Y"], self.panel_grid_settings)
-        self.spin_range_y = UIStyleHelper.create_spinbox(1, 300, 10, self.panel_grid_settings)
-        child_range_y = UIStyleHelper.build_child_container(self.lbl_range_y, self.spin_range_y)
+        self.lbl_range_x_max = QLabel(UI_CONFIG["LABELS"]["RANGE_MAX"], self.panel_grid_settings)
+        self.spin_range_x_max = UIStyleHelper.create_spinbox(
+            limits["RANGE_X_MIN_VALUE"], limits["RANGE_X_MAX_VALUE"], limits["RANGE_X_DEFAULT_MAX"],
+            self.panel_grid_settings,
+        )
+        child_range_x_max = UIStyleHelper.build_child_container(self.lbl_range_x_max, self.spin_range_x_max)
 
-        row_range = UIStyleHelper.build_flex_row(
-            self.lbl_range_group,
-            [(child_range_x, 1), (child_range_y, 1), (None, 1)],
+        row_range_x = UIStyleHelper.build_flex_row(
+            self.lbl_range_x_group,
+            [(child_range_x_min, 1), (child_range_x_max, 1), (None, 1)],
             main_ratio=MAIN_RATIO,
             row_height=UI_CONFIG["ROW_HEIGHT"],
         )
-        panel_settings_layout.addWidget(row_range)
+        panel_settings_layout.addWidget(row_range_x)
 
-        # 3rd Row: Grid Preview Section
+        # 3rd Row: Y-axis Grid Range (alphabetic 'A'..'ZZ', min/max, both ends inclusive)
+        self.lbl_range_y_group = QLabel(UI_CONFIG["LABELS"]["RANGE_Y_GROUP"], self.panel_grid_settings)
+        self.lbl_range_y_group.setStyleSheet("font-weight: bold;")
+        self.lbl_range_y_min = QLabel(UI_CONFIG["LABELS"]["RANGE_MIN"], self.panel_grid_settings)
+        self.spin_range_y_min = ExcelColumnSpinBox(self.panel_grid_settings)
+        self.spin_range_y_min.setValue(limits["RANGE_Y_DEFAULT_MIN"])
+        child_range_y_min = UIStyleHelper.build_child_container(self.lbl_range_y_min, self.spin_range_y_min)
+
+        self.lbl_range_y_max = QLabel(UI_CONFIG["LABELS"]["RANGE_MAX"], self.panel_grid_settings)
+        self.spin_range_y_max = ExcelColumnSpinBox(self.panel_grid_settings)
+        self.spin_range_y_max.setValue(limits["RANGE_Y_DEFAULT_MAX"])
+        child_range_y_max = UIStyleHelper.build_child_container(self.lbl_range_y_max, self.spin_range_y_max)
+
+        row_range_y = UIStyleHelper.build_flex_row(
+            self.lbl_range_y_group,
+            [(child_range_y_min, 1), (child_range_y_max, 1), (None, 1)],
+            main_ratio=MAIN_RATIO,
+            row_height=UI_CONFIG["ROW_HEIGHT"],
+        )
+        panel_settings_layout.addWidget(row_range_y)
+
+        # 4th Row: Grid Preview Section
         self.lbl_preview_title = QLabel(UI_CONFIG["LABELS"]["PREVIEW_TITLE"], self.panel_grid_settings)
         self.lbl_preview_title.setStyleSheet("font-weight: bold;")
 
@@ -290,8 +391,10 @@ class StartDialog(QDialog):
         # Connect signals for dynamic preview calculation
         self.spin_origin_x.valueChanged.connect(self._update_grid_coordinate_preview)
         self.spin_origin_y.valueChanged.connect(self._update_grid_coordinate_preview)
-        self.spin_range_x.valueChanged.connect(self._update_grid_coordinate_preview)
-        self.spin_range_y.valueChanged.connect(self._update_grid_coordinate_preview)
+        self.spin_range_x_min.valueChanged.connect(self._update_grid_coordinate_preview)
+        self.spin_range_x_max.valueChanged.connect(self._update_grid_coordinate_preview)
+        self.spin_range_y_min.valueChanged.connect(self._update_grid_coordinate_preview)
+        self.spin_range_y_max.valueChanged.connect(self._update_grid_coordinate_preview)
         self.spin_preview_x.valueChanged.connect(self._update_grid_coordinate_preview)
         self.edit_preview_y.textChanged.connect(self._update_grid_coordinate_preview)
 
@@ -385,12 +488,15 @@ class StartDialog(QDialog):
         """Extract origin coordinates and grid range from an existing PointGeo_grid.csv.
 
         Supports UTF-8 (with or without BOM) and CP932 / Shift-JIS with automatic fallback.
-        Origin coordinates are obtained from the first data row.
-        Max grid range is calculated across all data rows.
+        The origin (1A-00) is back-calculated from any encountered small-grid "00" row
+        (upper-left corner of a large grid) using the same offset formula as
+        grid_csv_mixin.generate_grid_csv, since the grid range may not start at 1/A.
+        Min/max grid range is calculated across all data rows.
 
         :param csv_path: Absolute path to the grid CSV file.
         :type csv_path: str
-        :return: Dictionary with keys 'origin_x', 'origin_y', 'range_x', 'range_y', or None on failure.
+        :return: Dictionary with keys 'origin_x', 'origin_y', 'range_x_min', 'range_x_max',
+            'range_y_min', 'range_y_max', or None on failure.
         :rtype: Optional[Dict[str, int]]
         """
         if not os.path.isfile(csv_path):
@@ -400,11 +506,13 @@ class StartDialog(QDialog):
             try:
                 with open(csv_path, mode="r", encoding=encoding, newline="") as f:
                     reader = csv.reader(f)
-                    first_origin: Optional[Tuple[int, int]] = None
+                    derived_origin: Optional[Tuple[int, int]] = None
+                    min_gx: Optional[int] = None
                     max_gx: int = 0
+                    min_gy: Optional[int] = None
                     max_gy: int = 0
 
-                    col_gx, col_gy, col_x, col_y = 0, 1, 3, 4
+                    col_gx, col_gy, col_sub, col_x, col_y = 0, 1, 2, 3, 4
                     header_parsed: bool = False
 
                     for row in reader:
@@ -424,6 +532,8 @@ class StartDialog(QDialog):
                                             col_gx = idx
                                         case name if "大グリッド" in name and ("Ｙ" in name or "Y" in name):
                                             col_gy = idx
+                                        case name if "小グリッド" in name:
+                                            col_sub = idx
                                         case name if "Ｘ座標" in name or "X座標" in name or name.upper() == "X":
                                             col_x = idx
                                         case name if "Ｙ座標" in name or "Y座標" in name or name.upper() == "Y":
@@ -436,24 +546,39 @@ class StartDialog(QDialog):
                         try:
                             gx = int(row[col_gx].strip())
                             gy = from_excel_column(row[col_gy].strip())
+                            if min_gx is None or gx < min_gx:
+                                min_gx = gx
                             if gx > max_gx:
                                 max_gx = gx
+                            if min_gy is None or gy < min_gy:
+                                min_gy = gy
                             if gy > max_gy:
                                 max_gy = gy
 
-                            if first_origin is None:
-                                ox = int(round(float(row[col_x].strip())))
-                                oy = int(round(float(row[col_y].strip())))
-                                first_origin = (ox, oy)
+                            if derived_origin is None:
+                                # Back-calculate the theoretical 1A-00 origin from this row's
+                                # own small-grid offset (sx, sy), so it works even when the
+                                # CSV's grid range does not start at gx=1 / gy=A.
+                                sub_grid = row[col_sub].strip() if len(row) > col_sub else ""
+                                if len(sub_grid) == 2 and sub_grid.isdigit():
+                                    sx = int(sub_grid[0])
+                                    sy = int(sub_grid[1])
+                                    coord_x = float(row[col_x].strip())
+                                    coord_y = float(row[col_y].strip())
+                                    ox = int(round(coord_x + (gx - 1) * 40 + sx * 4))
+                                    oy = int(round(coord_y - (gy - 1) * 40 - sy * 4))
+                                    derived_origin = (ox, oy)
                         except (ValueError, IndexError):
                             continue
 
-                    if first_origin is not None and max_gx > 0 and max_gy > 0:
+                    if derived_origin is not None and min_gx is not None and min_gy is not None:
                         return {
-                            "origin_x": first_origin[0],
-                            "origin_y": first_origin[1],
-                            "range_x": max_gx,
-                            "range_y": max_gy,
+                            "origin_x": derived_origin[0],
+                            "origin_y": derived_origin[1],
+                            "range_x_min": min_gx,
+                            "range_x_max": max_gx,
+                            "range_y_min": min_gy,
+                            "range_y_max": max_gy,
                         }
             except (UnicodeDecodeError, OSError):
                 continue
@@ -482,11 +607,16 @@ class StartDialog(QDialog):
         self.spin_origin_y.setEnabled(enable_inputs)
 
         # Range inputs disabled when CSV is specified
-        self.lbl_range_group.setEnabled(enable_inputs)
-        self.lbl_range_x.setEnabled(enable_inputs)
-        self.spin_range_x.setEnabled(enable_inputs)
-        self.lbl_range_y.setEnabled(enable_inputs)
-        self.spin_range_y.setEnabled(enable_inputs)
+        self.lbl_range_x_group.setEnabled(enable_inputs)
+        self.lbl_range_x_min.setEnabled(enable_inputs)
+        self.spin_range_x_min.setEnabled(enable_inputs)
+        self.lbl_range_x_max.setEnabled(enable_inputs)
+        self.spin_range_x_max.setEnabled(enable_inputs)
+        self.lbl_range_y_group.setEnabled(enable_inputs)
+        self.lbl_range_y_min.setEnabled(enable_inputs)
+        self.spin_range_y_min.setEnabled(enable_inputs)
+        self.lbl_range_y_max.setEnabled(enable_inputs)
+        self.spin_range_y_max.setEnabled(enable_inputs)
 
         # Preview inputs are ALWAYS enabled regardless of CSV selection
         self.lbl_preview_title.setEnabled(True)
@@ -500,15 +630,19 @@ class StartDialog(QDialog):
         if has_csv and os.path.isfile(csv_path):
             metadata = self._extract_csv_metadata(csv_path)
             if metadata:
-                if metadata["range_x"] > self.spin_range_x.maximum():
-                    self.spin_range_x.setMaximum(metadata["range_x"])
-                if metadata["range_y"] > self.spin_range_y.maximum():
-                    self.spin_range_y.setMaximum(metadata["range_y"])
+                # Extend the X-axis numeric spinbox maxima if the CSV exceeds current limits.
+                # (Y-axis ExcelColumnSpinBox already covers the full 'A'..'ZZ' range.)
+                if metadata["range_x_max"] > self.spin_range_x_max.maximum():
+                    self.spin_range_x_max.setMaximum(metadata["range_x_max"])
+                if metadata["range_x_min"] > self.spin_range_x_min.maximum():
+                    self.spin_range_x_min.setMaximum(metadata["range_x_min"])
 
                 self.spin_origin_x.setValue(metadata["origin_x"])
                 self.spin_origin_y.setValue(metadata["origin_y"])
-                self.spin_range_x.setValue(metadata["range_x"])
-                self.spin_range_y.setValue(metadata["range_y"])
+                self.spin_range_x_min.setValue(metadata["range_x_min"])
+                self.spin_range_x_max.setValue(metadata["range_x_max"])
+                self.spin_range_y_min.setValue(metadata["range_y_min"])
+                self.spin_range_y_max.setValue(metadata["range_y_max"])
 
         self._update_grid_coordinate_preview()
 
@@ -526,14 +660,16 @@ class StartDialog(QDialog):
         display_y = y_text if y_text else "?"
         grid_prefix = f"{gx}{display_y}-00座標"
 
-        rx = self.spin_range_x.value()
-        ry = self.spin_range_y.value()
+        rx_min = self.spin_range_x_min.value()
+        rx_max = self.spin_range_x_max.value()
+        ry_min = self.spin_range_y_min.value()
+        ry_max = self.spin_range_y_max.value()
         ox = self.spin_origin_x.value()
         oy = self.spin_origin_y.value()
 
         # Check if coordinates are strictly within configured grid range
         # px is Survey X (南北), py is Survey Y (東西)
-        if 1 <= gx <= rx and 1 <= gy <= ry:
+        if rx_min <= gx <= rx_max and ry_min <= gy <= ry_max:
             px = ox - (gx - 1) * 40
             py = oy + (gy - 1) * 40
             UIStyleHelper.update_status_panel(
@@ -630,6 +766,25 @@ class StartDialog(QDialog):
             self.edit_grid_csv.setFocus()
             return
 
+        # Validate X/Y grid range (min must not exceed max) when generating a new grid CSV
+        if not grid_csv:
+            if self.spin_range_x_min.value() > self.spin_range_x_max.value():
+                UIStyleHelper.show_warning_dialog(
+                    self,
+                    UI_CONFIG["MESSAGES"]["ERR_TITLE_INPUT"],
+                    UI_CONFIG["MESSAGES"]["ERR_RANGE_INVALID"],
+                )
+                self.spin_range_x_min.setFocus()
+                return
+            if self.spin_range_y_min.value() > self.spin_range_y_max.value():
+                UIStyleHelper.show_warning_dialog(
+                    self,
+                    UI_CONFIG["MESSAGES"]["ERR_TITLE_INPUT"],
+                    UI_CONFIG["MESSAGES"]["ERR_RANGE_INVALID"],
+                )
+                self.spin_range_y_min.setFocus()
+                return
+
         self.accept()
 
     def get_session_data(self) -> Dict[str, Any]:
@@ -647,8 +802,10 @@ class StartDialog(QDialog):
             "csv_path": grid_csv,
             "origin_x": self.spin_origin_x.value(),
             "origin_y": self.spin_origin_y.value(),
-            "range_x": self.spin_range_x.value(),
-            "range_y": self.spin_range_y.value(),
+            "range_x_min": self.spin_range_x_min.value(),
+            "range_x_max": self.spin_range_x_max.value(),
+            "range_y_min": self.spin_range_y_min.value(),
+            "range_y_max": self.spin_range_y_max.value(),
         }
 
         match is_new:
@@ -664,8 +821,10 @@ class StartDialog(QDialog):
                     "grid_csv_path": grid_csv,
                     "grid_origin_x": grid_config["origin_x"],
                     "grid_origin_y": grid_config["origin_y"],
-                    "grid_range_x": grid_config["range_x"],
-                    "grid_range_y": grid_config["range_y"],
+                    "grid_range_x_min": grid_config["range_x_min"],
+                    "grid_range_x_max": grid_config["range_x_max"],
+                    "grid_range_y_min": grid_config["range_y_min"],
+                    "grid_range_y_max": grid_config["range_y_max"],
                 }
             case False:
                 return {
@@ -678,6 +837,8 @@ class StartDialog(QDialog):
                     "grid_csv_path": grid_csv,
                     "grid_origin_x": grid_config["origin_x"],
                     "grid_origin_y": grid_config["origin_y"],
-                    "grid_range_x": grid_config["range_x"],
-                    "grid_range_y": grid_config["range_y"],
+                    "grid_range_x_min": grid_config["range_x_min"],
+                    "grid_range_x_max": grid_config["range_x_max"],
+                    "grid_range_y_min": grid_config["range_y_min"],
+                    "grid_range_y_max": grid_config["range_y_max"],
                 }
