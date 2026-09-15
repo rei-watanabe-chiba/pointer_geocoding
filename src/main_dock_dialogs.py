@@ -4,14 +4,30 @@
  ***************************************************************************/
 
 Stage B split (mechanical, logic-preserving): extracted from main_dock.py.
-Contains the independent dialog/widget classes used by MainDockWidget's
-Tab 1 (georeferencing) workflow: PreviewDialog, TwoDigitSpinBox and
-GridInputDialog.
+Contains the independent dialog/widget classes used by MainDockWidget:
+ModelessSectionDialog, ImageDialog, TwoDigitSpinBox and GridInputDialog.
+
+T-0024 (UI restructure: left dock removal, top 4-button row + modeless
+dialogs): the former left-dock icon rail + collapsible side panel (T-0020/
+T-0021) has been replaced by three independent modeless dialogs opened from
+buttons on the right dock's (MainDockWidget's) own top row: 画像 (image),
+設定 (settings) and 出力 (CSV export). 設定/出力 are thin
+ModelessSectionDialog wrappers around the content widgets tab3_settings_mixin.py
+/ tab2_digitizing_mixin.py already build (_create_tab3_ui / _create_output_ui).
+画像 is the dedicated ImageDialog class below, which also absorbs the former
+standalone PreviewDialog: the reference-point preview QgsMapCanvas (and its
+setup_raster/add_marker/clear_markers/clean_up API, used by
+tab1_georef_mixin.py) is now embedded directly inside the same window as the
+画像管理 form, instead of opening as a second popup. All three dialogs are
+modeless (multiple can be open at once) and report their show/close events
+back to MainDockWidget via on_show/on_close callbacks, which it uses to
+suspend/restore the main canvas digitizing tool (map_tool) while any of them
+is open (see MainDockWidget._update_main_map_tool_state).
 """
 # 【変更不可侵の絶対的ルール】 測量座標系（X軸=南北, Y軸=東西）を採用。QGISキャンバス上のX座標(東西)はSurvey Y、Y座標(南北)はSurvey Xに対応する。
 
 import re
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Callable
 
 from qgis.core import QgsRasterLayer
 from qgis.gui import QgsMapCanvas
@@ -35,27 +51,122 @@ from .core_logic import to_survey_coords
 from .main_dock_constants import UILabels, UIMessages
 
 
-class PreviewDialog(QDialog):
-    """Modeless dialog displaying the temporary georeferencing raster preview canvas."""
+class ModelessSectionDialog(QDialog):
+    """Generic modeless dialog hosting a single pre-built content widget (T-0024).
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
-        """Initialize preview dialog.
+    Used for the 設定 (settings) and 出力 (CSV export) dialogs: the dialog
+    itself owns no business logic, it simply presents a content widget built
+    by the corresponding tab mixin (tab3_settings_mixin.py's
+    ``_create_tab3_ui`` / tab2_digitizing_mixin.py's ``_create_output_ui``)
+    and, since it is modeless and reopenable, notifies MainDockWidget of its
+    show/close events via the optional ``on_show``/``on_close`` callbacks so
+    the main canvas digitizing tool can be suspended while it is open and
+    restored once no such dialog remains open.
+    """
 
+    def __init__(
+        self,
+        title: str,
+        content_widget: QWidget,
+        on_show: Optional[Callable[[], None]] = None,
+        on_close: Optional[Callable[[], None]] = None,
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        """Initialize the dialog.
+
+        :param title: Window title.
+        :type title: str
+        :param content_widget: Pre-built content widget to embed.
+        :type content_widget: QWidget
+        :param on_show: Optional callback invoked after the dialog is shown.
+        :type on_show: Optional[Callable[[], None]]
+        :param on_close: Optional callback invoked after the dialog is hidden/closed.
+        :type on_close: Optional[Callable[[], None]]
         :param parent: Optional parent QWidget.
         :type parent: Optional[QWidget]
         """
         super().__init__(parent)
-        self.setWindowTitle(UILabels.PREVIEW_DIALOG_TITLE)
-        self.resize(750, 580)
+        self.setWindowTitle(title)
         self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
+        self._on_show = on_show
+        self._on_close = on_close
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(4)
+        layout.addWidget(content_widget)
 
-        self.canvas = QgsMapCanvas(self)
+    def showEvent(self, event: Any) -> None:
+        """Notify on_show after the dialog becomes visible."""
+        super().showEvent(event)
+        if self._on_show is not None:
+            self._on_show()
+
+    def closeEvent(self, event: Any) -> None:
+        """Hide (rather than destroy) so the dialog can be reopened, then notify on_close."""
+        self.hide()
+        event.accept()
+        if self._on_close is not None:
+            self._on_close()
+
+
+class ImageDialog(QDialog):
+    """Modeless dialog hosting the 画像管理 (Tab 1) form, with the
+    reference-point preview canvas embedded directly beside it (T-0024).
+
+    Replaces the former separate PreviewDialog popup (see module docstring):
+    the QgsMapCanvas preview and its setup_raster/add_marker/clear_markers/
+    clean_up API now live on this class, alongside the 画像管理 form widget
+    (tab1_georef_mixin.py's ``_create_tab1_ui``) passed in as
+    ``content_widget``.
+    """
+
+    def __init__(
+        self,
+        content_widget: QWidget,
+        on_show: Optional[Callable[[], None]] = None,
+        on_close: Optional[Callable[[], None]] = None,
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        """Initialize the image dialog.
+
+        :param content_widget: Pre-built 画像管理 form widget (Tab 1 content).
+        :type content_widget: QWidget
+        :param on_show: Optional callback invoked after the dialog is shown.
+        :type on_show: Optional[Callable[[], None]]
+        :param on_close: Optional callback invoked after the dialog is hidden/closed.
+        :type on_close: Optional[Callable[[], None]]
+        :param parent: Optional parent QWidget.
+        :type parent: Optional[QWidget]
+        """
+        super().__init__(parent)
+        self.setWindowTitle(UILabels.TAB_1_TITLE)
+        self.resize(1100, 650)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
+        self._on_show = on_show
+        self._on_close = on_close
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(6)
+
+        # Left: 画像管理 form (image add/edit, reference point table, transform)
+        layout.addWidget(content_widget, 1)
+
+        # Right: embedded reference-point preview canvas (formerly PreviewDialog)
+        preview_container = QWidget(self)
+        preview_layout = QVBoxLayout(preview_container)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(4)
+
+        lbl_hint = QLabel(UILabels.PREVIEW_HINT, preview_container)
+        lbl_hint.setWordWrap(True)
+        preview_layout.addWidget(lbl_hint)
+
+        self.canvas = QgsMapCanvas(preview_container)
         self.canvas.setMinimumSize(400, 300)
-        layout.addWidget(self.canvas)
+        preview_layout.addWidget(self.canvas, 1)
+
+        layout.addWidget(preview_container, 1)
 
         self.raster_layer: Optional[QgsRasterLayer] = None
         self.georef_tool: Optional[ImageGeorefTool] = None
@@ -125,10 +236,18 @@ class PreviewDialog(QDialog):
             self.canvas.setLayers([])
         self.raster_layer = None
 
+    def showEvent(self, event: Any) -> None:
+        """Notify on_show after the dialog becomes visible."""
+        super().showEvent(event)
+        if self._on_show is not None:
+            self._on_show()
+
     def closeEvent(self, event: Any) -> None:
         """Handle dialog close event by hiding to allow reopening without reload."""
         self.hide()
         event.accept()
+        if self._on_close is not None:
+            self._on_close()
 
 
 class TwoDigitSpinBox(QSpinBox):

@@ -323,11 +323,21 @@ class Tab2DigitizingMixin:
         pt_layout.addWidget(row_branch_no)
 
         layout.addWidget(self.group_individual)
+        layout.addStretch()
 
-        # =============================================================
-        # Section 4: CSV Export Group (Located at the bottom of Tab 2)
-        # =============================================================
-        csv_group = QgsCollapsibleGroupBox(UILabels.GROUP_CSV, container)
+        scroll.setWidget(container)
+        return scroll
+
+    def _create_output_ui(self) -> QWidget:
+        """Construct the 出力 (CSV export) dialog content (T-0024).
+
+        Formerly Section 4 of Tab 2 (embedded at the bottom of the main
+        digitizing area); split out into its own modeless dialog so the
+        main digitizing area stays focused on continuous point entry. The
+        widgets/handlers themselves (_browse_csv_path / _on_export_csv_clicked)
+        are unchanged.
+        """
+        csv_group = QgsCollapsibleGroupBox(UILabels.GROUP_CSV)
         csv_layout = QVBoxLayout(csv_group)
         csv_layout.setSpacing(6)
 
@@ -362,11 +372,7 @@ class Tab2DigitizingMixin:
         self.btn_export_csv.clicked.connect(self._on_export_csv_clicked)
         csv_layout.addWidget(self.btn_export_csv)
 
-        layout.addWidget(csv_group)
-        layout.addStretch()
-
-        scroll.setWidget(container)
-        return scroll
+        return csv_group
 
     # =========================================================================
     # Tab 2: Focus Mode, Artifact Digitizing & CSV Export Handlers

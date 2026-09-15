@@ -57,7 +57,7 @@ from .main_dock_constants import (
     UIMessages,
     MAIN_RATIO,
 )
-from .main_dock_dialogs import PreviewDialog, GridInputDialog
+from .main_dock_dialogs import GridInputDialog
 
 # T-0018: world file extensions recognized by this plugin's own georeferencing
 # output (see LayerManager.write_world_file()). Shared by the "既存ワールド
@@ -604,9 +604,9 @@ class Tab1GeorefMixin:
         self.ref_points_data.clear()
         self.calculated_affine_params = None
         self._refresh_ref_points_table_and_markers()
-        if self.preview_dialog:
-            self.preview_dialog.clear_markers()
-            self.preview_dialog.set_ref_points_data([])
+        if self.image_dialog:
+            self.image_dialog.clear_markers()
+            self.image_dialog.set_ref_points_data([])
 
         self.lbl_tab1_info_1.setText(
             UILabels.TAB1_INFO_IMAGE_REF.format(
@@ -614,20 +614,23 @@ class Tab1GeorefMixin:
             )
         )
 
-        # Automatically show preview canvas
-        if self.preview_dialog and self.preview_dialog.raster_layer is not None:
-            self.preview_dialog.set_ref_points_data(self.ref_points_data)
-            self.preview_dialog.show()
-            self.preview_dialog.raise_()
-            self.preview_dialog.activateWindow()
+        # Automatically show the 画像 dialog with its embedded preview canvas
+        if self.image_dialog and self.image_dialog.raster_layer is not None:
+            self.image_dialog.set_ref_points_data(self.ref_points_data)
+            self.image_dialog.show()
+            self.image_dialog.raise_()
+            self.image_dialog.activateWindow()
         else:
             self._create_preview_canvas(self.current_copied_image_path)
 
     def _create_preview_canvas(self, image_path: str) -> bool:
-        """Create or update modeless PreviewDialog with preview raster."""
-        if self.preview_dialog is None:
-            self.preview_dialog = PreviewDialog(self)
+        """Load a raster into the 画像 dialog's embedded preview canvas (T-0024).
 
+        self.image_dialog (main_dock_dialogs.ImageDialog) is constructed once
+        at dock init time (it also hosts the 画像管理 form), so this only
+        needs to (re)populate its raster/georef tool via setup_raster() and
+        show/raise/activate the dialog window itself.
+        """
         success, msg, raster_layer = self.layer_manager.load_preview_raster(image_path)
         if not success or raster_layer is None:
             QMessageBox.critical(
@@ -637,22 +640,29 @@ class Tab1GeorefMixin:
             )
             return False
 
-        self.preview_dialog.setup_raster(
+        self.image_dialog.setup_raster(
             raster_layer,
             self._on_preview_canvas_point_clicked,
             self.ref_points_data,
         )
-        self.preview_dialog.show()
-        self.preview_dialog.raise_()
-        self.preview_dialog.activateWindow()
+        self.image_dialog.show()
+        self.image_dialog.raise_()
+        self.image_dialog.activateWindow()
 
         return True
 
     def _destroy_preview_canvas(self) -> None:
-        """Safely clean up preview dialog and canvas resources."""
-        if self.preview_dialog is not None:
-            self.preview_dialog.clean_up()
-            self.preview_dialog.close()
+        """Safely clean up the 画像 dialog's embedded preview canvas resources.
+
+        Only clears the raster/georef tool state (image_dialog.clean_up());
+        it does not close the dialog itself, since it also hosts the
+        画像管理 form (which should stay open/usable, e.g. after deleting a
+        single layer in Edit/Delete mode). See _on_export_layer_clicked()
+        for the explicit self.image_dialog.close() once a full georeference
+        workflow completes.
+        """
+        if self.image_dialog is not None:
+            self.image_dialog.clean_up()
 
     def _on_setup_ref_points_clicked(self) -> None:
         """Open or raise the modeless preview dialog for setting reference points."""
@@ -664,11 +674,11 @@ class Tab1GeorefMixin:
             )
             return
 
-        if self.preview_dialog and self.preview_dialog.raster_layer is not None:
-            self.preview_dialog.set_ref_points_data(self.ref_points_data)
-            self.preview_dialog.show()
-            self.preview_dialog.raise_()
-            self.preview_dialog.activateWindow()
+        if self.image_dialog and self.image_dialog.raster_layer is not None:
+            self.image_dialog.set_ref_points_data(self.ref_points_data)
+            self.image_dialog.show()
+            self.image_dialog.raise_()
+            self.image_dialog.activateWindow()
         else:
             self._create_preview_canvas(self.current_copied_image_path)
 
@@ -679,12 +689,12 @@ class Tab1GeorefMixin:
 
         # 1. Snap test against existing reference points within 15 screen pixels
         if (
-            self.preview_dialog
-            and self.preview_dialog.raster_layer
-            and self.preview_dialog.georef_tool
+            self.image_dialog
+            and self.image_dialog.raster_layer
+            and self.image_dialog.georef_tool
         ):
-            tool = self.preview_dialog.georef_tool
-            rlayer = self.preview_dialog.raster_layer
+            tool = self.image_dialog.georef_tool
+            rlayer = self.image_dialog.raster_layer
             extent = rlayer.extent()
             w = float(rlayer.width())
             h = float(rlayer.height())
@@ -718,7 +728,7 @@ class Tab1GeorefMixin:
                 self.layer_manager,
                 existing_point=existing_point,
                 existing_names=other_names,
-                parent=self.preview_dialog or self,
+                parent=self.image_dialog or self,
             )
             if dlg.exec_() == QDialog.Accepted:
                 if dlg.dialog_action == "delete":
@@ -747,7 +757,7 @@ class Tab1GeorefMixin:
             self.layer_manager,
             existing_point=None,
             existing_names=other_names,
-            parent=self.preview_dialog or self,
+            parent=self.image_dialog or self,
         )
         if dlg.exec_() == QDialog.Accepted and dlg.dialog_action == "confirm":
             pt_entry = {
@@ -886,9 +896,9 @@ class Tab1GeorefMixin:
 
     def _refresh_ref_points_table_and_markers(self) -> None:
         """Re-render table and vertex markers based on current ref_points_data."""
-        if self.preview_dialog:
-            self.preview_dialog.clear_markers()
-            self.preview_dialog.set_ref_points_data(self.ref_points_data)
+        if self.image_dialog:
+            self.image_dialog.clear_markers()
+            self.image_dialog.set_ref_points_data(self.ref_points_data)
 
         def _build_row(i: int):
             rdata = self.ref_points_data[i]
@@ -907,8 +917,8 @@ class Tab1GeorefMixin:
                 rx_str = ""
                 ry_str = ""
 
-            if self.preview_dialog:
-                self.preview_dialog.add_marker(rdata["pixel_x"], rdata["pixel_y"], rdata["name"])
+            if self.image_dialog:
+                self.image_dialog.add_marker(rdata["pixel_x"], rdata["pixel_y"], rdata["name"])
 
             return (name_item, pix_item, QTableWidgetItem(rx_str), QTableWidgetItem(ry_str))
 
@@ -1120,7 +1130,10 @@ class Tab1GeorefMixin:
             self.confirmed_layer_name = None
             self._refresh_ref_points_table_and_markers()
 
-        # 7. Automatically close the 図面管理 side panel, returning to the
-        # main digitizing area (T-0020; formerly "switch to Tab 2").
-        self._close_side_panel()
+        # 7. Automatically close the 画像 dialog, returning to the main
+        # digitizing area (T-0024; formerly "switch to Tab 2" / close the
+        # 図面管理 side panel). ImageDialog.closeEvent hides it and invokes
+        # its on_close callback (_update_main_map_tool_state), which
+        # restores the main digitizing tool once no other dialog is open.
+        self.image_dialog.close()
 
