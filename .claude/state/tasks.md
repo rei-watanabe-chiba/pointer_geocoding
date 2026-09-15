@@ -11,7 +11,7 @@
 | T-0005 | デッドコード削除（A+B+C区分：後方互換エイリアス2メソッド・未使用属性・未使用UI定数5個・defensive re-export削除） | 完了 | `.claude/logs/implement/2026-09-15-deadcode-removal.md` | 静的検証問題なし | ユーザーがQGIS上で動作確認済み |
 | T-0006 | Stage D+E: 低リスク共通化（レイヤ編集ヘルパー化/JSON IO統一/QMessageBoxヘルパー化、シンボロジ・透過度操作の一元化） | 完了 | `.claude/logs/implement/2026-09-15-stage-d-common-helpers.md`, `.claude/logs/implement/2026-09-15-stageE-symbology-opacity-consolidation.md` | 静的検証問題なし | ユーザーがQGIS上で動作確認済み（「安定動作を確認しました」） |
 | T-0007 | Stage F: `_on_canvas_clicked()`の責務分解（次点ID採番ロジックを`get_next_point_id()`、GeoPackage書き込みを`insert_feature_to_layer()`として`core_logic.py`へ抽出） | 完了 | `.claude/logs/implement/2026-09-15-stageF-on-canvas-clicked-decomposition.md` | 静的検証問題なし | ユーザーがQGIS上で動作確認済み（「動作確認した。問題ない」） |
-| T-0008 | 第1フェーズ アプローチB+G: UIコンボ/リスト更新パターンの共通ヘルパー化（`_update_drawing_combo`/`_refresh_edit_layer_combo`/`_refresh_ref_points_table_and_markers`等）＋UIコンポーネント生成ヘルパー拡張（Tab1〜3のレイアウト定義簡潔化）を`style_helper.py`へ集約（ファイル分割なし） | 実装中 | - | - | - |
+| T-0008 | 第1フェーズ アプローチB+G: UIコンボ/リスト更新パターンの共通ヘルパー化（`_update_drawing_combo`/`_refresh_edit_layer_combo`/`_refresh_ref_points_table_and_markers`等）＋UIコンポーネント生成ヘルパー拡張（Tab3のみ実施、Tab1/2は未着手）を`style_helper.py`へ集約（ファイル分割なし） | 静的検証中 | `.claude/logs/implement/2026-09-15-T-0008-ui-helper-consolidation.md` | - | - |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
