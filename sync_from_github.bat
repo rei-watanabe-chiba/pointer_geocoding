@@ -1,19 +1,24 @@
 @echo off
+setlocal
 cd /d "C:\claude\project\pointer_geocoding"
-echo === GitHubから最新化します ===
+
+echo Checking for local changes...
+git diff --quiet
+if not %errorlevel%==0 goto dirty
+git diff --cached --quiet
+if not %errorlevel%==0 goto dirty
+
+echo Fetching from GitHub...
 git fetch origin
-git status --porcelain > "%TEMP%\git_status_check.txt"
-for %%A in ("%TEMP%\git_status_check.txt") do set size=%%~zA
-if not "%size%"=="0" (
-    echo.
-    echo [警告] ローカルに未コミットの変更があります。先にコミットまたは破棄してください。
-    git status
-    del "%TEMP%\git_status_check.txt"
-    pause
-    exit /b 1
-)
-del "%TEMP%\git_status_check.txt"
 git pull origin main
 echo.
-echo === 同期完了。QGISでプラグインをリロードしてください。 ===
+echo Sync complete. Please reload the plugin in QGIS.
 pause
+goto :eof
+
+:dirty
+echo.
+echo WARNING: You have uncommitted local changes. Commit or discard them before syncing.
+git status
+pause
+exit /b 1
