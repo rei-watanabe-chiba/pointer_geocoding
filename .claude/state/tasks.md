@@ -25,7 +25,8 @@
 |---|---|---|---|---|---|
 | T-0018 | バグ修正: 画像追加/削除まわりのガード不足。①複製タイミングを「レイヤ出力」完了時まで遅延、既存ワールドファイル付き画像は「基準点設置」を拒否（新規追加モードのみ対象）②キャンバス即時再描画・ゴースト画像ガード（`current_copied_image_path`クリア・`preview_dialog`後片付け）・画像0件時のボタン無効化 | 人手確認待ち | `.claude/logs/implement/2026-09-15-T-0018-image-guard-fixes.md` | 静的検証問題なし | - |
 | T-0019 | T-0018フォローアップ: ①`_on_export_layer_clicked()`の未複製判定に`os.path.normcase()`追加（T-0012堅牢化パターンとの一貫性）②設計書126行目付近をT-0018の複製タイミング変更に追随更新 | 人手確認待ち | `.claude/logs/implement/2026-09-15-T-0019-t0018-followup-normcase-doc.md` | 静的検証問題なし | - |
-| T-0022 | 点番号採番ロジック改修(直前打刻追従型)・SP属性自動化(QLineEdit並置・オンデマンド照会) | 人手確認待ち | `.claude/logs/implement/2026-09-15-T-0022-point-numbering-sp-attribute.md` | 静的検証: 問題なし。実行環境での確認が必要 | - |
+| T-0022 | 点番号採番ロジック改修(直前打刻追従型)・SP属性自動化(QLineEdit並置・オンデマンド照会) | 再オープン(T-0023へ) | `.claude/logs/implement/2026-09-15-T-0022-point-numbering-sp-attribute.md` | 人手確認でバグ発見: SP属性から他(S/P/C)へ戻した際の自動採番が機能しない（`get_next_point_number()`が属性でフィルタしていないため） | - |
+| T-0023 | T-0022フォローアップ: SP復帰時採番バグ修正・既存点番号修正機能・選択時赤枠常時表示 | 静的検証中 | `.claude/logs/implement/2026-09-15-T-0023-sp-numbering-fix-number-correction-selection-marker.md` | - | - |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する

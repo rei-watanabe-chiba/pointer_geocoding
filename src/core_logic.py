@@ -270,6 +270,7 @@ def check_point_duplicate(
     point_name: str,
     branch_no: str,
     drawing_name: str = "",
+    exclude_feature_id: Optional[int] = None,
 ) -> bool:
     """Check whether a point with the same identification attributes already exists.
 
@@ -285,6 +286,10 @@ def check_point_duplicate(
     :type branch_no: str
     :param drawing_name: Target drawing name string.
     :type drawing_name: str
+    :param exclude_feature_id: T-0023: When set, the feature with this id is skipped
+        during the scan (used by existing-point number correction, so a point being
+        renumbered is not treated as a duplicate of itself).
+    :type exclude_feature_id: Optional[int]
     :return: True if duplicate found, False otherwise.
     :rtype: bool
     """
@@ -293,6 +298,8 @@ def check_point_duplicate(
 
     has_drawing_col = "drawing_name" in point_layer.fields().names()
     for feat in point_layer.getFeatures():
+        if exclude_feature_id is not None and feat.id() == exclude_feature_id:
+            continue
         if has_drawing_col and drawing_name:
             f_drawing = safe_get_str(feat, "drawing_name")
             if f_drawing and drawing_name != f_drawing:
@@ -333,6 +340,11 @@ def get_next_point_number(
     "max of all purely-numeric point_name values" strategy so that manual
     edits to older points no longer disturb the auto-numbering sequence.
 
+    T-0023: SP属性(AttributeType.SP)の点は自由入力(手入力)の対象であり、
+    数値の自動採番シーケンスには含めない。SP属性の点が直前の打刻であっても、
+    その point_name の数値プレフィックスを "body_num" として引き継がないよう、
+    S/P/C用の探索対象からSP属性のフィーチャを除外する。
+
     :param point_layer: Vector layer containing digitized points.
     :type point_layer: QgsVectorLayer
     :param excavation_type: ExcavationType.GRID.value ('グリッド') or ExcavationType.FEATURE.value ('遺構').
@@ -357,6 +369,10 @@ def get_next_point_number(
             f_name = safe_get_str(feat, "feature_name")
             if ex_type != ExcavationType.FEATURE.value or f_name != feature_name:
                 continue
+
+        # T-0023: SP属性の点は自動採番(S/P/C)の対象外なので除外する。
+        if safe_get_str(feat, "attribute_type") == AttributeType.SP.value:
+            continue
 
         pid = feat["point_id"]
         if pid is None or not isinstance(pid, int):

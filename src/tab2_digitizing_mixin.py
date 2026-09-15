@@ -108,7 +108,16 @@ class Tab2DigitizingMixin:
         self.btn_delete_point.clicked.connect(self._on_delete_selected_point)
         self.btn_delete_point.setEnabled(False)
 
+        # T-0023: Correct the point number (body + branch) of the currently
+        # selected existing point only; attribute/excavation type/feature
+        # reassignment remain unsupported (see _on_existing_point_selected,
+        # which disables those widgets while a point is selected).
+        self.btn_correct_number = QPushButton(UILabels.BTN_CORRECT_NUMBER, self.panel_edit_status)
+        self.btn_correct_number.clicked.connect(self._on_correct_point_number)
+        self.btn_correct_number.setEnabled(False)
+
         status_btn_layout.addWidget(self.btn_reset_selection)
+        status_btn_layout.addWidget(self.btn_correct_number)
         status_btn_layout.addWidget(self.btn_delete_point)
         status_btn_layout.addStretch()
         edit_layout.addLayout(status_btn_layout)
@@ -917,10 +926,42 @@ class Tab2DigitizingMixin:
             status_type="success",
         )
 
+    # T-0023: Widgets whose category assignment (drawing/excavation type/
+    # feature/attribute) must stay locked while an existing point is
+    # selected, so that only the point number (body + branch) is editable.
+    _CATEGORY_LOCK_WIDGET_NAMES = (
+        "combo_drawing_name",
+        "combo_excavation_type",
+        "combo_feature_name",
+        "edit_new_feature",
+        "btn_color_picker",
+        "btn_apply_color",
+        "combo_attribute",
+    )
+
+    def _set_category_widgets_locked(self, locked: bool) -> None:
+        """Enable/disable the category-assignment widgets (T-0023).
+
+        Used to restrict existing-point editing to the point number only:
+        while a point is selected for number correction, attribute/
+        excavation type/feature reassignment is disallowed.
+
+        :param locked: True to disable (lock) the widgets, False to re-enable them.
+        :type locked: bool
+        """
+        for name in self._CATEGORY_LOCK_WIDGET_NAMES:
+            widget = getattr(self, name, None)
+            if widget is not None:
+                widget.setEnabled(not locked)
+
     @pyqtSlot(dict)
     def _on_existing_point_selected(self, data: dict) -> None:
         """Load an existing point's attributes into the dock widget for editing."""
         self.selected_edit_point_id = data.get("feature_id")
+        # T-0023: retain the full loaded data (excavation_type/feature_name/
+        # drawing_name/attribute_type are immutable while selected) for reuse
+        # by _on_correct_point_number's duplicate check.
+        self._selected_point_data = dict(data)
 
         # Select drawing if present
         d_name = str(data.get("drawing_name") or "").strip()
@@ -961,6 +1002,8 @@ class Tab2DigitizingMixin:
         self.edit_branch_no.setText(str(data.get("branch_no") or ""))
 
         self.btn_delete_point.setEnabled(True)
+        self.btn_correct_number.setEnabled(True)
+        self._set_category_widgets_locked(True)
         UIStyleHelper.update_status_panel(
             self.panel_edit_status,
             self.lbl_edit_status,
@@ -973,7 +1016,10 @@ class Tab2DigitizingMixin:
     def _reset_point_selection(self) -> None:
         """Reset form back to new point creation mode."""
         self.selected_edit_point_id = None
+        self._selected_point_data = None
         self.btn_delete_point.setEnabled(False)
+        self.btn_correct_number.setEnabled(False)
+        self._set_category_widgets_locked(False)
         UIStyleHelper.update_status_panel(
             self.panel_edit_status,
             self.lbl_edit_status,
@@ -984,6 +1030,10 @@ class Tab2DigitizingMixin:
         self._apply_next_point_number()
         self.edit_branch_no.clear()
         self._has_digitized_with_branch = False
+
+        # T-0023: clear the persistent selection marker on the main canvas.
+        if getattr(self, "map_tool", None) is not None:
+            self.map_tool.clear_selected_marker()
 
     def _on_delete_selected_point(self) -> None:
         """Delete the currently selected point from point layer."""
@@ -1011,6 +1061,79 @@ class Tab2DigitizingMixin:
                 duration=3,
             )
             self._reset_point_selection()
+
+    def _on_correct_point_number(self) -> None:
+        """Correct the point number (body + branch) of the selected existing point.
+
+        T-0023: Only point_name/branch_no are updated; excavation_type,
+        feature_name, drawing_name and attribute_type are left untouched
+        (their widgets are disabled while a point is selected, see
+        _set_category_widgets_locked). Validation follows the same rules as
+        new-point digitizing (get_digitizing_input_state): non-empty point
+        name, and no duplicate among the other points already on the layer.
+        """
+        loaded = getattr(self, "_selected_point_data", None)
+        if self.selected_edit_point_id is None or not self.point_layer or not loaded:
+            return
+
+        attr_type = str(loaded.get("attribute_type") or AttributeType.S.value)
+        excavation_type = str(loaded.get("excavation_type") or ExcavationType.GRID.value)
+        feature_name = str(loaded.get("feature_name") or "")
+        drawing_name = str(loaded.get("drawing_name") or "")
+
+        point_name = (
+            self.edit_point_name_sp.text().strip()
+            if attr_type == AttributeType.SP.value
+            else str(self.edit_point_name.value())
+        )
+        branch_no = self.edit_branch_no.text().strip()
+
+        if not point_name:
+            QMessageBox.warning(self, UIMessages.ERR_TITLE_INPUT, UIMessages.ERR_POINT_NAME_REQUIRED)
+            return
+
+        if check_point_duplicate(
+            self.point_layer,
+            excavation_type,
+            feature_name,
+            point_name,
+            branch_no,
+            drawing_name,
+            exclude_feature_id=self.selected_edit_point_id,
+        ):
+            ident = (
+                f"{feature_name}-{point_name}"
+                if excavation_type == ExcavationType.FEATURE.value
+                else f"{ExcavationType.GRID.value}-{point_name}"
+            )
+            if branch_no:
+                ident += f" ({branch_no})"
+            if drawing_name:
+                ident = f"[{drawing_name}] {ident}"
+            QMessageBox.warning(
+                self,
+                UIMessages.ERR_TITLE_DUPLICATE,
+                f"同じ点（{ident}）が既に登録されています。\n点名または枝番を変更してください。",
+            )
+            return
+
+        field_names = self.point_layer.fields().names()
+        pname_idx = field_names.index("point_name")
+        branch_idx = field_names.index("branch_no")
+
+        self.point_layer.startEditing()
+        self.point_layer.changeAttributeValue(self.selected_edit_point_id, pname_idx, point_name)
+        self.point_layer.changeAttributeValue(self.selected_edit_point_id, branch_idx, branch_no)
+        self.point_layer.commitChanges()
+        self.point_layer.triggerRepaint()
+
+        self.iface.messageBar().pushMessage(
+            UIMessages.MSG_CORRECT_NUMBER_SUCCESS_TITLE,
+            UIMessages.MSG_CORRECT_NUMBER_SUCCESS,
+            level=Qgis.MessageLevel.Success,
+            duration=3,
+        )
+        self._reset_point_selection()
 
     def _browse_csv_path(self) -> None:
         """Browse destination path for CSV export."""
