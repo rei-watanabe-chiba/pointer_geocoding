@@ -27,7 +27,7 @@ v2開発はタスクIDをT-0043から連番継続する。
 **巨大3ファイル(tab2_plot.py/tab1_image.py/start_dialog.py)対応の計画（T-0045〜T-0047）**:
 詳細計画は`.claude/state/v2-coreui-plan.md`を参照。T-0045完了。T-0046 start_dialog.py等その他画面への展開 → T-0047 tab2_plot.pyへの適用、が今後の予定。
 
-（現在、進行中のタスクなし。tab1_image.pyのさらなる肥大化要因を調査中）
+| T-0045-b | tab1におけるCoreUI化・機能分離の追加試行(②座標変換後ダイアログ廃止／③`src/ui/core/validators.py`新設・tab1適用／④LayerManager高レベルAPI追加)。詳細は`.claude/state/v2-coreui-plan.md`「T-0045-b」節 | 実装中 |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する

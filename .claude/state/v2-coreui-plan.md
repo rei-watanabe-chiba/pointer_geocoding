@@ -148,6 +148,43 @@ tab2の実例に合わず手戻りするリスクが高いため、CommitRule等
 `src/ui/schemas.py`という単一ファイルに統合する。`TAB1_*`（今回）/`TAB2_*`/`TAB3_*`/`START_DIALOG_*`
 （T-0046/T-0047で追記）とセクション分けして1ファイルに集約する。
 
+## T-0045-b: tab1におけるCoreUI化・機能分離の追加試行
+
+T-0045完了後、explorerによる総合調査（①基準点系分割／②座標変換後ダイアログ廃止／③バリデーション
+ヘルパー汎用化／④レイヤー管理共通部品化／⑤全体総合）を踏まえ、②③④をT-0045-bとして実施する。
+①（基準点系の別ファイル分割）は結合度が高く効果も薄いため見送り。
+
+### ②座標変換後ダイアログの廃止
+`tab1_image.py`の`_on_transform_clicked()`内、座標変換完了時に表示される`QMessageBox.information()`
+（回転角度・アスペクト比の表示、約11行）を廃止する。同内容は既に情報パネル（`TAB1_INFO_PANEL_SPEC`の
+line3_6残差サマリ行）に表示済みで完全重複しており、ダイアログでしか提供できない機能はない
+（ユーザーの選択・確認応答は不要）。messageBar()の成功通知＋ステータス行更新で完了通知は維持する。
+
+### ③バリデーションヘルパーの汎用化
+`src/ui/core/validators.py`を新設し、tab1/tab2/start_dialogで共通する「必須チェック」「重複チェック」
+「正規表現チェック」パターンをValidatorクラス群として汎用化する。今回はtab1_image.pyへの適用のみ試行し、
+tab2/start_dialogへの展開はT-0046/T-0047で判断する（1画面の実例だけで形を決め打ちしない、という
+rules.pyと同じ方針）。
+
+### ④レイヤー管理の共通部品化
+tab1_image.pyの`_on_delete_layer_clicked`/`_on_rename_layer_clicked`が`point_layer`に対して直接
+`startEditing`/`changeAttributeValue`/`commitChanges`を呼んでいる箇所を、`src/layer/manager.py`
+（LayerManager）に`clear_drawing_name_for_layer(layer_name)`/`rename_drawing_name(old_name, new_name)`
+という高レベルAPIとして切り出し、tab1_image.py側はそれらを呼ぶだけにする。
+
+### ⑤tab2改修（T-0046）への申し送り事項
+explorer総合調査の⑤で判明した、tab2_plot.py(1906行)関連の所見をここに記録する。T-0046着手時に参照すること。
+- tab2_plot.pyの肥大化要因はデジタイジング入力の状態管理の複雑さ（フォーカスモード/カテゴリフィルタ/
+  既存点編集・新規点作成の分岐等、15〜20メソッド）そのものであり、単純なファイル分割では不十分。
+  内部構造の明確化（Mixinのさらなる細分化、またはlogic層への移行）が必要。
+- エラー表示（QMessageBox/ステータスパネル/フィールド赤枠）がタブごとに混在している。統一APIとしての
+  検討余地あり（UIStyleHelper側への統合候補）。
+- tab2の属性コミット（`_commit_fields_to_feature`）は既にstartEditing/changeAttributeValue/commitChanges
+  パターンを使っており、T-0045-bで④として切り出すLayerManagerの高レベルAPIと統合できる可能性がある
+  （tab1のパターンをtab2にも展開できないか確認すること）。
+- ③のバリデーションヘルパー（`src/ui/core/validators.py`）は、tab1適用の実例を踏まえてtab2の
+  重複チェック（`check_point_duplicate`呼び出し箇所）・必須チェックへの展開を検討する。
+
 ## 確定済みの技術的制約（CoreUI実装時に必ず守ること）
 
 - **QSpinBoxへのQSS適用パターン**: `docs/integrated_master_design.md` 1.2節「OSネイティブUIの保護と
