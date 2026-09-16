@@ -55,3 +55,28 @@ T-0041 UX軽微改修4点
 
 ## スコープ外変更の有無
 なし。上記4ファイル（`src/main_dock_dialogs.py`, `src/main_dock_constants.py`, `src/tab2_digitizing_mixin.py`, `src/style_helper.py`）のみを変更した。
+
+## 追記: ③QSpinBox QSSの差し戻し（設計書違反の是正）
+
+### 経緯
+`docs/integrated_master_design.md` 23〜24行目に、「QSpinBox 等の数値入力ウィジェットは例外とし、QSSで過度な枠線や強制的な高さを指定するとOS標準の上下矢印UIが破壊されるため、OSネイティブの保護を最優先する」という明確な設計原則がある。上記③（および③フォローアップ）で追加した `QSpinBox` 専用QSS一式（`border`/`padding`/`min-height`指定、`::up-button`/`::down-button`のカスタム背景・枠線、`::up-arrow`/`::down-arrow`のborder三角形トリック）はこの原則に反しており、`start_dialog.py` 側の既存QSpinBox群（原点X/Y、X範囲/Y範囲の最小最大等）の上下矢印UIが破壊される回帰をユーザーが発見・報告した。
+
+### 対応内容
+`src/style_helper.py` の `get_style_sheet()` から、T-0041で追加した以下のQSSブロックを全て削除した。
+- `QSpinBox { ... }`（background-color/border/padding/min-height一式）
+- `QSpinBox:focus { ... }`
+- `QSpinBox::up-button, QSpinBox::down-button { ... }`
+- `QSpinBox::up-button { ... }`
+- `QSpinBox::down-button { ... }`
+- `QSpinBox::up-arrow { ... }` / `QSpinBox::down-arrow { ... }`（border三角形トリック）
+- これらに付随するT-0041由来のコメントブロック2件
+
+削除後、`QSpinBox`にはこのグローバルスタイルシートによる上書きが一切当たらない状態に戻した（`QLineEdit, QgsFilterLineEdit, QComboBox` 等、他のQSSブロックは変更していない）。`git diff` で、変更範囲が上記QSpinBox関連QSSブロックの削除のみに限定されていることを確認した。
+
+なお、③が最初に対応しようとしていた「tab2の点名インプットのスピンボックス矢印がつぶれて見える」という問題自体の根本原因調査・再修正は、今回のタスクスコープには含まれていない（別タスクで対応予定）。
+
+### 自動テスト
+自動テストなし。`python3 -m py_compile src/style_helper.py` は成功（構文エラーなし）。
+
+### スコープ外変更の有無
+なし。`src/style_helper.py` のQSpinBox関連QSSブロックの削除のみ。①②④（点名初期値プリセット、重複エラー文言、モードトグルの余白）には一切触れていない。
