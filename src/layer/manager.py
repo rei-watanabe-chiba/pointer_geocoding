@@ -26,6 +26,7 @@ from qgis.core import (
 )
 from qgis.PyQt.QtCore import QObject, pyqtSignal
 
+from ..logic.core import safe_get_str
 from .settings_io import SettingsMetadataMixin
 from .symbology import SymbologyMixin
 from .gpkg import GpkgCacheMixin
@@ -97,3 +98,53 @@ class LayerManager(
         if self.session_dir:
             return os.path.join(self.session_dir, "json")
         return None
+
+    def clear_drawing_name_for_layer(self, layer_name: str) -> None:
+        """Clear the drawing_name attribute on point_layer features referencing layer_name.
+
+        T-0045-b (④): moved out of Tab1GeorefMixin._on_delete_layer_clicked(),
+        which used to run this same startEditing/changeAttributeValue/
+        commitChanges sequence directly against self.point_layer. No-op if
+        point_layer is not set/valid or does not have a "drawing_name" field.
+
+        :param layer_name: Value of the drawing_name attribute to clear
+            (matching features have their drawing_name reset to "").
+        """
+        if not (
+            self.point_layer
+            and self.point_layer.isValid()
+            and "drawing_name" in self.point_layer.fields().names()
+        ):
+            return
+
+        self.point_layer.startEditing()
+        idx = self.point_layer.fields().indexFromName("drawing_name")
+        for f in self.point_layer.getFeatures():
+            if safe_get_str(f, "drawing_name") == layer_name:
+                self.point_layer.changeAttributeValue(f.id(), idx, "")
+        self.point_layer.commitChanges()
+
+    def rename_drawing_name(self, old_name: str, new_name: str) -> None:
+        """Rename the drawing_name attribute from old_name to new_name on point_layer.
+
+        T-0045-b (④): moved out of Tab1GeorefMixin._on_rename_layer_clicked(),
+        which used to run this same startEditing/changeAttributeValue/
+        commitChanges sequence directly against self.point_layer. No-op if
+        point_layer is not set/valid or does not have a "drawing_name" field.
+
+        :param old_name: Current drawing_name value to match.
+        :param new_name: New drawing_name value to assign to matching features.
+        """
+        if not (
+            self.point_layer
+            and self.point_layer.isValid()
+            and "drawing_name" in self.point_layer.fields().names()
+        ):
+            return
+
+        self.point_layer.startEditing()
+        idx = self.point_layer.fields().indexFromName("drawing_name")
+        for f in self.point_layer.getFeatures():
+            if safe_get_str(f, "drawing_name") == old_name:
+                self.point_layer.changeAttributeValue(f.id(), idx, new_name)
+        self.point_layer.commitChanges()

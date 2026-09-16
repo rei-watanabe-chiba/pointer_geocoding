@@ -50,6 +50,7 @@ from .constants import (
 )
 from .dialogs import GridInputDialog
 from .core import CoreUIBuilder
+from .core.validators import RequiredValidator, RegexValidator, DuplicateValidator
 from .schemas import (
     TAB1_IMAGE_SECTION_SPEC,
     TAB1_INFO_PANEL_SPEC,
@@ -256,13 +257,8 @@ class Tab1GeorefMixin:
                 )
                 if pts_reply != QMessageBox.Yes:
                     return
-                
-                self.point_layer.startEditing()
-                idx = self.point_layer.fields().indexFromName("drawing_name")
-                for f in self.point_layer.getFeatures():
-                    if safe_get_str(f, "drawing_name") == layer_name:
-                        self.point_layer.changeAttributeValue(f.id(), idx, "")
-                self.point_layer.commitChanges()
+
+                self.layer_manager.clear_drawing_name_for_layer(layer_name)
 
         # Remove from QGIS Project first to release file locks
         project = QgsProject.instance()
@@ -384,13 +380,7 @@ class Tab1GeorefMixin:
         )
 
         # 3. Update drawing_name attribute on digitized points referencing the old name.
-        if self.point_layer and self.point_layer.isValid() and "drawing_name" in self.point_layer.fields().names():
-            self.point_layer.startEditing()
-            idx = self.point_layer.fields().indexFromName("drawing_name")
-            for f in self.point_layer.getFeatures():
-                if safe_get_str(f, "drawing_name") == old_name:
-                    self.point_layer.changeAttributeValue(f.id(), idx, new_name)
-            self.point_layer.commitChanges()
+        self.layer_manager.rename_drawing_name(old_name, new_name)
 
         # 4. Refresh the edit-layer combo and reselect the renamed layer.
         self._refresh_edit_layer_combo()
@@ -451,7 +441,11 @@ class Tab1GeorefMixin:
 
         layer_name = self._tab1_image_panel.get_value("image_name").strip()
 
-        if not layer_name:
+        # T-0045-b (③): required/forbidden-pattern/duplicate checks below are
+        # judged via the generic ui/core/validators.py Validator classes;
+        # the error messages/QMessageBox.warning() display and focus
+        # handling are unchanged from before.
+        if not RequiredValidator().validate(layer_name).is_valid:
             QMessageBox.warning(
                 self,
                 UIMessages.ERR_TITLE_INPUT,
@@ -460,7 +454,7 @@ class Tab1GeorefMixin:
             self.edit_image_name.setFocus()
             return
 
-        if re.search(self.INVALID_CHARS_PATTERN, layer_name):
+        if not RegexValidator(self.INVALID_CHARS_PATTERN).validate(layer_name).is_valid:
             QMessageBox.warning(
                 self,
                 UIMessages.ERR_TITLE_INPUT,
@@ -474,7 +468,7 @@ class Tab1GeorefMixin:
         # keys directly (previously this was checked indirectly via the
         # destination file-existence check inside copy_image_to_session()).
         meta = self.layer_manager.load_image_metadata()
-        if layer_name in meta:
+        if not DuplicateValidator(lambda name: name in meta).validate(layer_name).is_valid:
             QMessageBox.warning(
                 self,
                 UIMessages.ERR_TITLE_DUPLICATE,
@@ -911,18 +905,12 @@ class Tab1GeorefMixin:
             level=Qgis.MessageLevel.Success,
             duration=4,
         )
-
-        # Show transformation results dialog
-        info_dialog_msg = (
-            f"座標変換パラメータの計算が完了しました。\n\n"
-            f"画像の回転角度: {rotation_deg:.2f} 度\n"
-            f"アスペクト比(縦/横): {aspect_ratio_pct:.2f} %"
-        )
-        QMessageBox.information(
-            self,
-            UIMessages.MSG_TRANSFORM_COMPLETE_TITLE,
-            info_dialog_msg,
-        )
+        # T-0045-b (②): the post-transform QMessageBox.information() dialog
+        # (rotation angle / aspect ratio) formerly shown here has been
+        # removed; the same content is already displayed above in the
+        # information panel (lbl_tab1_info_3_6, res_summary), so no
+        # information is lost. The messageBar() success toast and status
+        # panel update remain as the completion notification.
 
     def _on_export_layer_clicked(self) -> None:
         """Write world file, update metadata, update points, and load to canvas."""
