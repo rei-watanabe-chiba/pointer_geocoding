@@ -23,7 +23,7 @@ T-0044がQGISで人手確認OKになった場合のみ、`docs/integrated_master
 | タスクID | 内容 | 状態 | 実装ログ | 検証結果 | 人手確認 |
 |---|---|---|---|---|---|
 | T-0043 | v2開始: src配下を責務別フォルダ(ui/layer/logic/canvas)へ再構成。ロジック変更なし、ファイル移動+import文の追従修正のみ。設計書(1.3/1.4節)も新パスへ追従更新済み | 完了 | `.claude/logs/implement/2026-09-16-T-0043-restructure-src-into-responsibility-folders.md` | 静的検証: 問題なし | 完了 |
-| T-0044 | QSpinBoxへの安全なQSS適用パターン検証。人手確認4回目でbase64データURI方式の矢印が完全に非表示と判明。Web調査でQtのQSS実装はbase64データURI画像を信頼できる形でサポートしていない既知の制限(QTBUG-51081)と判明。`src/icon/`に実SVGファイル(spin_up_arrow.svg/spin_down_arrow.svg)を配置し、`get_style_sheet()`で絶対パスを動的計算してurl()参照する方式へ転換中 | 実装中 | `.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md` | - | - |
+| T-0044 | QSpinBoxへの安全なQSS適用パターン検証。人手確認4回目でbase64データURI方式の矢印が完全に非表示と判明。Web調査でQtのQSS実装はbase64データURI画像を信頼できる形でサポートしていない既知の制限(QTBUG-51081)と判明。`src/icon/`に実SVGファイル(spin_up_arrow.svg/spin_down_arrow.svg)を新規配置し、`get_style_sheet()`で絶対パス(forward-slash正規化)を動的計算してurl()参照する方式へ転換 | 静的検証中 | `.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md` | - | - |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する

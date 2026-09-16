@@ -93,3 +93,35 @@ T-0044
 
 ### スコープ外変更の有無（3回目のフォローアップ）
 なし。`src/ui/style.py` の `get_style_sheet()` メソッド内、`QSpinBox::up-arrow`/`QSpinBox::down-arrow` ルールの中身（矢印描画方式）の置き換えのみ。他ファイル・`create_spinbox()` 自体・矢印以外の既存ルールには手を加えていない。
+
+---
+
+## 4回目のフォローアップ修正（2026-09-16）
+
+### 不具合内容
+3回目のフォローアップで採用したbase64データURI方式（`image: url(data:image/svg+xml;base64,...)`）が、人手確認で矢印が完全に非表示（データURI自体がロードされていない）という結果になった。Web調査の結果、QtのQSSにおける`url()`はbase64データURIの読み込みに既知の制限があり（QTBUG-51081）、信頼できる形でサポートされていないことが判明した。
+
+### 修正概要
+base64データURI方式を廃止し、Qt標準のurl()によるファイルパス参照方式（本ファイル内の既存の`image.svg`/`setting.svg`等と同じ方式）へ転換した。
+
+**新規追加ファイル**:
+- `src/icon/spin_up_arrow.svg`（8x6の上向き三角形、`fill="#6B6B6B"`）
+- `src/icon/spin_down_arrow.svg`（8x6の下向き三角形、`fill="#6B6B6B"`）
+
+**`src/ui/style.py`の変更**:
+- `import os` を追加（既存の import 群の先頭）。
+- `get_style_sheet()` の冒頭で、`os.path.dirname(os.path.dirname(os.path.abspath(__file__)))` により `src/` ディレクトリの絶対パスを求め、`icon/spin_up_arrow.svg` / `icon/spin_down_arrow.svg` への絶対パスを算出。Qtの`url()`がバックスラッシュ区切りのWindowsパスを正しく解釈できない場合があるため、`os.sep` を `/` に置換した文字列（`up_arrow_path` / `down_arrow_path`）を用意した。
+- QSS本体はf-string化せず、プレーンな三重引用符文字列のまま維持した。理由: QSS全体には多数のルールブロックがリテラルの`{`/`}`を含んでおり、f-stringや`str.format()`化するとそれら全てを`{{`/`}}`にエスケープする必要が生じ、可読性・保守性を大きく損なうため。代わりに、`QSpinBox::up-arrow`/`QSpinBox::down-arrow`の`image: url(...)`内に一意なプレースホルダ文字列`__UP_ARROW_PATH__`/`__DOWN_ARROW_PATH__`を埋め込み、テンプレート文字列の直後で`.replace("__UP_ARROW_PATH__", up_arrow_path).replace("__DOWN_ARROW_PATH__", down_arrow_path)`により置換する方式を採った。
+- 3回目のフォローアップで追加したbase64データURI（`image: url(data:image/svg+xml;base64,...)`）は完全に削除した。
+- `QSpinBox::up-arrow`/`QSpinBox::down-arrow`直前のコメント（3回目のフォローアップの経緯説明）を更新し、QTBUG-51081の制限と実ファイル参照への転換理由を追記した。
+- 依頼通り、色は引き続きニュートラルグレー `#6B6B6B` 固定（SVGファイル内の`fill`属性）で、テーマ非追従のままとした。
+- `get_style_sheet()` のシグネチャ（`@classmethod`、引数なし）は変更していない。呼び出し元 `apply_theme()`（`cls.get_style_sheet()` を呼び出すのみ）にも変更は不要だった。
+- `QSpinBox` 本体・`QSpinBox:focus`・`QSpinBox::up-button`/`QSpinBox::down-button`（`subcontrol-position`含む）・`create_spinbox()` には変更を加えていない。
+
+### 自動テスト実行結果（4回目のフォローアップ）
+自動テストなし。`python3 -m py_compile src/ui/style.py` を実行し、構文エラーがないことを確認した（成功、エラーなし）。
+
+あわせて、`qgis.PyQt` モジュールをスタブ化したPython単体スクリプトで `UIStyleHelper.get_style_sheet()` を直接呼び出し、生成されたQSS文字列中の `QSpinBox::up-arrow`/`QSpinBox::down-arrow` ルールに埋め込まれた `image: url(...)` のパスが、それぞれ `/home/user/pointer_geocoding/src/icon/spin_up_arrow.svg` / `spin_down_arrow.svg`（実行環境の絶対パス）に正しく置換されており、`os.path.exists()` でいずれも実在するファイルであることを確認した（構文・パス解決の静的確認であり、QGIS上での実際の描画結果を保証するものではない）。
+
+### スコープ外変更の有無（4回目のフォローアップ）
+なし。`src/ui/style.py` の `get_style_sheet()` メソッド内（矢印画像参照方式の変更・パス計算ロジックの追加・importの追加）と、`src/icon/` 配下への新規SVGファイル2件の追加のみ。他ファイル・`create_spinbox()` 自体・矢印以外の既存ルールには手を加えていない。

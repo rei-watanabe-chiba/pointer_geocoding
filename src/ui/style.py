@@ -3,6 +3,7 @@
  PointerGeocoding Plugin - UI Style Helper (Material & High DPI Adaptation)
  ***************************************************************************/
 """
+import os
 from typing import Optional, Tuple, List, Any, Callable, Iterable
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
@@ -37,6 +38,16 @@ class UIStyleHelper:
         :return: QSS stylesheet string.
         :rtype: str
         """
+        icon_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "icon"
+        )
+        up_arrow_path = os.path.join(icon_dir, "spin_up_arrow.svg").replace(os.sep, "/")
+        down_arrow_path = os.path.join(icon_dir, "spin_down_arrow.svg").replace(os.sep, "/")
+        # NOTE: the bulk of this QSS template uses literal `{`/`}` for rule
+        # blocks, so a plain f-string/str.format() would require escaping
+        # every one of them. Instead we keep this a plain triple-quoted
+        # string with unique %%-style placeholders substituted via
+        # str.replace() below (see T-0044 4th follow-up).
         return """
         /* General Widget Typography & Spacing */
         QWidget {
@@ -140,18 +151,28 @@ class UIStyleHelper:
            border-triangle hack against Qt's QSS arrow sub-controls; see Qt
            Forum reports). The officially recommended workaround is to supply
            an actual icon via the `image` property instead of drawing the
-           shape with borders. The SVG data URIs below are fixed 8x6 triangles
-           filled with a neutral gray (#6B6B6B); this is a fixed, theme-
-           non-adaptive color (does not follow palette(text) / dark-light
-           mode), which is an accepted trade-off for this fix. */
+           shape with borders.
+           T-0044 4th follow-up: the 3rd follow-up's base64 data-URI
+           (image: url(data:image/svg+xml;base64,...)) turned out to be a
+           known Qt QSS limitation (QTBUG-51081: QSS url() does not reliably
+           load embedded data URIs), so the arrow disappeared entirely
+           instead of rendering as a triangle. This has been replaced with
+           references to real SVG files under src/icon/ (spin_up_arrow.svg /
+           spin_down_arrow.svg), resolved to an absolute, forward-slash path
+           at runtime below (__UP_ARROW_PATH__ / __DOWN_ARROW_PATH__
+           placeholders substituted via str.replace() after this template).
+           Both files are fixed 8x6 triangles filled with a neutral gray
+           (#6B6B6B); this is a fixed, theme-non-adaptive color (does not
+           follow palette(text) / dark-light mode), which is an accepted
+           trade-off for this fix. */
         QSpinBox::up-arrow {
-            image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjYiIHZpZXdCb3g9IjAgMCA4IDYiPjxwYXRoIGQ9Ik00IDBMOCA2SDBaIiBmaWxsPSIjNkI2QjZCIi8+PC9zdmc+);
+            image: url(__UP_ARROW_PATH__);
             width: 8px;
             height: 6px;
         }
 
         QSpinBox::down-arrow {
-            image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjYiIHZpZXdCb3g9IjAgMCA4IDYiPjxwYXRoIGQ9Ik0wIDBIOEw0IDZaIiBmaWxsPSIjNkI2QjZCIi8+PC9zdmc+);
+            image: url(__DOWN_ARROW_PATH__);
             width: 8px;
             height: 6px;
         }
@@ -316,7 +337,9 @@ class UIStyleHelper:
             border: 1px solid rgba(0, 0, 0, 0.1);
             font-weight: bold;
         }
-        """
+        """.replace("__UP_ARROW_PATH__", up_arrow_path).replace(
+            "__DOWN_ARROW_PATH__", down_arrow_path
+        )
 
     @staticmethod
     def show_error_dialog(parent: Optional[QWidget], title: str, message: str) -> None:
