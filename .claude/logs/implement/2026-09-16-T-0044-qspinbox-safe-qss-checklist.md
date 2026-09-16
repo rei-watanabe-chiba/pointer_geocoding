@@ -66,3 +66,16 @@
 4. 矢印画像のサイズ（8x6px相当）がボタン領域内に収まっており、ボタン外へのはみ出しや、テキスト入力領域への重なりがないこと。
 
 期待される挙動の根拠: 本項目は`.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md`の「4回目のフォローアップ修正」セクションに記載の通り、`QSpinBox::up-arrow`/`QSpinBox::down-arrow`の`image`プロパティ参照先を、Qtで既知の制限があるbase64データURIから、`src/icon/`配下の実SVGファイルへの絶対パス参照（既存の`image.svg`/`setting.svg`等と同じurl()参照方式）へ切り替えたことによる。
+
+---
+
+### 押下フィードバック追加の確認項目（2026-09-16、`:pressed`ルール新規追加分）
+
+「ボタンを押しても見た目が変わらず押した感がない」という要望に対し、`QSpinBox::up-button:pressed`/`QSpinBox::down-button:pressed`に背景色変化ルールを新規追加した修正の確認項目。上記の手順1〜4を再度実施する際、以下の点も併せて確認すること。
+
+1. **最優先**: start_dialog.py・tab2_plot.py（`edit_point_name`）・その他QSpinBox使用箇所の全てで、上ボタン・下ボタンをマウスの左ボタンで押し下げている間（クリック中、ボタンを離す前）、ボタン背景色が変化して見える（押下していない状態と視覚的に区別できる）こと。
+2. ボタンを離した後は、押下前の見た目（背景色）に戻ること。
+3. ライトモード・ダークモードの双方で、背景色変化が確認できること（`palette(midlight)`参照のためテーマに応じて色が自動追従する設計意図の確認）。ただし配色によっては変化が目視しづらい場合があるため、変化が乏しいと感じた場合はその旨を報告すること。
+4. 矢印グリフ（三角形）の表示・位置・クリックによる値の増減自体には影響がないこと（今回の変更は背景色ルールの追加のみで、矢印描画・ボタン位置には触れていない）。
+
+期待される挙動の根拠: 本項目は`.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md`の「押下フィードバック追加」セクションに記載の通り、`QSpinBox::up-button:pressed, QSpinBox::down-button:pressed { background-color: palette(midlight); }`ルールを新規追加したことによる。既存の`QSpinBox`本体・`:focus`・`up-button`/`down-button`の`subcontrol-position`・矢印画像参照には変更を加えていない。

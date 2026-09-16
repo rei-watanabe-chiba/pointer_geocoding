@@ -144,6 +144,16 @@ class UIStyleHelper:
             border-bottom-right-radius: 4px;
         }
 
+        /* T-0044 5th follow-up: pressed-state feedback for the up/down
+           buttons. Previously the buttons gave no visual response on
+           click. Tone matched to the existing QPushButton:pressed rule
+           (rgba(128, 128, 128, 0.28) below), kept simpler here per the
+           requested palette(midlight) approach since QSpinBox buttons
+           have no separate hover rule to stay consistent with. */
+        QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {
+            background-color: palette(midlight);
+        }
+
         /* T-0044 3rd follow-up: the border-trick used previously (transparent
            left/right borders + a single colored border to fake a triangle)
            rendered as a solid black square rather than a triangle on the

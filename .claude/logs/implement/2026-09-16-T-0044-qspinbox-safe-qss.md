@@ -125,3 +125,33 @@ base64データURI方式を廃止し、Qt標準のurl()によるファイルパ�
 
 ### スコープ外変更の有無（4回目のフォローアップ）
 なし。`src/ui/style.py` の `get_style_sheet()` メソッド内（矢印画像参照方式の変更・パス計算ロジックの追加・importの追加）と、`src/icon/` 配下への新規SVGファイル2件の追加のみ。他ファイル・`create_spinbox()` 自体・矢印以外の既存ルールには手を加えていない。
+
+## 押下フィードバック追加（2026-09-16）
+
+### 不具合内容
+ユーザーから「ボタンを押しても見た目が変わらず押した感がない」との要望があった。`QSpinBox::up-button`/`down-button`には`:pressed`擬似状態のルールが存在せず、押下時の視覚フィードバックがなかった。
+
+### 修正概要
+`src/ui/style.py`の`get_style_sheet()`内、既存の`QSpinBox::down-button { ... }`ルールの直後（`QSpinBox::up-arrow`前のコメントブロックの前）に、以下のルールを追加した。
+
+```css
+/* T-0044 5th follow-up: pressed-state feedback for the up/down
+   buttons. Previously the buttons gave no visual response on
+   click. Tone matched to the existing QPushButton:pressed rule
+   (rgba(128, 128, 128, 0.28) below), kept simpler here per the
+   requested palette(midlight) approach since QSpinBox buttons
+   have no separate hover rule to stay consistent with. */
+QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {
+    background-color: palette(midlight);
+}
+```
+
+既存の`QPushButton:hover`/`QPushButton:pressed`ルールは`rgba(128, 128, 128, 0.15)`/`rgba(128, 128, 128, 0.28)`という半透明グレーの背景色指定方式を採用していることを確認したが、依頼指示で明示された`palette(midlight)`をそのまま採用した（QSSの`palette()`関数はテーマ追従色を返すQt標準の指定方式であり、`QSpinBox`本体・`focus`ルールも同様に`palette(...)`系を使用しているため、トーンとして矛盾しない）。
+
+`QSpinBox`本体・`QSpinBox:focus`・`up-button`/`down-button`の`subcontrol-position`・矢印画像参照(`image: url(...)`)には一切変更を加えていない。`create_spinbox()`のロジックも変更していない。
+
+### 自動テスト実行結果（押下フィードバック追加）
+自動テストなし。`python3 -m py_compile src/ui/style.py`を実行し、構文エラーがないことを確認した（成功、エラーなし）。
+
+### スコープ外変更の有無（押下フィードバック追加）
+なし。変更は`src/ui/style.py`の`get_style_sheet()`内、`QSpinBox::up-button:pressed, QSpinBox::down-button:pressed`ルールの追加のみ。
