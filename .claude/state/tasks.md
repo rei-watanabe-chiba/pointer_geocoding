@@ -26,7 +26,7 @@ v2開発はタスクIDをT-0043から連番継続する。
 **巨大3ファイル(tab2_plot.py/tab1_image.py/start_dialog.py)対応の計画（T-0045〜T-0047）**:
 詳細計画は`.claude/state/v2-coreui-plan.md`を参照。T-0045 CoreUI(宣言的UI構築エンジン+汎用業務ロジックルール)の試作、tab1_image.pyに適用 → T-0046 start_dialog.py等その他画面への展開 → T-0047 tab2_plot.pyへの適用。
 
-| T-0045 | CoreUI試作（`src/ui/core/`: field_spec.py/builder.py/rules.py新設）、tab1_image.pyへ適用。詳細は`.claude/state/v2-coreui-plan.md` | 実装中 |
+| T-0045 | CoreUI試作（`src/ui/core/`: field_spec.py/builder.py/rules.py新設）、tab1_image.pyへ適用。詳細は`.claude/state/v2-coreui-plan.md`、実装ログは`.claude/logs/implement/2026-09-16-T-0045-coreui-tab1.md` | 静的検証中 |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
