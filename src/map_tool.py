@@ -498,7 +498,23 @@ class CanvasDigitizingTool(QgsMapTool):
         return None
 
     def canvasMoveEvent(self, event: QgsMapMouseEvent) -> None:
-        """Handle mouse movement: highlight nearby points within 15px tolerance using QgsSpatialIndex."""
+        """Handle mouse movement: highlight nearby points within 15px tolerance using QgsSpatialIndex.
+
+        T-0039b: mirrors the mode branching in _handle_digitize_click(). In
+        "new" mode, snap detection is skipped entirely so no hover marker
+        is ever shown (consistent with clicks never snapping to existing
+        features in this mode). In "edit" mode, hover snap detection and
+        the red hover marker remain unchanged.
+        """
+        mode = getattr(self.dock_widget, "tab2_current_mode", "new")
+        if mode not in ("new", "edit"):
+            mode = "new"
+
+        if mode == "new":
+            self.hover_marker.hide()
+            self.setCursor(Qt.CrossCursor)
+            return
+
         map_point = self.toMapCoordinates(event.pos())
         nearest = self.find_nearest_feature_id(map_point)
 
