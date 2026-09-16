@@ -37,6 +37,8 @@
 
 | T-0041 | UX軽微改修4点: ①②④はユーザー確認済み。③のQSpinBoxへのグローバルQSS追加が`docs/integrated_master_design.md`23-24行目の設計原則(QSpinBoxはOSネイティブUI保護のためQSS適用対象外)に違反し回帰を引き起こしたため、QSpinBox用QSS一式を全削除しOSネイティブ描画に戻した | 完了 | `.claude/logs/implement/2026-09-16-T-0041-minor-ux-fixes.md` | 静的検証: 問題なし | 完了 |
 
+| T-0042 | バグ修正: 編集モードで既設点選択後、点名変更せずに新規モードへ切替すると、`selected_edit_point_id`がリセットされないまま残り、点名重複判定の`exclude_feature_id`として使われ続けて直前編集点が判定対象から除外されてしまい、同名点の重複打点が可能になる不具合を修正。`_on_tab2_mode_changed()`で新規モードへの切替時に`selected_edit_point_id`が残っていれば`_reset_point_selection()`を呼ぶガード節を追加 | 完了 | `.claude/logs/implement/2026-09-16-T-0042-mode-switch-selection-reset-bug.md` | 静的検証: 問題なし | 完了 |
+
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
 - `/implement-scope` でimplementerに委譲したら「実装中」に更新する
