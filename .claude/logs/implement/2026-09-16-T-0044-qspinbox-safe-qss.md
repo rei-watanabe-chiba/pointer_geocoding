@@ -210,3 +210,41 @@ QSpinBox:focus {
 
 ### スコープ外変更の有無（フォーカスボーダー幅の統一修正）
 なし。変更は`src/ui/style.py`の`get_style_sheet()`内、`QSpinBox:focus`ルールのボーダー幅を`1.5px`から`1px`に変更した1点のみ。他ファイル・他ウィジェットの`:focus`ルールには手を加えていない。
+
+## フォーカス+押下の複合状態修正（2026-09-16）
+
+### 不具合内容
+直前の「フォーカスボーダー幅の統一修正」（`1.5px`→`1px`）を試みたが、ユーザーから改めて、フォーカスボーダー幅は`1.5px`（太いまま）を維持したいとの指示があった。あわせて、問題の本質は「フォーカス中のQSpinBoxの上下ボタンを押した時（フォーカス+pressedが同時に起きる状態）」だけボタンの押下背景色がフォーカス枠にオーバーラップする点にあり、単純にフォーカスのみ・押下のみの状態では問題が発生しないことが判明した。原因として、既存の`QSpinBox::up-button:pressed`/`QSpinBox::down-button:pressed`ルールが`background-color`と角丸のみを指定し、`border-left`（非pressedの`up-button`/`down-button`ルールには存在する）を再宣言していないため、フォーカス状態が重なった際にQtがボックス情報を正しく引き継げていない可能性が高いと判断した。
+
+### 修正概要
+`src/ui/style.py`の`get_style_sheet()`内で以下の2点を修正した。
+
+1. `QSpinBox:focus`のボーダー幅を`1px`から`1.5px`へ差し戻した（直前のフォローアップを取り消し）。
+```css
+QSpinBox:focus {
+    border: 1.5px solid palette(highlight);
+}
+```
+
+2. 既存の`QSpinBox::up-button:pressed`/`QSpinBox::down-button:pressed`ルール（フォーカスなしの押下状態、変更なし）の直後に、フォーカス+押下の複合セレクタ`QSpinBox:focus::up-button:pressed`/`QSpinBox:focus::down-button:pressed`を新規追加し、`background-color`・`border-left`・角丸を明示的に再宣言した。
+```css
+QSpinBox:focus::up-button:pressed {
+    background-color: palette(midlight);
+    border-left: 1px solid palette(mid);
+    border-top-right-radius: 4px;
+}
+
+QSpinBox:focus::down-button:pressed {
+    background-color: palette(midlight);
+    border-left: 1px solid palette(mid);
+    border-bottom-right-radius: 4px;
+}
+```
+
+既存の`QSpinBox::up-button:pressed`/`QSpinBox::down-button:pressed`ルール自体は削除せず維持した（フォーカスなしの押下状態はこれまで通り）。`QSpinBox`本体・`::up-button`/`::down-button`（非pressed）・矢印画像参照(`image: url(...)`)には一切手を加えていない。`create_spinbox()`のロジックも変更していない。
+
+### 自動テスト実行結果（フォーカス+押下の複合状態修正）
+自動テストなし。`python3 -m py_compile src/ui/style.py`を実行し、構文エラーがないことを確認した（成功、エラーなし）。
+
+### スコープ外変更の有無（フォーカス+押下の複合状態修正）
+なし。変更は`src/ui/style.py`の`get_style_sheet()`内、`QSpinBox:focus`のボーダー幅差し戻しと、`QSpinBox:focus::up-button:pressed`/`QSpinBox:focus::down-button:pressed`ルールの新規追加の2点のみ。他ファイル・他ウィジェットの`:focus`ルールには手を加えていない。

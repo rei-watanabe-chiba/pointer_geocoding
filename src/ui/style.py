@@ -119,7 +119,7 @@ class UIStyleHelper:
         }
 
         QSpinBox:focus {
-            border: 1px solid palette(highlight);
+            border: 1.5px solid palette(highlight);
         }
 
         /* T-0044 follow-up: up-button/down-button now each declare their own
@@ -157,6 +157,27 @@ class UIStyleHelper:
 
         QSpinBox::down-button:pressed {
             background-color: palette(midlight);
+            border-bottom-right-radius: 4px;
+        }
+
+        /* T-0044 6th follow-up: when the QSpinBox is focused AND a button is
+           pressed at the same time, Qt failed to carry over the box info
+           (background/border/radius) from the plain :pressed rule above,
+           causing the pressed background-color to visually overlap/bleed
+           into the QSpinBox:focus border. Declaring the combined
+           QSpinBox:focus::up-button:pressed / down-button:pressed selectors
+           explicitly (re-including border-left, which the plain :pressed
+           rule above omits) fixes the focus+pressed combination without
+           touching the non-focus pressed behavior. */
+        QSpinBox:focus::up-button:pressed {
+            background-color: palette(midlight);
+            border-left: 1px solid palette(mid);
+            border-top-right-radius: 4px;
+        }
+
+        QSpinBox:focus::down-button:pressed {
+            background-color: palette(midlight);
+            border-left: 1px solid palette(mid);
             border-bottom-right-radius: 4px;
         }
 
