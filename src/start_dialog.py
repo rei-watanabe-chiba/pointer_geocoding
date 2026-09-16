@@ -70,6 +70,7 @@ UI_CONFIG = {
         "COORD_Y": "Y:",
         "BTN_OK": "セッションを開始",
         "BTN_CANCEL": "キャンセル",
+        "BTN_CONFIRM": "確認",
     },
     "PLACEHOLDERS": {
         "FOLDER_NEW": "セッションフォルダを新規作成する親ディレクトリを選択してください",
@@ -97,8 +98,9 @@ UI_CONFIG = {
         "ERR_SESSION_NAME_INVALID": "セッション名に使用できない文字 (\\ / : * ? \" < > |) が含まれています。\n適切な名称を入力してください。",
         "ERR_SESSION_EXISTS": "指定された親ディレクトリ内に同名のフォルダが既に存在します:\n{name}\n別のセッション名を指定してください。",
         "ERR_NO_QGZ": "選択されたフォルダ内にQGISプロジェクトファイル (.qgz) が見つかりません:\n{path}\n有効なセッションフォルダを選択してください。",
-        "ERR_CSV_NOT_FOUND": "指定されたグリッドCSVファイルが存在しません:\n{path}",
         "ERR_RANGE_INVALID": "X範囲・Y範囲は、それぞれ最小値が最大値以下になるように指定してください。",
+        "WARN_CSV_INVALID": "グリッドCSVを読み込めませんでした。「確認」を押すとCSV選択欄をクリアします。",
+        "WARN_ROW_COUNT_EXCEEDED": "基準点数が上限を超えています（{count}件）",
     },
     "LIMITS": {
         "RANGE_X_MIN_VALUE": 1,
@@ -107,6 +109,7 @@ UI_CONFIG = {
         "RANGE_X_DEFAULT_MAX": 10,
         "RANGE_Y_DEFAULT_MIN": 1,
         "RANGE_Y_DEFAULT_MAX": 10,
+        "ROW_COUNT_WARNING_THRESHOLD": 10000,
     },
 }
 
@@ -190,6 +193,15 @@ class StartDialog(QDialog):
         self.setWindowTitle(UI_CONFIG["LABELS"]["WINDOW_TITLE"])
         self.setModal(True)
         self.setMinimumWidth(600)
+
+        # Grid-configuration warning state (see _refresh_grid_status_panel).
+        # '_active_grid_warning' is one of None / "csv_invalid" / "range_invalid" /
+        # "row_count", reflecting the currently displayed panel_preview_status content.
+        self._active_grid_warning: Optional[str] = None
+        self._csv_invalid: bool = False
+        self._csv_row_count: Optional[int] = None
+        self._range_invalid: bool = False
+        self._row_count_ack: bool = False
 
         self._init_ui()
         UIStyleHelper.apply_theme(self)
@@ -407,20 +419,40 @@ class StartDialog(QDialog):
 
         grid_group_layout.addWidget(self.panel_grid_settings)
 
-        # Dynamic Coordinate Result Panel (green success / red error status panel)
+        # Dynamic Coordinate Result Panel (green success / red error / orange warning
+        # status panel). Also used to display grid-configuration warnings (invalid CSV,
+        # invalid X/Y range, expected row count over the threshold) alongside a
+        # right-aligned "confirm" button (see _refresh_grid_status_panel).
         self.panel_preview_status, self.lbl_preview_status = UIStyleHelper.create_status_panel(
             "", status_type="success", parent=self.grid_group
         )
+        status_panel_layout = self.panel_preview_status.layout()
+        status_row = QHBoxLayout()
+        status_row.setContentsMargins(0, 0, 0, 0)
+        status_row.setSpacing(8)
+        status_panel_layout.removeWidget(self.lbl_preview_status)
+        status_row.addWidget(self.lbl_preview_status, 1)
+        self.btn_grid_warning_confirm = QPushButton(
+            UI_CONFIG["LABELS"]["BTN_CONFIRM"], self.panel_preview_status
+        )
+        self.btn_grid_warning_confirm.setVisible(False)
+        self.btn_grid_warning_confirm.clicked.connect(self._on_grid_warning_confirm_clicked)
+        status_row.addWidget(self.btn_grid_warning_confirm, 0)
+        status_panel_layout.addLayout(status_row)
+
         grid_group_layout.addWidget(self.panel_preview_status)
         grid_group_layout.addStretch()
 
-        # Connect signals for dynamic preview calculation
+        # Connect signals for dynamic preview calculation. Origin/preview inputs only
+        # affect the coordinate preview text; X/Y range inputs additionally affect the
+        # expected row-count / range-validity warning and therefore reset the
+        # acknowledgement state on every change (see _on_grid_inputs_changed).
         self.spin_origin_x.valueChanged.connect(self._update_grid_coordinate_preview)
         self.spin_origin_y.valueChanged.connect(self._update_grid_coordinate_preview)
-        self.spin_range_x_min.valueChanged.connect(self._update_grid_coordinate_preview)
-        self.spin_range_x_max.valueChanged.connect(self._update_grid_coordinate_preview)
-        self.spin_range_y_min.valueChanged.connect(self._update_grid_coordinate_preview)
-        self.spin_range_y_max.valueChanged.connect(self._update_grid_coordinate_preview)
+        self.spin_range_x_min.valueChanged.connect(self._on_grid_inputs_changed)
+        self.spin_range_x_max.valueChanged.connect(self._on_grid_inputs_changed)
+        self.spin_range_y_min.valueChanged.connect(self._on_grid_inputs_changed)
+        self.spin_range_y_max.valueChanged.connect(self._on_grid_inputs_changed)
         self.spin_preview_x.valueChanged.connect(self._update_grid_coordinate_preview)
         self.edit_preview_y.textChanged.connect(self._update_grid_coordinate_preview)
 
@@ -522,7 +554,8 @@ class StartDialog(QDialog):
         :param csv_path: Absolute path to the grid CSV file.
         :type csv_path: str
         :return: Dictionary with keys 'origin_x', 'origin_y', 'range_x_min', 'range_x_max',
-            'range_y_min', 'range_y_max', or None on failure.
+            'range_y_min', 'range_y_max', 'row_count' (total number of parsed data rows),
+            or None on failure.
         :rtype: Optional[Dict[str, int]]
         """
         if not os.path.isfile(csv_path):
@@ -537,6 +570,7 @@ class StartDialog(QDialog):
                     max_gx: int = 0
                     min_gy: Optional[int] = None
                     max_gy: int = 0
+                    data_row_count: int = 0
 
                     col_gx, col_gy, col_sub, col_x, col_y = 0, 1, 2, 3, 4
                     header_parsed: bool = False
@@ -572,6 +606,7 @@ class StartDialog(QDialog):
                         try:
                             gx = int(row[col_gx].strip())
                             gy = from_excel_column(row[col_gy].strip())
+                            data_row_count += 1
                             if min_gx is None or gx < min_gx:
                                 min_gx = gx
                             if gx > max_gx:
@@ -605,6 +640,7 @@ class StartDialog(QDialog):
                             "range_x_max": max_gx,
                             "range_y_min": min_gy,
                             "range_y_max": max_gy,
+                            "row_count": data_row_count,
                         }
             except (UnicodeDecodeError, OSError):
                 continue
@@ -708,14 +744,36 @@ class StartDialog(QDialog):
             if metadata["range_x_min"] > self.spin_range_x_min.maximum():
                 self.spin_range_x_min.setMaximum(metadata["range_x_min"])
 
-            self.spin_origin_x.setValue(metadata["origin_x"])
-            self.spin_origin_y.setValue(metadata["origin_y"])
-            self.spin_range_x_min.setValue(metadata["range_x_min"])
-            self.spin_range_x_max.setValue(metadata["range_x_max"])
-            self.spin_range_y_min.setValue(metadata["range_y_min"])
-            self.spin_range_y_max.setValue(metadata["range_y_max"])
+            # Block signals while batch-applying metadata so that the intermediate
+            # (partially-updated) spinbox states never reach _on_grid_inputs_changed /
+            # _update_grid_coordinate_preview; a single consistent refresh is triggered
+            # explicitly once below, after every value has been applied.
+            range_spinboxes = (
+                self.spin_origin_x,
+                self.spin_origin_y,
+                self.spin_range_x_min,
+                self.spin_range_x_max,
+                self.spin_range_y_min,
+                self.spin_range_y_max,
+            )
+            for spin in range_spinboxes:
+                spin.blockSignals(True)
+            try:
+                self.spin_origin_x.setValue(metadata["origin_x"])
+                self.spin_origin_y.setValue(metadata["origin_y"])
+                self.spin_range_x_min.setValue(metadata["range_x_min"])
+                self.spin_range_x_max.setValue(metadata["range_x_max"])
+                self.spin_range_y_min.setValue(metadata["range_y_min"])
+                self.spin_range_y_max.setValue(metadata["range_y_max"])
+            finally:
+                for spin in range_spinboxes:
+                    spin.blockSignals(False)
 
-        self._update_grid_coordinate_preview()
+        # CSV validity: only meaningful when a non-empty path was actually specified
+        # (an empty path is the normal "no CSV selected" state, not an error).
+        self._csv_invalid = bool(csv_path) and not csv_valid
+        self._csv_row_count = metadata.get("row_count") if metadata else None
+        self._on_grid_inputs_changed()
 
     def _update_grid_coordinate_preview(self) -> None:
         """Dynamically compute and display coordinates for the preview grid input.
@@ -723,7 +781,14 @@ class StartDialog(QDialog):
 
         If within bounds, marks panel as success and shows '{gx}{display_y}-00座標: X: {px}, Y: {py}'.
         If out of bounds, marks panel as error and shows '{gx}{display_y}-00座標: 範囲外'.
+
+        Does nothing while a grid-configuration warning (invalid CSV / invalid range /
+        row-count-over-threshold) is currently displayed on panel_preview_status, so
+        that unrelated preview-input changes never overwrite the warning message.
         """
+        if self._active_grid_warning is not None:
+            return
+
         gx = self.spin_preview_x.value()
         y_text = self.edit_preview_y.text().strip().upper()
         gy = from_excel_column(y_text)
@@ -756,6 +821,142 @@ class StartDialog(QDialog):
                 f"{grid_prefix}: {UI_CONFIG['MESSAGES']['OUT_OF_BOUNDS']}",
                 status_type="error",
             )
+
+    def _is_range_invalid(self) -> bool:
+        """Determine whether the configured X/Y grid range is invalid (min > max).
+
+        Skipped (never considered invalid) when trusting an existing grid CSV's
+        values as-is (i.e. "CSVファイル利用" mode with a CSV path set), mirroring the
+        equivalent skip condition previously enforced in :meth:`_validate_and_accept`.
+
+        :return: True if the range is invalid and must block session start.
+        :rtype: bool
+        """
+        if self.radio_grid_mode_use_csv.isChecked() and self.edit_grid_csv.text().strip():
+            return False
+        return (
+            self.spin_range_x_min.value() > self.spin_range_x_max.value()
+            or self.spin_range_y_min.value() > self.spin_range_y_max.value()
+        )
+
+    def _compute_expected_row_count(self) -> int:
+        """Compute the expected number of grid rows for the current configuration.
+
+        In "CSVファイル利用" mode with a valid CSV selected, this is the actual number
+        of data rows parsed from the CSV (see ``self._csv_row_count``, refreshed by
+        :meth:`_apply_grid_mode_state`). Otherwise (new/update mode), it is the
+        theoretical row count generated by ``grid_csv_mixin.generate_grid_csv`` for
+        the currently configured X/Y range: (x_count) x (y_count) x 100 small grids.
+
+        :return: Expected row count (0 when the range is invalid or unknown).
+        :rtype: int
+        """
+        if self.radio_grid_mode_use_csv.isChecked() and self.edit_grid_csv.text().strip():
+            return self._csv_row_count if self._csv_row_count is not None else 0
+
+        x_min = self.spin_range_x_min.value()
+        x_max = self.spin_range_x_max.value()
+        y_min = self.spin_range_y_min.value()
+        y_max = self.spin_range_y_max.value()
+        if x_min > x_max or y_min > y_max:
+            return 0
+        return (x_max - x_min + 1) * (y_max - y_min + 1) * 100
+
+    def _on_grid_inputs_changed(self) -> None:
+        """Reset the row-count warning acknowledgement and refresh the status panel.
+
+        Called whenever an input that affects grid-configuration validity or the
+        expected row count changes (X/Y range spinboxes, grid CSV path), so that a
+        previously-acknowledged row-count warning is re-evaluated from scratch.
+        """
+        self._row_count_ack = False
+        self._refresh_grid_status_panel()
+
+    def _refresh_grid_status_panel(self) -> None:
+        """Recompute and display the grid-configuration warning (if any) with priority
+        csv_invalid > range_invalid > row_count_exceeded > normal coordinate preview.
+
+        csv_invalid / range_invalid are hard-blocking conditions: the "セッションを開始"
+        button (``self.btn_ok``) stays disabled regardless of the confirm button, since
+        clicking confirm cannot make an invalid CSV or an invalid range valid by itself
+        (csv_invalid's confirm handler resolves it by clearing the CSV field; range_invalid
+        requires the user to actually change the spinbox values). row_count_exceeded is a
+        soft/advisory warning: clicking confirm acknowledges it and re-enables btn_ok until
+        the range or CSV selection changes again.
+        """
+        if self._csv_invalid:
+            self._active_grid_warning = "csv_invalid"
+            self._show_grid_warning(UI_CONFIG["MESSAGES"]["WARN_CSV_INVALID"])
+            self._update_ok_button_state()
+            return
+
+        self._range_invalid = self._is_range_invalid()
+        if self._range_invalid:
+            self._active_grid_warning = "range_invalid"
+            self._show_grid_warning(UI_CONFIG["MESSAGES"]["ERR_RANGE_INVALID"])
+            self._update_ok_button_state()
+            return
+
+        row_count = self._compute_expected_row_count()
+        threshold = UI_CONFIG["LIMITS"]["ROW_COUNT_WARNING_THRESHOLD"]
+        if row_count > threshold and not self._row_count_ack:
+            self._active_grid_warning = "row_count"
+            self._show_grid_warning(
+                UI_CONFIG["MESSAGES"]["WARN_ROW_COUNT_EXCEEDED"].format(count=row_count)
+            )
+            self._update_ok_button_state()
+            return
+
+        self._active_grid_warning = None
+        self.btn_grid_warning_confirm.setVisible(False)
+        self._update_grid_coordinate_preview()
+        self._update_ok_button_state()
+
+    def _show_grid_warning(self, text: str) -> None:
+        """Switch panel_preview_status to warning style and reveal the confirm button.
+
+        :param text: Warning message to display.
+        :type text: str
+        """
+        UIStyleHelper.update_status_panel(
+            self.panel_preview_status, self.lbl_preview_status, text, status_type="warning"
+        )
+        self.btn_grid_warning_confirm.setVisible(True)
+
+    def _on_grid_warning_confirm_clicked(self) -> None:
+        """Handle a click on the shared grid-warning confirm button.
+
+        Behavior depends on ``self._active_grid_warning``:
+
+        - "csv_invalid": clears the grid CSV path (origin/range values are left
+          untouched), which re-triggers :meth:`_apply_grid_mode_state` and therefore
+          a full panel refresh.
+        - "range_invalid": simply hides the confirm button; ``btn_ok`` remains
+          disabled until the user actually corrects the X/Y range values.
+        - "row_count": acknowledges the warning so that btn_ok is re-enabled until
+          the range or CSV selection changes again.
+        """
+        match self._active_grid_warning:
+            case "csv_invalid":
+                self.edit_grid_csv.setText("")
+            case "range_invalid":
+                self.btn_grid_warning_confirm.setVisible(False)
+            case "row_count":
+                self._row_count_ack = True
+                self._refresh_grid_status_panel()
+
+    def _update_ok_button_state(self) -> None:
+        """Enable/disable ``self.btn_ok`` based on the current grid-configuration state.
+
+        csv_invalid and range_invalid always block session start. row_count_exceeded
+        only blocks it until the warning has been acknowledged via the confirm button.
+        """
+        blocked = (
+            self._csv_invalid
+            or self._range_invalid
+            or (self._active_grid_warning == "row_count" and not self._row_count_ack)
+        )
+        self.btn_ok.setEnabled(not blocked)
 
     def _validate_and_accept(self) -> None:
         """Validate all required inputs according to business constraints before accepting."""
@@ -827,35 +1028,11 @@ class StartDialog(QDialog):
                     self.edit_folder.setFocus()
                     return
 
-        # Validate grid CSV path if specified
-        if (grid_csv := self.edit_grid_csv.text().strip()) and not os.path.isfile(grid_csv):
-            UIStyleHelper.show_warning_dialog(
-                self,
-                UI_CONFIG["MESSAGES"]["ERR_TITLE_INPUT"],
-                UI_CONFIG["MESSAGES"]["ERR_CSV_NOT_FOUND"].format(path=grid_csv),
-            )
-            self.edit_grid_csv.setFocus()
-            return
-
-        # Validate X/Y grid range (min must not exceed max) when generating a new/updated
-        # grid CSV. Skipped only when trusting an existing CSV's values as-is (use-csv mode).
-        if not (self.radio_grid_mode_use_csv.isChecked() and grid_csv):
-            if self.spin_range_x_min.value() > self.spin_range_x_max.value():
-                UIStyleHelper.show_warning_dialog(
-                    self,
-                    UI_CONFIG["MESSAGES"]["ERR_TITLE_INPUT"],
-                    UI_CONFIG["MESSAGES"]["ERR_RANGE_INVALID"],
-                )
-                self.spin_range_x_min.setFocus()
-                return
-            if self.spin_range_y_min.value() > self.spin_range_y_max.value():
-                UIStyleHelper.show_warning_dialog(
-                    self,
-                    UI_CONFIG["MESSAGES"]["ERR_TITLE_INPUT"],
-                    UI_CONFIG["MESSAGES"]["ERR_RANGE_INVALID"],
-                )
-                self.spin_range_y_min.setFocus()
-                return
+        # Grid CSV validity and X/Y range validity (min <= max) are no longer validated
+        # here via QMessageBox: they are enforced reactively through panel_preview_status
+        # (see _refresh_grid_status_panel / _update_ok_button_state), which disables
+        # self.btn_ok whenever either condition is violated. This method therefore
+        # cannot be reached in either of those invalid states through normal UI use.
 
         self.accept()
 
