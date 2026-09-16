@@ -30,7 +30,7 @@
 | T-0018 | バグ修正: 画像追加/削除まわりのガード不足。①複製タイミングを「レイヤ出力」完了時まで遅延、既存ワールドファイル付き画像は「基準点設置」を拒否（新規追加モードのみ対象）②キャンバス即時再描画・ゴースト画像ガード（`current_copied_image_path`クリア・`preview_dialog`後片付け）・画像0件時のボタン無効化 | 人手確認待ち | `.claude/logs/implement/2026-09-15-T-0018-image-guard-fixes.md` | 静的検証問題なし | - |
 | T-0019 | T-0018フォローアップ: ①`_on_export_layer_clicked()`の未複製判定に`os.path.normcase()`追加（T-0012堅牢化パターンとの一貫性）②設計書126行目付近をT-0018の複製タイミング変更に追随更新 | 人手確認待ち | `.claude/logs/implement/2026-09-15-T-0019-t0018-followup-normcase-doc.md` | 静的検証問題なし | - |
 | T-0025 | UI改修: ①右ドック幅300固定（UIConfigへ`DOCK_WIDTH`追加）②画像/設定モードレスダイアログの幅・高さを先頭定義化（UIDialogSizes新設）③未定数化のメッセージ文字列をUIMessagesへ回収（plugin.py分も追加発見・対応）④確認ダイアログ等のボタンをstyle_helper.py新規`build_centered_button_row()`で整列表示 | 完了 | `.claude/logs/implement/2026-09-15-T-0025-ui-constants-and-alignment.md` | 静的検証: 問題なし | 完了 |
-| T-0034 | UI調整: main_dockのHLine区切り下の余白が大きすぎるため、main_dock_constants.py先頭にマージン/スペーシング定数を新設し、tab2の各パネル区切り周りの余白を狭める | 承認待ち | - | - | - |
+| T-0034 | UI調整3点: ①top_row/tab2_container間にHLine区切りを追加②main_dock_constants.pyに余白定数7項目(DOCK_OUTER_MARGIN等)を新設し各所のハードコード値を置換③タブ表示名をIMG/PLOT/SET/OUTに変更(内部識別子はtab1〜3は維持、出力のみoutput_container等をtab4系にリネーム) | 実装中 | - | - | - |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
