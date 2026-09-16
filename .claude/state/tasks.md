@@ -33,8 +33,7 @@
 | T-0019 | T-0018フォローアップ: ①`_on_export_layer_clicked()`の未複製判定に`os.path.normcase()`追加（T-0012堅牢化パターンとの一貫性）②設計書126行目付近をT-0018の複製タイミング変更に追随更新 | 人手確認待ち | `.claude/logs/implement/2026-09-15-T-0019-t0018-followup-normcase-doc.md` | 静的検証問題なし | - |
 | T-0025 | UI改修: ①右ドック幅300固定（UIConfigへ`DOCK_WIDTH`追加）②画像/設定モードレスダイアログの幅・高さを先頭定義化（UIDialogSizes新設）③未定数化のメッセージ文字列をUIMessagesへ回収（plugin.py分も追加発見・対応）④確認ダイアログ等のボタンをstyle_helper.py新規`build_centered_button_row()`で整列表示 | 完了 | `.claude/logs/implement/2026-09-15-T-0025-ui-constants-and-alignment.md` | 静的検証: 問題なし | 完了 |
 
-| T-0039 | UX追加1/2: 編集モードでの空白クリック時、編集モードは維持したまま選択中フィーチャの選択を解除する。`blank_click_in_edit_mode`シグナルをmap_tool.pyに新設し、tab2_digitizing_mixin.py側で既存の`_reset_point_selection()`を呼ぶ形で実装(新規モードのスナップ無効化は調査の結果、既に正しく実装済みと確認済みのため対応不要) | 人手確認待ち | `.claude/logs/implement/2026-09-16-T-0039-edit-mode-blank-click-deselect.md` | 軽微な変更のためverifier省略、implementer自己チェック(py_compile・diff確認)のみ | - |
-| T-0039b | T-0039フォローアップ: 新規モードでもcanvasMoveEvent()のホバー時赤枠マーカーが常時表示されていた不具合を修正。新規モードではスナップ判定自体を行わずホバーマーカーを常に非表示にする | 人手確認待ち | `.claude/logs/implement/2026-09-16-T-0039b-new-mode-hover-marker-fix.md` | 軽微な変更のためverifier省略、implementer自己チェック(py_compile・diff確認)のみ | - |
+| T-0039〜T-0039b | UX追加: 編集モードでの空白クリック時、編集モードは維持したまま選択中フィーチャの選択を解除(`blank_click_in_edit_mode`シグナル新設)(T-0039)。新規モードでcanvasMoveEvent()のホバー赤枠マーカーが残存していた不具合を修正、新規モードではスナップ判定自体を行わない(T-0039b) | 完了 | `.claude/logs/implement/2026-09-16-T-0039-edit-mode-blank-click-deselect.md` | 軽微な変更のためverifier省略 | 完了 |
 | T-0040 | UX追加2/2: 新規モードで[解除]選択中にキャンバスクリックした場合、クリック地点付近に点名・枝番入力ダイアログ(OK/キャンセル、バリデーションエラーはボタン上に赤字表示、FeatureCreateDialog方式を流用)をポップアップ表示。OK押下時はcheck_point_duplicate()で重複判定し、通れば入力値でフィーチャ作成。他の属性(出土形態・遺構名・属性・色・対象図面)はパネルの現在値をそのまま使用。SP属性選択時(自動的に解除相当)も対象に含める | 承認待ち | - | - | - |
 
 ## 使い方
