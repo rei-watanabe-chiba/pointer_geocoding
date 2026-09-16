@@ -35,7 +35,7 @@
 | T-0025 | UI改修: ①右ドック幅300固定（UIConfigへ`DOCK_WIDTH`追加）②画像/設定モードレスダイアログの幅・高さを先頭定義化（UIDialogSizes新設）③未定数化のメッセージ文字列をUIMessagesへ回収（plugin.py分も追加発見・対応）④確認ダイアログ等のボタンをstyle_helper.py新規`build_centered_button_row()`で整列表示 | 完了 | `.claude/logs/implement/2026-09-15-T-0025-ui-constants-and-alignment.md` | 静的検証: 問題なし | 完了 |
 | T-0040 | UX追加2/2: 新規モードで[解除]選択中にキャンバスクリックした場合、クリック地点付近に点名・枝番入力ダイアログ(`PointNameEntryDialog`新設、OK/キャンセル、バリデーションエラーはボタン上に赤字表示、FeatureCreateDialog方式を流用)をポップアップ表示。OK押下時はcheck_point_duplicate()で重複判定し、通れば入力値でフィーチャ作成(既存作成本体を`_create_digitized_point_from_state()`へ抽出し共用)。他の属性はパネルの現在値を使用。SP属性選択時は英数字バリデータ付きQLineEdit、非SP時は整数QSpinBoxに切替対応済み | 完了 | `.claude/logs/implement/2026-09-16-T-0040-release-mode-click-dialog.md` | 静的検証: 問題なし | 完了 |
 
-| T-0041 | UX軽微改修4点: ①②④はユーザー確認済み。③QSpinBox矢印つぶれの修正が不十分(矢印が消えてスペースだけ空く状態)と判明、追加修正が必要 | 実装中 | `.claude/logs/implement/2026-09-16-T-0041-minor-ux-fixes.md` | 差し戻し: ③QSpinBox矢印表示の追加修正 | ①②④確認済み |
+| T-0041 | UX軽微改修4点: ①②④はユーザー確認済み。③QSpinBox矢印は当初width/heightのみ指定で描画されず消失していたため、border三角形トリック(border-left/right transparent + border-bottom/top palette(text)、subcontrol-origin/position明示)による確実な描画方式に修正 | 人手確認待ち | `.claude/logs/implement/2026-09-16-T-0041-minor-ux-fixes.md` | 軽微なQSS修正のためverifier省略、implementer自己チェック(py_compile・diff確認)のみ | ①②④確認済み |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
