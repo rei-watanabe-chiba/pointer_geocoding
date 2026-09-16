@@ -91,13 +91,9 @@ class UIStyleHelper:
             border: 1.5px solid palette(highlight);
         }
 
-        /* T-0044: QSpinBox base styling. NOTE: intentionally does NOT touch
-           QSpinBox::up-arrow / QSpinBox::down-arrow (no image/border overrides).
-           A prior attempt (T-0041) redrew the arrow sub-controls with a custom
-           triangle hack and broke native arrow rendering across the plugin
-           (regression rolled back). This time only the outer box and the
-           up/down button sub-control geometry are styled; arrow glyphs are
-           left entirely to the platform's base style. */
+        /* T-0044: QSpinBox base styling. NOTE: only the outer box and the
+           up/down button sub-control geometry are styled here; arrow glyphs
+           are handled separately below (see T-0044 2nd follow-up). */
         QSpinBox {
             background-color: palette(base);
             color: palette(text);
@@ -135,6 +131,31 @@ class UIStyleHelper:
             width: 18px;
             border-left: 1px solid palette(mid);
             border-bottom-right-radius: 4px;
+        }
+
+        /* T-0044 2nd follow-up: up-button/down-button sub-control geometry is
+           now correctly positioned (see note above), but the native arrow
+           glyphs were not being rendered inside them on some platforms/styles.
+           Draw the arrows explicitly using the border-trick (transparent
+           left/right borders + a single colored border to form a triangle).
+           palette(text) keeps the glyph color following the active theme
+           (dark/light mode) automatically. */
+        QSpinBox::up-arrow {
+            image: none;
+            width: 0px;
+            height: 0px;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-bottom: 5px solid palette(text);
+        }
+
+        QSpinBox::down-arrow {
+            image: none;
+            width: 0px;
+            height: 0px;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 5px solid palette(text);
         }
 
         /* Default Buttons */

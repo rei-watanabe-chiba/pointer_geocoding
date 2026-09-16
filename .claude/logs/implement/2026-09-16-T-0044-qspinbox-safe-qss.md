@@ -44,3 +44,28 @@ T-0044
 
 ### スコープ外変更の有無（フォローアップ）
 なし。`src/ui/style.py` の `get_style_sheet()` メソッド内、`QSpinBox` 関連ルールの修正のみ。他ファイル・`create_spinbox()` 自体・矢印サブコントロールルールには手を加えていない。
+
+---
+
+## 2回目のフォローアップ修正（2026-09-16）
+
+### 不具合内容
+1回目のフォローアップでボタンの位置・クリック判定は正常化したが、2回目の人手確認で、ボタン領域自体は存在し上下クリックで値は増減するものの、**矢印グリフ自体が描画されない**（見た目上、ボタンの中に何も表示されない）ことが判明した。
+
+### 修正概要
+`src/ui/style.py` の `get_style_sheet()` 内、`QSpinBox::up-button, QSpinBox::down-button` ルールの直後に、`QSpinBox::up-arrow` / `QSpinBox::down-arrow` の2ルールを新規追加した。ボーダートリック（`border-left`/`border-right` を透明にし、片側のみ色付きボーダーを指定して三角形を形成する手法）で矢印を明示的に描画する。
+
+- `QSpinBox::up-arrow`: `image: none; width: 0px; height: 0px; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 5px solid palette(text);`
+- `QSpinBox::down-arrow`: `image: none; width: 0px; height: 0px; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid palette(text);`
+
+色は `palette(text)` を参照しているため、ダークモード/ライトモードいずれのテーマでも自動追従する設計とした（他のルールと同じ palette ロール参照方式に統一）。
+
+あわせて、`QSpinBox` ルール直前にあった「矢印サブコントロールには意図的に手を加えない」旨の古いコメント（T-0041での矢印描画の失敗経緯を記した注記）は、今回の方針転換により実態と矛盾するため、内容を更新した（矢印ルールは本フォローアップで追加済みである旨を記載）。
+
+既存の `QSpinBox` 本体・`QSpinBox:focus`・`QSpinBox::up-button, QSpinBox::down-button`（1回目のフォローアップで分離済みの個別セレクタ）には変更を加えていない。`create_spinbox()` のロジックにも変更はない。
+
+### 自動テスト実行結果（2回目のフォローアップ）
+自動テストなし。`python3 -m py_compile src/ui/style.py` を実行し、構文エラーがないことを確認した（成功、エラーなし）。
+
+### スコープ外変更の有無（2回目のフォローアップ）
+なし。`src/ui/style.py` の `get_style_sheet()` メソッド内、矢印サブコントロールルールの追加と、それに伴う直前コメントの更新のみ。他ファイル・`create_spinbox()` 自体・矢印以外の既存ルールには手を加えていない。
