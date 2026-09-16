@@ -36,6 +36,13 @@ T-0041 UX軽微改修4点
   - `QSpinBox::up-arrow, QSpinBox::down-arrow { width: 8px; height: 8px; }` で矢印アイコンのサイズを明示
 - この修正は `UIStyleHelper.get_style_sheet()`（共通ヘルパー）側での対応であるため、`UIStyleHelper.create_spinbox()` を使う全箇所（`tab2_digitizing_mixin.py` の `edit_point_name`、`start_dialog.py` の `spin_origin_x`/`spin_origin_y`/`spin_range_x_min`/`spin_range_x_max`/`spin_preview_x`、および `QSpinBox` を直接継承する `ExcelColumnSpinBox`）に共通して適用される。個別ウィジェットへの対症療法は行っていない。
 
+#### ③のフォローアップ修正（本追記時点）
+- 実機確認の結果、上記の初回対処後は「矢印つぶれ」ではなく「ボタン領域は確保されているが矢印グリフ自体が非表示（空白）」という別の症状であることが判明した。
+- 原因の再分析: `QSpinBox::up-button, QSpinBox::down-button` に `background-color`/`border-left` 等のカスタムQSSを指定すると、Qtのスタイルエンジンはそのサブコントロールに対してネイティブの矢印プリミティブ（`PE_IndicatorSpinUp`/`PE_IndicatorSpinDown`）の自動描画を行わなくなる場合がある。既存の `QSpinBox::up-arrow, QSpinBox::down-arrow { width: 8px; height: 8px; }` はサイズを指定しているのみで、実際に描画する `image` プロパティやボーダーを指定していなかったため、矢印の占有領域だけが確保され中身が描画されない状態になっていたと考えられる。
+- 対処: `QSpinBox::up-arrow, QSpinBox::down-arrow { width: 8px; height: 8px; }` の1ブロックを削除し、代わりに `QSpinBox::up-arrow` と `QSpinBox::down-arrow` をそれぞれ個別ルールとして新設。border-triangleトリック（`width: 0px; height: 0px;` の箱に、進行方向と垂直な2辺を `transparent` の `border-left`/`border-right`（4px）、矢の向いた1辺を `palette(text)` の `border-bottom`（up-arrow）/`border-top`（down-arrow）（5px）として指定）により、スタイルエンジンやOSテーマに依存せず三角形を明示的に描画するようにした。`image: none;` を明示し、既存の空画像由来の表示崩れの可能性を排除。また `subcontrol-origin: border; subcontrol-position: top right;`（up-arrow）/`bottom right;`（down-arrow）を対応する `::up-button`/`::down-button` と同じ位置指定で明示し、矢印サブコントロールの配置がデフォルトの中央寄せ等で見えなくなることを防いだ。
+- サイズ確認: `::up-button`/`::down-button` の `width: 18px` に対し、三角形の横幅は `border-left 4px + border-right 4px = 8px` であり、既存の18px枠内に収まるため `width: 18px` 自体の変更は行っていない。
+- 変更範囲は `src/style_helper.py` の該当QSSブロック（旧 `QSpinBox::up-arrow, QSpinBox::down-arrow { width: 8px; height: 8px; }` の置き換え）のみ。①②④のスコープには触れていない。
+
 ### ④ モードトグルと点情報パネルの間の余白削減
 - 調査の結果、`tab2_mode_row`（新規/編集モードトグル）と `group_point_info`（点情報パネル、T-0033でタイトルを削除済みのQGroupBox）の間に、個別の `addSpacing()` 呼び出しや `layout.setContentsMargins()` の特別指定は見つからなかった（両者は同じ `layout`＝`layout.setSpacing(UIConfig.PANEL_MARGIN)` の対象で、他の要素間と同じ間隔のはず）。
 - 実際の余分な余白の原因は、共通QSSの `QGroupBox, QgsCollapsibleGroupBox { margin-top: 10px; padding-top: 14px; ... }` ルールが、タイトル文字列を持たない `group_point_info` にもタイトル用の予約スペースとして適用され続けていたこと（T-0033のタイトル削除時にQSS側は調整されていなかった）。他のQGroupBox（属性パネル/フォーカスモード/図面選択リストなど）はタイトルがあるため、このmargin/paddingは正当に必要。
@@ -44,6 +51,7 @@ T-0041 UX軽微改修4点
 ## 自動テスト実行結果
 自動テストなし（プロジェクトに自動テストコマンドは設定されていない）。
 `python3 -m py_compile src/main_dock_dialogs.py src/main_dock_constants.py src/tab2_digitizing_mixin.py src/style_helper.py src/start_dialog.py` は成功（構文エラーなし）。
+（③フォローアップ追記時点）`python3 -m py_compile src/style_helper.py` を再実行し成功。
 
 ## スコープ外変更の有無
 なし。上記4ファイル（`src/main_dock_dialogs.py`, `src/main_dock_constants.py`, `src/tab2_digitizing_mixin.py`, `src/style_helper.py`）のみを変更した。

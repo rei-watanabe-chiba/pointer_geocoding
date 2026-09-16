@@ -136,9 +136,40 @@ class UIStyleHelper:
             border-bottom-right-radius: 4px;
         }
 
-        QSpinBox::up-arrow, QSpinBox::down-arrow {
-            width: 8px;
-            height: 8px;
+        /* T-0041 follow-up: custom background/border on ::up-button and
+           ::down-button above causes Qt's style engine to stop drawing the
+           native PE_IndicatorSpinUp/PE_IndicatorSpinDown arrow primitives,
+           and width/height alone on ::up-arrow/::down-arrow (without an
+           image or border to actually paint) renders nothing, leaving an
+           empty reserved space. Drawing the arrows explicitly via the
+           border-triangle technique (zero-size box + transparent side
+           borders + a solid border on the pointed side) is a
+           style-independent way to guarantee a visible glyph. image: none
+           avoids any stale/blank image being used instead. subcontrol-origin
+           and subcontrol-position are repeated here (matching the
+           corresponding ::up-button/::down-button rules above) so the
+           arrow subcontrol is anchored inside the button column rather than
+           left to a default placement that could hide it. */
+        QSpinBox::up-arrow {
+            subcontrol-origin: border;
+            subcontrol-position: top right;
+            image: none;
+            width: 0px;
+            height: 0px;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-bottom: 5px solid palette(text);
+        }
+
+        QSpinBox::down-arrow {
+            subcontrol-origin: border;
+            subcontrol-position: bottom right;
+            image: none;
+            width: 0px;
+            height: 0px;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 5px solid palette(text);
         }
 
 
