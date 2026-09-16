@@ -22,6 +22,7 @@
 | T-0024 | UI改修: 右ドック上部4ボタン化(画像/設定/出力/保存)・各機能をモードレスダイアログへ分離 | 完了 |
 | T-0026,T-0028〜T-0031 | 起動時ダイアログのグリッド設定改修: 「グリッド数」→X範囲・Y範囲(最小〜最大、Y軸は英大文字ExcelColumnSpinBox)化・出力範囲限定(T-0026)。初期化順序バグ修正(T-0028)。「新規作成・更新」/「CSVファイル利用」ラジオボタン追加、CSV読込による原点/範囲の自動反映と編集可否制御(T-0029)。CSV読込失敗時のフォールバック(T-0030)。生成予定/CSV行数が1万件超の警告UI(緑パネル+確認ボタン)とグリッド設定関連QMessageBoxの緑パネル方式への統一(T-0031) | 完了 |
 | T-0027,T-0032〜T-0033 | メインタブ大改修: アコーディオン全廃止、常時展開の4パネル(点情報/属性/フォーカスモード/図面選択リスト)に再構成(T-0027)。点情報/属性パネル再設計、既設点の全項目編集可能化・「点名変更」/「属性変更」ボタン分離、重複判定を出土形態内のみに変更(T-0032)。パネルタイトル→HLine化、ステータスのフラットテキスト化、左ボーダー色分け方式への統一、カラーボタングレー化、赤枠エラー表示(T-0033) | 完了 |
+| T-0034〜T-0035 | main_dock UI調整・余白リセット: top_row/tab2_container間へHLine区切り追加、タブ表示名をIMG/PLOT/SET/OUTに変更(出力のみoutput_container等をtab4系に内部リネーム)(T-0034)。細分化しすぎた余白定数群を撤廃し、縦方向DIALOG_MARGIN/PANEL_MARGIN・左右COMMON_MARGIN_LRの3定数(暫定値8、ユーザーが個別調整予定)に全面集約、区切り線専用ラッパーも廃止(T-0035) | 完了 |
 
 ## 進行中
 
@@ -30,8 +31,6 @@
 | T-0018 | バグ修正: 画像追加/削除まわりのガード不足。①複製タイミングを「レイヤ出力」完了時まで遅延、既存ワールドファイル付き画像は「基準点設置」を拒否（新規追加モードのみ対象）②キャンバス即時再描画・ゴースト画像ガード（`current_copied_image_path`クリア・`preview_dialog`後片付け）・画像0件時のボタン無効化 | 人手確認待ち | `.claude/logs/implement/2026-09-15-T-0018-image-guard-fixes.md` | 静的検証問題なし | - |
 | T-0019 | T-0018フォローアップ: ①`_on_export_layer_clicked()`の未複製判定に`os.path.normcase()`追加（T-0012堅牢化パターンとの一貫性）②設計書126行目付近をT-0018の複製タイミング変更に追随更新 | 人手確認待ち | `.claude/logs/implement/2026-09-15-T-0019-t0018-followup-normcase-doc.md` | 静的検証問題なし | - |
 | T-0025 | UI改修: ①右ドック幅300固定（UIConfigへ`DOCK_WIDTH`追加）②画像/設定モードレスダイアログの幅・高さを先頭定義化（UIDialogSizes新設）③未定数化のメッセージ文字列をUIMessagesへ回収（plugin.py分も追加発見・対応）④確認ダイアログ等のボタンをstyle_helper.py新規`build_centered_button_row()`で整列表示 | 完了 | `.claude/logs/implement/2026-09-15-T-0025-ui-constants-and-alignment.md` | 静的検証: 問題なし | 完了 |
-| T-0034 | UI調整3点: ①top_row/tab2_container間にHLine区切りを追加②main_dock_constants.pyに余白定数(DOCK_OUTER_MARGIN等、区切り線用のSEPARATOR_MARGIN_TOP/BOTTOM含む)を新設し各所のハードコード値を置換③タブ表示名をIMG/PLOT/SET/OUTに変更(内部識別子はtab1〜3は維持、出力のみoutput_container等をtab4系にリネーム)。区切り線をQWidget+QVBoxLayoutでラップする`_build_padded_separator()`方式に修正し、setSpacing()との二重加算を解消。①のtop_row側区切り線と重複する点情報パネル冒頭の区切り線を削除(属性/フォーカスモード前の2箇所は維持) | 統合(T-0035へ) | `.claude/logs/implement/2026-09-16-T-0034-main-dock-ui-margins-and-naming.md` | 静的検証: 問題なし | 人手確認前にT-0035で余白まわりを全面リセットするため統合。③のタブ名称変更(IMG/PLOT/SET/OUT)・区切り線の存在自体はT-0035完了後にまとめて人手確認 |
-| T-0035 | T-0034余白定数の全面リセット・簡素化: 細分化した余白定数群(SECTION_GAP/PANEL_GROUP_SPACING/PANEL_INNER_SPACING/SEPARATOR_MARGIN_TOP・BOTTOM/PANEL_CONTAINER_MARGIN_TOP・BOTTOM/DOCK_OUTER_MARGIN)を廃止し、縦方向はDIALOG_MARGIN(start_dialog/tab1/tab3/tab4/各種ダイアログ)とPANEL_MARGIN(main_dock.py root_layout全体+tab2本体)の2値(いずれも8)に、左右はtab1/tab3/tab4/start_dialog向けCOMMON_MARGIN_LR(=8)に一括統一(tab2本体のPANEL_CONTAINER_MARGIN_LEFT/RIGHTは維持)。区切り線専用の_build_padded_separator()/SEPARATOR_MARGINを廃止し単純addWidget()に戻す | 人手確認待ち | `.claude/logs/implement/2026-09-16-T-0035-margin-reset-simplification.md` | 静的検証: 問題なし。実行環境での確認が必要 | - |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
