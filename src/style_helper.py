@@ -62,6 +62,19 @@ class UIStyleHelper:
             color: palette(window-text);
         }
 
+        /* T-0041: override for title-less QGroupBox instances (e.g. tab2's
+           group_point_info, whose title was removed in T-0033). The base
+           QGroupBox rule above reserves margin-top/padding-top for title
+           text; without a title that space is wasted, showing up as excess
+           whitespace above the box (most noticeable directly below the
+           新規/編集モード segmented toggle added in T-0036, which has no
+           title-area spacing to visually absorb it). Widgets opt in via
+           setProperty("titleless", True). */
+        QGroupBox[titleless="true"] {
+            margin-top: 0px;
+            padding-top: 6px;
+        }
+
         /* Input Controls - Rounded, padded, base-palette responsive */
         QLineEdit, QgsFilterLineEdit, QComboBox {
             background-color: palette(base);
@@ -76,6 +89,56 @@ class UIStyleHelper:
 
         QLineEdit:focus, QgsFilterLineEdit:focus, QComboBox:focus {
             border: 1.5px solid palette(highlight);
+        }
+
+        /* T-0041: QSpinBox given its own explicit rule (instead of relying
+           on inheriting the QLineEdit rule above through Qt's automatic
+           class-based descendant matching, which also matches QSpinBox's
+           internal QLineEdit editor). Because this stylesheet is applied
+           widget-wide via UIStyleHelper.apply_theme(), every QSpinBox
+           renders through Qt's CSS box model rather than native OS drawing;
+           without an explicit width reserved for the ::up-button/
+           ::down-button subcontrols, the CSS engine shrinks them to a
+           sliver next to the padded internal editor, making the up/down
+           arrows look squished. Reserving a fixed button-column width here
+           fixes this for every UIStyleHelper.create_spinbox() call site
+           (main_dock.py's 点名/枝番/座標 spinboxes, start_dialog.py's
+           origin/range/preview spinboxes and ExcelColumnSpinBox subclass)
+           since the fix targets the shared QSpinBox class rather than
+           individual widgets. */
+        QSpinBox {
+            background-color: palette(base);
+            color: palette(text);
+            border: 1px solid palette(mid);
+            border-radius: 4px;
+            padding: 0px 0px 0px 8px;
+            min-height: 28px;
+        }
+
+        QSpinBox:focus {
+            border: 1.5px solid palette(highlight);
+        }
+
+        QSpinBox::up-button, QSpinBox::down-button {
+            subcontrol-origin: border;
+            width: 18px;
+            border-left: 1px solid palette(mid);
+            background-color: palette(button);
+        }
+
+        QSpinBox::up-button {
+            subcontrol-position: top right;
+            border-top-right-radius: 4px;
+        }
+
+        QSpinBox::down-button {
+            subcontrol-position: bottom right;
+            border-bottom-right-radius: 4px;
+        }
+
+        QSpinBox::up-arrow, QSpinBox::down-arrow {
+            width: 8px;
+            height: 8px;
         }
 
 

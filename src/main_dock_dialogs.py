@@ -657,6 +657,7 @@ class PointNameEntryDialog(QDialog):
         drawing_name: str = "",
         is_sp_attribute: bool = False,
         parent: Optional[QWidget] = None,
+        initial_point_name: str = "",
     ) -> None:
         """Initialize the point-name/branch-number entry dialog.
 
@@ -678,6 +679,16 @@ class PointNameEntryDialog(QDialog):
         :type is_sp_attribute: bool
         :param parent: Optional parent QWidget.
         :type parent: Optional[QWidget]
+        :param initial_point_name: T-0041: Preset value for the 点名 input
+            (直前に作成した点名), typically obtained via
+            Tab2DigitizingMixin._get_last_created_point_name(). For the
+            QSpinBox (non-SP) case this must be a string parseable as an
+            int; non-numeric/empty values are ignored and the spinbox keeps
+            its default. Presetting a value that turns out to be a
+            duplicate is allowed -- OK still runs the normal duplicate
+            check and shows an error, leaving it to the user to edit the
+            value.
+        :type initial_point_name: str
         """
         super().__init__(parent)
         self._point_layer = point_layer
@@ -711,9 +722,15 @@ class PointNameEntryDialog(QDialog):
             self.edit_point_name_sp.setValidator(
                 QRegExpValidator(QRegExp(r"^[A-Za-z0-9_-]+$"), self.edit_point_name_sp)
             )
+            if initial_point_name:
+                self.edit_point_name_sp.setText(initial_point_name)
             layout.addWidget(self.edit_point_name_sp)
         else:
             self.spin_point_name = UIStyleHelper.create_spinbox(1, 999999, 1, self)
+            if initial_point_name and initial_point_name.isdigit():
+                preset_value = int(initial_point_name)
+                if self.spin_point_name.minimum() <= preset_value <= self.spin_point_name.maximum():
+                    self.spin_point_name.setValue(preset_value)
             layout.addWidget(self.spin_point_name)
 
         layout.addWidget(QLabel(UILabels.BRANCH_NO, self))
@@ -774,7 +791,7 @@ class PointNameEntryDialog(QDialog):
                 branch_no,
                 self._drawing_name,
             )
-            self.lbl_error.setText(ident)
+            self.lbl_error.setText(UIMessages.ERR_POINT_NAME_DUPLICATE.format(ident=ident))
             self.lbl_error.show()
             return
 

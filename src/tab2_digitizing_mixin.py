@@ -185,6 +185,19 @@ class Tab2DigitizingMixin:
         # tab2_container, avoiding two adjacent separators.)
         # =============================================================
         self.group_point_info = QGroupBox(container)
+        # T-0041: this QGroupBox is title-less (T-0033 removed its title),
+        # but the shared "QGroupBox { margin-top: 10px; padding-top: 14px }"
+        # rule (style_helper.py, reserved for title text) still applies,
+        # adding ~24px of extra gap above it on top of the tab2 body's
+        # normal layout.setSpacing(UIConfig.PANEL_MARGIN) -- most visible as
+        # excess whitespace directly below tab2_mode_row (the 新規/編集モード
+        # トグル added in T-0036), since that row has no title-area
+        # padding/margin of its own to visually "absorb" the gap into. The
+        # "titleless" property selects the QGroupBox[titleless="true"] QSS
+        # override (style_helper.py) that zeroes margin-top/reduces
+        # padding-top back down to the tab2 body's other inter-panel spacing.
+        self.group_point_info.setProperty("titleless", True)
+        self.group_point_info.style().polish(self.group_point_info)
         info_layout = QVBoxLayout(self.group_point_info)
         info_layout.setSpacing(UIConfig.PANEL_MARGIN)
 
@@ -1510,13 +1523,17 @@ class Tab2DigitizingMixin:
         if feature_name == UILabels.FEATURE_NEW_OPTION:
             feature_name = ""
 
+        is_sp = self._is_sp_attribute()
+        last_point_name = self._get_last_created_point_name(excavation_type, feature_name, is_sp)
+
         dlg = PointNameEntryDialog(
             self.point_layer,
             excavation_type,
             feature_name,
             drawing_name,
-            self._is_sp_attribute(),
+            is_sp,
             self,
+            initial_point_name=last_point_name,
         )
         UIStyleHelper.apply_theme(dlg)
         self._position_dialog_near_map_point(dlg, map_point)
@@ -1535,6 +1552,59 @@ class Tab2DigitizingMixin:
             "branch_no": branch_no,
         }
         self._create_digitized_point_from_state(state, map_point)
+
+    def _get_last_created_point_name(
+        self, excavation_type: str, feature_name: str, is_sp: bool
+    ) -> str:
+        """Return the 点名 of the most recently digitized point within the
+        given 出土形態/遺構名 group (largest point_id), for use as the initial
+        value preset of PointNameEntryDialog (T-0041).
+
+        Mirrors the group-matching loop in core_logic.get_next_point_number
+        (find the feature with the max point_id among those matching
+        excavation_type/feature_name), but returns the raw latest point_name
+        string instead of computing the next auto-numbered value, and
+        restricts the match to features whose attribute_type is (not) SP per
+        ``is_sp`` so the preset always matches the widget
+        PointNameEntryDialog will show (QSpinBox for non-SP, free-text for SP).
+
+        :param excavation_type: ExcavationType.GRID.value or ExcavationType.FEATURE.value.
+        :type excavation_type: str
+        :param feature_name: 遺構名 (used when excavation_type is 遺構).
+        :type feature_name: str
+        :param is_sp: True to match SP-attribute points only, False to match
+            non-SP (S/P/C) points only.
+        :type is_sp: bool
+        :return: Latest matching 点名 as a string, or "" if none exists yet.
+        :rtype: str
+        """
+        if not self.point_layer or not self.point_layer.isValid():
+            return ""
+
+        max_point_id = None
+        latest_point_name = None
+        for feat in self.point_layer.getFeatures():
+            ex_type = safe_get_str(feat, "excavation_type")
+            if excavation_type == ExcavationType.GRID.value:
+                if ex_type != ExcavationType.GRID.value:
+                    continue
+            else:
+                f_name = safe_get_str(feat, "feature_name")
+                if ex_type != ExcavationType.FEATURE.value or f_name != feature_name:
+                    continue
+
+            feat_is_sp = safe_get_str(feat, "attribute_type") == AttributeType.SP.value
+            if feat_is_sp != is_sp:
+                continue
+
+            pid = feat["point_id"]
+            if pid is None or not isinstance(pid, int):
+                continue
+            if max_point_id is None or pid > max_point_id:
+                max_point_id = pid
+                latest_point_name = feat["point_name"]
+
+        return "" if latest_point_name is None else str(latest_point_name)
 
     def _position_dialog_near_map_point(self, dlg: QDialog, map_point: QgsPointXY) -> None:
         """Move ``dlg`` to appear near the screen position of ``map_point`` on the main canvas.
