@@ -20,14 +20,14 @@ v2開発はタスクIDをT-0043から連番継続する。
 |---|---|---|
 | T-0043 | src配下を責務別フォルダ(ui/layer/logic/canvas)へ再構成。ロジック変更なし、ファイル移動+import文の追従修正のみ | 完了 |
 | T-0044 | QSpinBoxへの安全なQSS適用パターン確立(矢印つぶれ対策)。試行錯誤の詳細は`.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md`参照。確定した安全パターン: ①ボタン`subcontrol-position`必須指定 ②矢印グリフはborder-triangleハック不可・base64データURIも不可(QTBUG-51081)、`src/icon/`の実SVGファイルを絶対パスurl()参照 ③押下フィードバックはボタン背景色変化ではなく矢印アイコン自体の色替え(`::up-arrow:pressed`等)で行う(背景色変化はフォーカス枠等とのボックスモデル重なりを誘発するため不採用) | 完了 |
-| T-0045 | CoreUI試作(`src/ui/core/`新設)、tab1_image.pyへ適用。UI構築の宣言化＋値の抜き出し/書き込み共通化(BuiltPanel.get_value/set_value/collect_values)、スキーマ統合(`src/ui/schemas.py`)。tab1_image.py 1151→1059行。storage/upload側の汎用ルール化はT-0047へ据え置き。人手確認済み。詳細は`.claude/state/v2-coreui-plan.md`、実装ログは`.claude/logs/implement/2026-09-16-T-0045-coreui-tab1.md` | 完了 |
+| T-0045〜T-0045-b | CoreUI試作(`src/ui/core/`新設: field_spec.py/builder.py/rules.py/validators.py)、tab1_image.pyへ適用。UI構築の宣言化・値の抜き出し/書き込み共通化(BuiltPanel.get_value/set_value/collect_values)・スキーマ統合(`src/ui/schemas.py`)・座標変換後ダイアログ廃止・バリデーション/エラー表示ヘルパー化(Validator+show_validation_error)・LayerManager高レベルAPI追加(clear_drawing_name_for_layer/rename_drawing_name)。tab1_image.py 1151→1046行。storage/upload側の汎用ルール化(CommitRule等)はT-0047へ据え置き。基準点系の別ファイル分割は効果薄のため見送り。人手確認済み。詳細は`.claude/state/v2-coreui-plan.md`、実装ログは`.claude/logs/implement/2026-09-16-T-0045-coreui-tab1.md`・`2026-09-16-T-0045-b-tab1-dialog-validators-layermanager.md` | 完了 |
 
 ## 進行中
 
 **巨大3ファイル(tab2_plot.py/tab1_image.py/start_dialog.py)対応の計画（T-0045〜T-0047）**:
-詳細計画は`.claude/state/v2-coreui-plan.md`を参照。T-0045完了。T-0046 start_dialog.py等その他画面への展開 → T-0047 tab2_plot.pyへの適用、が今後の予定。
+詳細計画は`.claude/state/v2-coreui-plan.md`を参照。T-0045/T-0045-b完了。T-0046 start_dialog.py等その他画面への展開 → T-0047 tab2_plot.pyへの適用、が今後の予定。tab2改修時の申し送り事項は同ファイルの「⑤tab2改修（T-0046）への申し送り事項」節を参照。
 
-| T-0045-b | tab1におけるCoreUI化・機能分離の追加試行(②座標変換後ダイアログ廃止／③`src/ui/core/validators.py`新設・tab1適用＋`show_validation_error`表示ヘルパー化／④LayerManager高レベルAPI追加)。tab1_image.py 1059→1046行。全て静的検証済み(延長分は統括による差分レビューで代替、機械的なリファクタと確認)。詳細は`.claude/state/v2-coreui-plan.md`「T-0045-b」節、実装ログは`.claude/logs/implement/2026-09-16-T-0045-b-tab1-dialog-validators-layermanager.md` | 人手確認待ち |
+（現在、進行中のタスクなし。T-0046のための調査を実施中）
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
