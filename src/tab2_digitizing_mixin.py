@@ -11,19 +11,24 @@ export).
 
 T-0032 (large follow-up to T-0027): redesigns the 点情報パネル/属性パネル and
 substantially expands existing-point editing:
-- 点情報パネル now shows a color-coded status band (新規点作成=blue /
-  既設点編集=yellow / エラー=red) driven by real-time duplicate/遺構名未指定
-  checks (see _update_point_info_status), and a 3-line read-only summary
-  (出土形態, 点名+枝番, XY座標).
 - Existing-point editing unlocks nearly all category widgets (only
   combo_drawing_name stays locked, see _CATEGORY_LOCK_WIDGET_NAMES); the
   former PointRenameDialog is removed in favor of directly editing
   edit_point_name/edit_point_name_sp/edit_branch_no in-panel and committing
   via btn_rename_point, plus a new btn_update_attribute for committing
   出土形態/遺構名/属性記号 changes.
-- The former btn_confirm_attribute ("属性確定") is removed; its opacity-
-  refresh logic moved to a new "更新" button (btn_update_opacity) beside the
-  フォーカスモード opacity slider.
+
+T-0033 (UI follow-up to T-0032, after in-QGIS review): 点情報パネル/属性パネル/
+フォーカスモードパネルのQGroupBoxタイトルを廃止しHLine区切りに変更
+(UIStyleHelper.build_separator); 点情報パネルは状態文言+出土形態+点名/枝番+
+XY座標を1つの複数行QLabelにまとめ、start_dialog.pyのpanel_preview_statusと同じ
+左ボーダー色分けフレーム(UIStyleHelper.create_status_panel/update_status_panel)
+で表示する(新規点作成=info/既設点編集=warning/エラー=error)。点名/枝番の入力欄と
+点名変更/削除ボタンはこのフレームの外(下)に配置。カラーボタンは無効時グレー表示
+(_update_color_picker_button)。遺構名未指定/点名重複エラー時はそれぞれ
+combo_feature_name/点名入力欄に赤枠を表示(_update_error_borders)。T-0032の
+透明度「更新」ボタン(btn_update_opacity)は削除し、スライダーのリアルタイム反映
+のみに戻した。
 """
 
 import os
@@ -102,15 +107,19 @@ class Tab2DigitizingMixin:
     """Mixin providing Tab 2 (Master Focus Mode, Digitizing & CSV Export) behavior for MainDockWidget."""
 
     def _create_tab2_ui(self) -> QWidget:
-        """Construct Tab 2: 4 always-expanded panels (T-0027, restructured T-0032).
+        """Construct Tab 2: 4 always-expanded panels (T-0027, restructured T-0032/T-0033).
 
-        ① 点情報パネル (group_point_info) — status band (新規点作成/既設点編集/
-           エラー) + read-only 出土形態・点名/枝番・XY座標 summary + editable
-           点名/枝番 inputs + 既設点のみの削除/点名変更(コミット)ボタン;
-        ② 属性パネル (group_attribute_panel) — 属性→出土形態→遺構名→
-           (作成・カラーの行)→対象図面、既設点編集時のみの属性変更ボタン;
-        ③ フォーカスモードパネル (group_focus) — ON/OFFトグルとスライダー+更新ボタン;
-        ④ 図面選択リスト (group_drawing_list) — 図面表示マルチセレクタ.
+        ① 点情報パネル (group_point_info) — title-less, HLine区切り; 左ボーダー
+           色分けフレーム内に状態文言(新規点作成/既設点編集/エラー)+出土形態・
+           点名/枝番・XY座標をまとめた複数行テキストを表示。フレームの外(下)に
+           editable 点名/枝番 inputs + 既設点のみの削除/点名変更(コミット)ボタン;
+        ② 属性パネル (group_attribute_panel) — title-less、HLine区切り;
+           属性→出土形態→遺構名→(作成・カラーの行)→対象図面、既設点編集時のみの
+           属性変更ボタン;
+        ③ フォーカスモードパネル (group_focus) — title-less、HLine区切り;
+           ON/OFFトグルとスライダー(sliderReleased でリアルタイム反映、更新
+           ボタンなし);
+        ④ 図面選択リスト (group_drawing_list) — 図面表示マルチセレクタ(タイトル維持).
         """
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -122,55 +131,31 @@ class Tab2DigitizingMixin:
         layout.setSpacing(8)
 
         # =============================================================
-        # Panel 1: 点情報パネル (status band + next-point preview / existing
-        # point read-only display + editable point-name/branch inputs)
+        # Panel 1: 点情報パネル (T-0033: title removed, replaced by an HLine
+        # separator; the status band + 出土形態/点名+枝番/XY座標 summary is now
+        # a single flat multi-line QLabel inside a left-border color-coded
+        # QFrame, matching start_dialog.py's panel_preview_status style. The
+        # editable point-name/branch inputs and existing-point-only action
+        # buttons live below this frame, outside of it.)
         # =============================================================
-        self.group_point_info = QGroupBox(UILabels.GROUP_POINT_INFO, container)
+        layout.addWidget(UIStyleHelper.build_separator(container))
+
+        self.group_point_info = QGroupBox(container)
         info_layout = QVBoxLayout(self.group_point_info)
         info_layout.setSpacing(6)
 
-        # T-0032: color-coded status band (新規点作成=blue/既設点編集=yellow/
-        # エラー=red), driven by _update_point_info_status(). Uses the same
-        # QLabel[banner=...] QSS pattern as UIStyleHelper.set_banner_status,
-        # with the whole panel's background tinted to match via
-        # UIStyleHelper.set_panel_status(self.group_point_info, ...).
-        self.lbl_point_info_status = QLabel(UILabels.STATUS_NEW_POINT, self.group_point_info)
-        self.lbl_point_info_status.setAlignment(Qt.AlignCenter)
-        self.lbl_point_info_status.setWordWrap(True)
-        UIStyleHelper.set_banner_status(self.lbl_point_info_status, "info")
-        info_layout.addWidget(self.lbl_point_info_status)
-
-        self.lbl_info_group_label = QLabel(UILabels.LBL_INFO_GROUP_OR_FEATURE, self.group_point_info)
-        self.lbl_info_group_value = QLabel("-", self.group_point_info)
-        row_info_group = UIStyleHelper.build_flex_row(
-            self.lbl_info_group_label,
-            [(self.lbl_info_group_value, 1)],
-            main_ratio=MAIN_RATIO,
-            row_height=UIConfig.ROW_HEIGHT,
+        # T-0033: flat multi-line summary (status + 出土形態 + 点名+枝番 +
+        # XY座標) inside a create_status_panel()-style left-border frame;
+        # color-coded via _update_point_info_status() (新規点作成=info/blue,
+        # 既設点編集=warning/orange, エラー=error/red -- reusing the same
+        # QFrame[statusType=...] styles as start_dialog.py's
+        # panel_preview_status, no dedicated "editing" style needed).
+        self.panel_point_info, self.lbl_point_info_status = UIStyleHelper.create_status_panel(
+            UILabels.STATUS_NEW_POINT, status_type="info", parent=self.group_point_info
         )
-        info_layout.addWidget(row_info_group)
+        info_layout.addWidget(self.panel_point_info)
 
-        self.lbl_info_pointname_label = QLabel(UILabels.LBL_INFO_POINT_BRANCH, self.group_point_info)
-        self.lbl_info_pointname_value = QLabel("-", self.group_point_info)
-        row_info_pointname = UIStyleHelper.build_flex_row(
-            self.lbl_info_pointname_label,
-            [(self.lbl_info_pointname_value, 1)],
-            main_ratio=MAIN_RATIO,
-            row_height=UIConfig.ROW_HEIGHT,
-        )
-        info_layout.addWidget(row_info_pointname)
-
-        self.lbl_info_coords_label = QLabel(UILabels.LBL_INFO_COORDS, self.group_point_info)
-        self.lbl_info_coords_value = QLabel("-", self.group_point_info)
-        row_info_coords = UIStyleHelper.build_flex_row(
-            self.lbl_info_coords_label,
-            [(self.lbl_info_coords_value, 1)],
-            main_ratio=MAIN_RATIO,
-            row_height=UIConfig.ROW_HEIGHT,
-        )
-        info_layout.addWidget(row_info_coords)
-
-        # 番号・枝番 (editable inputs, directly under the read-only summary
+        # 番号・枝番 (editable inputs, directly under the summary panel
         # above). T-0032: no longer force-disabled while an existing point
         # is selected (see _CATEGORY_LOCK_WIDGET_NAMES) -- editing them here
         # and pressing 点名変更 (btn_rename_point) now commits the value
@@ -243,9 +228,12 @@ class Tab2DigitizingMixin:
 
         # =============================================================
         # Panel 2: 属性パネル (T-0032 order: 属性→出土形態→遺構名→
-        # (作成・カラーの行)→対象図面→(既設点編集時のみ)属性変更ボタン)
+        # (作成・カラーの行)→対象図面→(既設点編集時のみ)属性変更ボタン;
+        # T-0033: title removed, replaced by an HLine separator)
         # =============================================================
-        self.group_attribute_panel = QGroupBox(UILabels.GROUP_ATTRIBUTE_PANEL, container)
+        layout.addWidget(UIStyleHelper.build_separator(container))
+
+        self.group_attribute_panel = QGroupBox(container)
         attr_layout = QVBoxLayout(self.group_attribute_panel)
         attr_layout.setSpacing(6)
 
@@ -339,10 +327,15 @@ class Tab2DigitizingMixin:
         layout.addWidget(self.group_attribute_panel)
 
         # =============================================================
-        # Panel 3: フォーカスモードパネル (toggle + slider + 更新ボタン;
-        # drawing multi-selector moved to Panel 4, see below)
+        # Panel 3: フォーカスモードパネル (toggle + slider; drawing multi-
+        # selector moved to Panel 4, see below; T-0033: title removed,
+        # replaced by an HLine separator, and the T-0032 "更新" button is
+        # removed -- opacity is refreshed via slider release only, as before
+        # T-0032)
         # =============================================================
-        self.group_focus = QGroupBox(UILabels.GROUP_FOCUS, container)
+        layout.addWidget(UIStyleHelper.build_separator(container))
+
+        self.group_focus = QGroupBox(container)
         focus_layout = QVBoxLayout(self.group_focus)
         focus_layout.setSpacing(6)
 
@@ -362,14 +355,11 @@ class Tab2DigitizingMixin:
         self.slider_opacity.valueChanged.connect(self._on_slider_value_changed)
         self.slider_opacity.sliderReleased.connect(self._on_slider_released)
 
-        # T-0032: "更新" button replaces the former 属性パネルの属性確定ボタン
-        # (btn_confirm_attribute, removed); slider:button width ratio = 2:1.
-        self.btn_update_opacity = QPushButton(UILabels.BTN_UPDATE_OPACITY, self.group_focus)
-        self.btn_update_opacity.clicked.connect(self._on_update_opacity_clicked)
-
+        # T-0033: the T-0032 "更新" button (btn_update_opacity) is removed;
+        # slider:label width ratio restored to its pre-T-0032 3:1 split.
         row_opacity = UIStyleHelper.build_flex_row(
             self.lbl_opacity,
-            [(self.slider_opacity, 2), (self.lbl_opacity_val, 0), (self.btn_update_opacity, 1)],
+            [(self.slider_opacity, 3), (self.lbl_opacity_val, 1)],
             main_ratio=MAIN_RATIO,
             row_height=UIConfig.ROW_HEIGHT,
         )
@@ -394,10 +384,17 @@ class Tab2DigitizingMixin:
 
         scroll.setWidget(container)
 
-        # T-0032: initialize 点情報パネル status band / panel tint to the
-        # default "新規点作成" (blue) state.
+        # T-0032: initialize 点情報パネル error-tracking flag; the summary
+        # panel itself already defaults to status_type="info" (新規点作成)
+        # via create_status_panel() above.
         self._point_info_has_error = False
-        UIStyleHelper.set_panel_status(self.group_point_info, "info")
+
+        # T-0033: sync 作成/カラー button enabled state (and the color
+        # picker's gray-when-disabled styling) with the default 出土形態
+        # selection (グリッド), since neither combo emits its
+        # currentIndexChanged signal for the initial index-(-1)->0 transition
+        # performed by addItems() above.
+        self._update_feature_related_visibility()
 
         return scroll
 
@@ -702,6 +699,7 @@ class Tab2DigitizingMixin:
         is_placeholder = self.combo_feature_name.currentText() == UILabels.FEATURE_NEW_OPTION
         self.btn_create_feature.setEnabled(is_feature and is_placeholder)
         self.btn_color_picker.setEnabled(is_feature and not is_placeholder)
+        self._update_color_picker_button()
 
     def _on_excavation_type_changed(self, index: int) -> None:
         """Toggle feature name selector/create button/color picker based on excavation type."""
@@ -751,9 +749,22 @@ class Tab2DigitizingMixin:
             self.register_new_feature_name(dlg.result_text)
 
     def _update_color_picker_button(self) -> None:
-        """Reflect current feature color on the picker button."""
+        """Reflect current feature color on the picker button.
+
+        T-0033: while the button is disabled (no concrete feature selected,
+        or 出土形態 is グリッド), it is shown in flat gray instead of the last
+        selected feature color, so switching away from a colored feature
+        never leaves a misleading color swatch behind. The real color is
+        restored automatically the next time the button becomes enabled
+        (see _update_feature_related_visibility, which always calls this
+        method right after toggling setEnabled()).
+        """
+        if self.btn_color_picker.isEnabled():
+            color_hex = self.current_feature_color.name()
+        else:
+            color_hex = "#9E9E9E"
         self.btn_color_picker.setStyleSheet(
-            f"background-color: {self.current_feature_color.name()}; color: #FFFFFF; font-weight: bold; border-radius: 4px; padding: 4px;"
+            f"background-color: {color_hex}; color: #FFFFFF; font-weight: bold; border-radius: 4px; padding: 4px;"
         )
 
     def _pick_color(self) -> None:
@@ -805,27 +816,6 @@ class Tab2DigitizingMixin:
             ),
             level=Qgis.MessageLevel.Info,
             duration=4,
-        )
-
-    def _on_update_opacity_clicked(self) -> None:
-        """Refresh Focus Mode symbology opacity using the current attribute selection.
-
-        T-0032: replaces the former "属性確定" button
-        (_confirm_attribute_transparency, removed alongside btn_confirm_attribute);
-        logic is otherwise unchanged -- activates Focus Mode if it was OFF,
-        otherwise just re-applies the opacity expression.
-        """
-        selected_attr = self._get_attribute_value()
-        if not self.is_focus_mode_active():
-            self.btn_focus_mode.setChecked(True)
-        else:
-            self.update_symbology_opacity()
-
-        self.iface.messageBar().pushMessage(
-            UIMessages.MSG_ATTR_CONFIRM_TITLE,
-            UIMessages.MSG_ATTR_CONFIRMED.format(attr=selected_attr),
-            level=Qgis.MessageLevel.Info,
-            duration=3,
         )
 
     def get_digitizing_input_state(self) -> Dict[str, Any]:
@@ -977,13 +967,57 @@ class Tab2DigitizingMixin:
             return None
         return build_point_ident(ex_type, feat_name, pname, branch, drawing_name)
 
+    def _build_point_info_text(self, status_text: str) -> str:
+        """Compose the flat multi-line 点情報パネル summary text (T-0033).
+
+        Combines the status line (新規点作成/既設点編集/エラー, no longer given
+        a dedicated banner style) with the 出土形態/点名+枝番/XY座標 summary
+        lines computed by _refresh_point_info_labels (stored on
+        self._point_info_summary), in the same order used since T-0032.
+
+        :param status_text: Current status line text.
+        :type status_text: str
+        :return: Newline-joined 4-line summary text.
+        :rtype: str
+        """
+        summary = getattr(self, "_point_info_summary", None) or {}
+        return "\n".join(
+            [
+                status_text,
+                f"{UILabels.LBL_INFO_GROUP_OR_FEATURE} {summary.get('group', '-')}",
+                f"{UILabels.LBL_INFO_POINT_BRANCH} {summary.get('pointname', '-')}",
+                f"{UILabels.LBL_INFO_COORDS} {summary.get('coords', '-')}",
+            ]
+        )
+
+    def _update_error_borders(self) -> None:
+        """Apply/remove red error-highlight borders on the fields directly
+        implicated by the current 点情報パネル error state (T-0033):
+        combo_feature_name for 遺構名未指定, and whichever point-name input
+        is currently active (edit_point_name or edit_point_name_sp) for
+        点名重複.
+        """
+        if hasattr(self, "combo_feature_name"):
+            UIStyleHelper.set_error_border(self.combo_feature_name, self._is_feature_name_missing())
+
+        if hasattr(self, "edit_point_name") and hasattr(self, "edit_point_name_sp"):
+            is_dup = bool(self._check_realtime_duplicate())
+            is_sp = self._is_sp_attribute()
+            UIStyleHelper.set_error_border(self.edit_point_name, is_dup and not is_sp)
+            UIStyleHelper.set_error_border(self.edit_point_name_sp, is_dup and is_sp)
+
     def _update_point_info_status(self) -> None:
-        """Refresh the 点情報パネル status band + panel background tint (T-0032).
+        """Refresh the 点情報パネル summary text/border color (T-0033: flat
+        multi-line QLabel inside a create_status_panel()-style left-border
+        QFrame, replacing T-0032's separate banner + whole-panel tint).
 
         Priority order per the design: 遺構名未指定 > 点名重複エラー > normal
-        (新規点作成=blue / 既設点編集=yellow). Also enables/disables the
-        confirm actions (btn_rename_point / btn_update_attribute) so they
-        cannot commit while an error is active.
+        (新規点作成=info/blue / 既設点編集=warning/orange -- reusing
+        QFrame[statusType="warning"] since no dedicated "editing" style is
+        defined). Also enables/disables the confirm actions
+        (btn_rename_point / btn_update_attribute) so they cannot commit
+        while an error is active, and refreshes the per-field red error
+        borders (see _update_error_borders, T-0033).
         """
         if not hasattr(self, "lbl_point_info_status"):
             return
@@ -1005,14 +1039,17 @@ class Tab2DigitizingMixin:
             else:
                 self._point_info_has_error = False
                 if is_editing:
-                    status_type, text = "editing", UILabels.STATUS_EDIT_POINT
+                    status_type, text = "warning", UILabels.STATUS_EDIT_POINT
                 else:
                     status_type, text = "info", UILabels.STATUS_NEW_POINT
 
-        UIStyleHelper.set_banner_status(self.lbl_point_info_status, status_type)
-        self.lbl_point_info_status.setText(text)
+        full_text = self._build_point_info_text(text)
+        UIStyleHelper.update_status_panel(
+            self.panel_point_info, self.lbl_point_info_status, full_text, status_type
+        )
         self.lbl_point_info_status.setToolTip(tooltip)
-        UIStyleHelper.set_panel_status(self.group_point_info, status_type)
+
+        self._update_error_borders()
 
         if hasattr(self, "btn_rename_point"):
             self.btn_rename_point.setEnabled(not self._point_info_has_error)
@@ -1029,7 +1066,11 @@ class Tab2DigitizingMixin:
         self._update_point_info_status()
 
     def _refresh_point_info_labels(self, override: Optional[Dict[str, Any]] = None) -> None:
-        """Update the read-only 出土形態/点名+枝番/XY座標 labels in 点情報パネル (T-0027, T-0032).
+        """Recompute the 出土形態/点名+枝番/XY座標 summary lines for 点情報パネル
+        (T-0027/T-0032; T-0033: stored on self._point_info_summary and
+        rendered into the flat multi-line panel text by
+        _update_point_info_status/_build_point_info_text rather than being
+        set directly on now-removed per-line QLabels).
 
         :param override: When set (an existing point is selected), the
             loaded feature data dict (as emitted by
@@ -1037,7 +1078,7 @@ class Tab2DigitizingMixin:
             instead of the live category-widget selections.
         :type override: Optional[Dict[str, Any]]
         """
-        if not hasattr(self, "lbl_info_group_value"):
+        if not hasattr(self, "lbl_point_info_status"):
             return
 
         if override is not None:
@@ -1072,10 +1113,12 @@ class Tab2DigitizingMixin:
             pname, branch = self._get_current_point_name_and_branch()
             coords_text = "-"
 
-        self.lbl_info_group_value.setText(group_label or "-")
         pn_display = f"{pname} {branch}".strip() if pname else ""
-        self.lbl_info_pointname_value.setText(pn_display or "-")
-        self.lbl_info_coords_value.setText(coords_text)
+        self._point_info_summary = {
+            "group": group_label or "-",
+            "pointname": pn_display or "-",
+            "coords": coords_text,
+        }
 
     def _apply_next_point_number(self) -> None:
         """Refresh the point-name entry widget(s) for the current attribute/category selection.

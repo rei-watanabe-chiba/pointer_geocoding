@@ -157,41 +157,6 @@ class UIStyleHelper:
             font-weight: bold;
         }
 
-        /* T-0032: additional banner statuses used by Tab2's 点情報パネル
-           status band (新規点作成=info/既設点編集=editing/エラー=error). */
-        QLabel[banner="editing"] {
-            background-color: rgba(245, 180, 0, 0.20);
-            border: 1px solid rgba(245, 180, 0, 0.55);
-            border-radius: 4px;
-            padding: 6px 8px;
-            color: palette(window-text);
-            font-weight: bold;
-        }
-
-        QLabel[banner="error"] {
-            background-color: rgba(198, 40, 40, 0.20);
-            border: 1px solid rgba(198, 40, 40, 0.55);
-            border-radius: 4px;
-            padding: 6px 8px;
-            color: palette(window-text);
-            font-weight: bold;
-        }
-
-        /* T-0032: whole-panel background tint linked to the status band above
-           (点情報パネル: 新規点作成=青/既設点編集=黄/エラー=赤), applied to the
-           QGroupBox itself via UIStyleHelper.set_panel_status(). */
-        QGroupBox[panelStatus="info"] {
-            background-color: rgba(25, 118, 210, 0.08);
-        }
-
-        QGroupBox[panelStatus="editing"] {
-            background-color: rgba(245, 180, 0, 0.10);
-        }
-
-        QGroupBox[panelStatus="error"] {
-            background-color: rgba(198, 40, 40, 0.10);
-        }
-
         /* Status Panel (Flat design container with color-coded left border) */
         QFrame[statusPanel="true"] {
             background-color: rgba(128, 128, 128, 0.08);
@@ -422,26 +387,42 @@ class UIStyleHelper:
         label.style().polish(label)
 
     @staticmethod
-    def set_panel_status(widget: QWidget, status: str) -> None:
-        """Set the dynamic "panelStatus" property on a QGroupBox to tint its
-        whole background (T-0032: Tab2's 点情報パネル 新規点作成/既設点編集/
-        エラー state colors), mirroring set_banner_status()'s QLabel[banner=...]
-        pattern but targeting QGroupBox[panelStatus=...] instead.
-
-        :param widget: Target QGroupBox (or other QSS-stylable QWidget).
-        :type widget: QWidget
-        :param status: Status string ('info', 'editing', 'error').
-        :type status: str
-        """
-        widget.setProperty("panelStatus", status)
-        widget.style().unpolish(widget)
-        widget.style().polish(widget)
-
-    @staticmethod
     def set_status_panel(frame: QWidget) -> None:
         """Mark a QFrame as a status panel."""
         frame.setProperty("statusPanel", True)
         frame.style().polish(frame)
+
+    @staticmethod
+    def set_error_border(widget: QWidget, has_error: bool) -> None:
+        """Apply/remove a red error-highlight border on an input widget (T-0033).
+
+        Used by Tab2's 点情報パネル real-time validation to flag combo_feature_name
+        (遺構名未指定) and the active point-name input (点名重複) without relying
+        on a QMessageBox/dialog interruption.
+
+        :param widget: Target input widget (e.g. QComboBox, QLineEdit, QSpinBox).
+        :type widget: QWidget
+        :param has_error: True to apply the red border, False to clear it back
+            to the widget's normal (theme-driven) style.
+        :type has_error: bool
+        """
+        widget.setStyleSheet("border: 2px solid #C62828;" if has_error else "")
+
+    @staticmethod
+    def build_separator(parent: Optional[QWidget] = None) -> QFrame:
+        """Build a horizontal rule (QFrame.HLine) used as a lightweight panel
+        separator (T-0033: replaces QGroupBox titles removed from Tab2's
+        点情報パネル/属性パネル/フォーカスモードパネル).
+
+        :param parent: Optional parent widget.
+        :type parent: Optional[QWidget]
+        :return: Configured QFrame styled as a sunken horizontal line.
+        :rtype: QFrame
+        """
+        line = QFrame(parent)
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        return line
 
     @staticmethod
     def set_nav_button(button: QWidget) -> None:

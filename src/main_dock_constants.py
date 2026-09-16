@@ -147,7 +147,6 @@ class UILabels:
         AttributeType.C.value: "C:炭化物",
         AttributeType.SP.value: "SP",
     }
-    BTN_UPDATE_OPACITY = "更新"
     BTN_UPDATE_ATTRIBUTE = "属性変更"
     BTN_COLOR_PICKER = "カラー選択"
     GROUP_CSV = "CSV出力設定"
@@ -234,9 +233,6 @@ class UIMessages:
     MSG_SELECT_FEATURE_NAME = "対象の遺構名をセレクタから選択してください。"
     MSG_COLOR_APPLIED_TITLE = "カラー適用"
     MSG_COLOR_APPLIED = "遺構 '{feature}' の全打刻点 ({count}件) にカラー {color} を適用しました。"
-    # --- T-0032: フォーカスモードパネルの「更新」ボタン (旧 属性確定ボタンのロジックを移植) ---
-    MSG_ATTR_CONFIRM_TITLE = "透明度更新"
-    MSG_ATTR_CONFIRMED = "属性 '{attr}' の透明度表示を更新しました。"
     MSG_UPDATE_ATTRIBUTE_TITLE = "属性変更"
     MSG_UPDATE_ATTRIBUTE_SUCCESS = "属性を変更しました。"
     MSG_RENAME_LAYER_SUCCESS = "レイヤ名を '{old}' から '{new}' に変更しました。"
