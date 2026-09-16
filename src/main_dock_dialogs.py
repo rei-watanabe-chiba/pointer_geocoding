@@ -48,7 +48,7 @@ from qgis.PyQt.QtWidgets import (
 from .map_tool import ImageGeorefTool
 from .style_helper import UIStyleHelper
 from .core_logic import to_survey_coords
-from .main_dock_constants import UILabels, UIMessages, UIDialogSizes
+from .main_dock_constants import UILabels, UIMessages, UIPlaceholders, UIDialogSizes
 
 
 class ModelessSectionDialog(QDialog):
@@ -543,4 +543,63 @@ class GridInputDialog(QDialog):
     def _on_confirm_clicked(self) -> None:
         """Handle confirmation and accept dialog."""
         self.dialog_action = "confirm"
+        self.accept()
+
+
+class FeatureCreateDialog(QDialog):
+    """T-0027: Modal dialog for creating a new 遺構名 (feature name).
+
+    Replaces the former always-visible ``edit_new_feature`` QLineEdit row in
+    the 属性パネル/入力カテゴリ設定 group: the "作成" button in
+    tab2_digitizing_mixin.py's 属性パネル opens this dialog instead. On OK,
+    ``result_text`` holds the trimmed feature name for the caller
+    (Tab2DigitizingMixin._on_create_feature_clicked) to register via
+    ``register_new_feature_name()`` and then continue on to color selection.
+    """
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        """Initialize the feature-name creation dialog.
+
+        :param parent: Optional parent QWidget.
+        :type parent: Optional[QWidget]
+        """
+        super().__init__(parent)
+        self.result_text: str = ""
+
+        self.setWindowTitle(UILabels.FEATURE_CREATE_DIALOG_TITLE)
+        self.setModal(True)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+
+        layout.addWidget(QLabel(UILabels.NEW_FEATURE_NAME, self))
+
+        self.edit_name = QLineEdit(self)
+        self.edit_name.setPlaceholderText(UIPlaceholders.NEW_FEATURE)
+        layout.addWidget(self.edit_name)
+
+        self.lbl_error = QLabel("", self)
+        self.lbl_error.setStyleSheet("color: #C62828;")
+        self.lbl_error.setWordWrap(True)
+        self.lbl_error.hide()
+        layout.addWidget(self.lbl_error)
+
+        self.btn_ok = QPushButton(UILabels.BTN_CONFIRM, self)
+        UIStyleHelper.set_primary_button(self.btn_ok)
+        self.btn_ok.clicked.connect(self._on_ok_clicked)
+
+        self.btn_cancel = QPushButton(UILabels.BTN_CANCEL, self)
+        self.btn_cancel.clicked.connect(self.reject)
+
+        layout.addLayout(UIStyleHelper.build_centered_button_row([self.btn_ok, self.btn_cancel]))
+
+    def _on_ok_clicked(self) -> None:
+        """Validate the entered feature name and accept the dialog if non-empty."""
+        text = self.edit_name.text().strip()
+        if not text:
+            self.lbl_error.setText(UIMessages.ERR_NEW_FEATURE_REQUIRED)
+            self.lbl_error.show()
+            return
+        self.result_text = text
         self.accept()

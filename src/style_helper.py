@@ -383,6 +383,7 @@ class UIStyleHelper:
         :param status: Status string ('info', 'success', 'warning').
         """
         label.setProperty("banner", status)
+        label.style().unpolish(label)
         label.style().polish(label)
 
     @staticmethod
@@ -390,6 +391,38 @@ class UIStyleHelper:
         """Mark a QFrame as a status panel."""
         frame.setProperty("statusPanel", True)
         frame.style().polish(frame)
+
+    @staticmethod
+    def set_error_border(widget: QWidget, has_error: bool) -> None:
+        """Apply/remove a red error-highlight border on an input widget (T-0033).
+
+        Used by Tab2's 点情報パネル real-time validation to flag combo_feature_name
+        (遺構名未指定) and the active point-name input (点名重複) without relying
+        on a QMessageBox/dialog interruption.
+
+        :param widget: Target input widget (e.g. QComboBox, QLineEdit, QSpinBox).
+        :type widget: QWidget
+        :param has_error: True to apply the red border, False to clear it back
+            to the widget's normal (theme-driven) style.
+        :type has_error: bool
+        """
+        widget.setStyleSheet("border: 2px solid #C62828;" if has_error else "")
+
+    @staticmethod
+    def build_separator(parent: Optional[QWidget] = None) -> QFrame:
+        """Build a horizontal rule (QFrame.HLine) used as a lightweight panel
+        separator (T-0033: replaces QGroupBox titles removed from Tab2's
+        点情報パネル/属性パネル/フォーカスモードパネル).
+
+        :param parent: Optional parent widget.
+        :type parent: Optional[QWidget]
+        :return: Configured QFrame styled as a sunken horizontal line.
+        :rtype: QFrame
+        """
+        line = QFrame(parent)
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        return line
 
     @staticmethod
     def set_nav_button(button: QWidget) -> None:

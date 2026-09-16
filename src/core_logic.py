@@ -274,6 +274,14 @@ def check_point_duplicate(
 ) -> bool:
     """Check whether a point with the same identification attributes already exists.
 
+    T-0032: duplicate detection is now global across drawings (the former
+    drawing_name-based pre-filter has been removed): a point is considered a
+    duplicate whenever its 出土形態(+遺構名)・点名・枝番 combination matches,
+    regardless of which 対象図面 it belongs to. ``drawing_name`` is retained
+    as a parameter only for call-signature compatibility with
+    build_point_ident()/check_duplicate_and_build_message() and is not used
+    to filter candidates here.
+
     :param point_layer: Vector layer containing digitized points.
     :type point_layer: QgsVectorLayer
     :param excavation_type: ExcavationType.GRID.value ('グリッド') or ExcavationType.FEATURE.value ('遺構').
@@ -284,7 +292,7 @@ def check_point_duplicate(
     :type point_name: str
     :param branch_no: Branch number string.
     :type branch_no: str
-    :param drawing_name: Target drawing name string.
+    :param drawing_name: Unused for filtering (T-0032); kept for signature compatibility.
     :type drawing_name: str
     :param exclude_feature_id: T-0023: When set, the feature with this id is skipped
         during the scan (used by existing-point number correction, so a point being
@@ -296,14 +304,9 @@ def check_point_duplicate(
     if not point_layer or not point_layer.isValid():
         return False
 
-    has_drawing_col = "drawing_name" in point_layer.fields().names()
     for feat in point_layer.getFeatures():
         if exclude_feature_id is not None and feat.id() == exclude_feature_id:
             continue
-        if has_drawing_col and drawing_name:
-            f_drawing = safe_get_str(feat, "drawing_name")
-            if f_drawing and drawing_name != f_drawing:
-                continue
 
         f_type = safe_get_str(feat, "excavation_type")
         f_feat = safe_get_str(feat, "feature_name")
@@ -322,6 +325,90 @@ def check_point_duplicate(
             ):
                 return True
     return False
+
+
+def build_point_ident(
+    excavation_type: str,
+    feature_name: str,
+    point_name: str,
+    branch_no: str,
+    drawing_name: str = "",
+) -> str:
+    """Build a human-readable identifier string for a digitized point.
+
+    T-0027: extracted from the previously duplicated inline ident-building
+    code in Tab2DigitizingMixin._on_canvas_clicked (new-point duplicate
+    error) and the former _on_correct_point_number (existing-point
+    duplicate error), so both the new-point digitizing flow and existing-
+    point editing (Tab2DigitizingMixin._on_rename_point_clicked) share a
+    single source of truth for the identifier shown in duplicate errors.
+
+    T-0032: the message format changed from a leading "[drawing_name]"
+    prefix to a trailing "図面:..." line on a second line, since duplicate
+    detection (check_point_duplicate) is no longer scoped to a single
+    drawing and callers now display this identifier inline in the 点情報
+    パネル status band (as a tooltip) rather than in a QMessageBox.
+    Overlong drawing names (>15 characters) are truncated with a trailing
+    "..." to keep the message compact within the panel's ~300px width.
+
+    :param excavation_type: ExcavationType.GRID.value or ExcavationType.FEATURE.value.
+    :type excavation_type: str
+    :param feature_name: Feature name string (used only when excavation_type is FEATURE).
+    :type feature_name: str
+    :param point_name: Point number string.
+    :type point_name: str
+    :param branch_no: Branch number string.
+    :type branch_no: str
+    :param drawing_name: Optional target drawing name string.
+    :type drawing_name: str
+    :return: Formatted identifier, e.g. "SK01-5 (a)\\n図面:plan_01".
+    :rtype: str
+    """
+    ident = (
+        f"{feature_name}-{point_name}"
+        if excavation_type == ExcavationType.FEATURE.value
+        else f"{ExcavationType.GRID.value}-{point_name}"
+    )
+    if branch_no:
+        ident += f" ({branch_no})"
+    if drawing_name:
+        display_drawing = drawing_name if len(drawing_name) <= 15 else f"{drawing_name[:15]}..."
+        ident = f"{ident}\n図面:{display_drawing}"
+    return ident
+
+
+def check_duplicate_and_build_message(
+    point_layer: QgsVectorLayer,
+    excavation_type: str,
+    feature_name: str,
+    point_name: str,
+    branch_no: str,
+    drawing_name: str = "",
+    exclude_feature_id: Optional[int] = None,
+) -> Optional[str]:
+    """Check for a duplicate point and, if found, return its formatted identifier.
+
+    T-0027: thin combination of check_point_duplicate() + build_point_ident().
+    T-0032: Tab2DigitizingMixin's own real-time checks
+    (_check_realtime_duplicate) now call check_point_duplicate()/
+    build_point_ident() directly rather than through this wrapper, but it is
+    kept as a convenience API for any future caller needing the combined
+    check+message behavior in one call.
+
+    :return: Formatted identifier string if a duplicate exists, otherwise None.
+    :rtype: Optional[str]
+    """
+    if check_point_duplicate(
+        point_layer,
+        excavation_type,
+        feature_name,
+        point_name,
+        branch_no,
+        drawing_name,
+        exclude_feature_id=exclude_feature_id,
+    ):
+        return build_point_ident(excavation_type, feature_name, point_name, branch_no, drawing_name)
+    return None
 
 
 def get_next_point_number(
