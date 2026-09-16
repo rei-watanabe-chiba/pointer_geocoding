@@ -38,9 +38,9 @@ except ImportError:
     from qgis.PyQt.QtCore import QRegExp
     HAS_QT_REGEX = False
 
-from .core_logic import from_excel_column, to_excel_column
-from .style_helper import UIStyleHelper
-from .main_dock_constants import UIConfig
+from ..logic.core import from_excel_column, to_excel_column
+from .style import UIStyleHelper
+from .constants import UIConfig
 
 # UI Configuration dictionary and layout ratios
 UI_CONFIG = {

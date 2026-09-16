@@ -12,7 +12,7 @@ containing settings.json and image_metadata.json persistence.
 import os
 from typing import Optional, Tuple, Dict, Any, List, Union
 
-from .layer_manager_models import PluginSettings, ImageLayerMeta, safe_json_load, safe_json_save
+from .models import PluginSettings, ImageLayerMeta, safe_json_load, safe_json_save
 
 
 class SettingsMetadataMixin:

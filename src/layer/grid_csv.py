@@ -20,8 +20,8 @@ from qgis.core import (
     QgsVectorLayer,
 )
 
-from .core_logic import from_survey_coords, to_excel_column
-from .layer_manager_models import get_local_crs
+from ..logic.core import from_survey_coords, to_excel_column
+from .models import get_local_crs
 
 
 class GridCsvMixin:

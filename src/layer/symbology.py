@@ -50,7 +50,7 @@ from qgis.core import (
 )
 from qgis.PyQt.QtGui import QColor
 
-from .core_logic import ExcavationType, AttributeType
+from ..logic.core import ExcavationType, AttributeType
 
 
 class SymbologyMixin:
@@ -354,7 +354,7 @@ class SymbologyMixin:
         if not layer or not layer.isValid():
             return
 
-        from .main_dock import UIConfig
+        from ..ui.dock import UIConfig
 
         # Resolve display values from settings or UIConfig defaults
         sym_size    = float((settings or {}).get("ref_symbol_size",       (settings or {}).get("symbol_size", UIConfig.SYMBOL_SIZE_REF)))

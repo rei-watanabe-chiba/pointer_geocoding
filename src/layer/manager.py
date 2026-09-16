@@ -26,11 +26,11 @@ from qgis.core import (
 )
 from qgis.PyQt.QtCore import QObject, pyqtSignal
 
-from .settings_metadata_mixin import SettingsMetadataMixin
-from .symbology_mixin import SymbologyMixin
-from .gpkg_cache_mixin import GpkgCacheMixin
-from .grid_csv_mixin import GridCsvMixin
-from .session_io_mixin import SessionIOMixin
+from .settings_io import SettingsMetadataMixin
+from .symbology import SymbologyMixin
+from .gpkg import GpkgCacheMixin
+from .grid_csv import GridCsvMixin
+from .session_io import SessionIOMixin
 
 
 class LayerManager(

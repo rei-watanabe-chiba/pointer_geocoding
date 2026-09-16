@@ -12,7 +12,7 @@ ExcavationType/AttributeType Enum の .value から構築し、コンボボッ�
 Enum定義の単一情報源化を図る（一覧の中身・順序は変更前と同一）。
 """
 
-from .core_logic import ExcavationType, AttributeType
+from ..logic.core import ExcavationType, AttributeType
 
 # UI Configuration dictionary and layout ratios
 class UIConfig:

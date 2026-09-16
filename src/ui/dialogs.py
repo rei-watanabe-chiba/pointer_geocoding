@@ -46,10 +46,10 @@ from qgis.PyQt.QtWidgets import (
     QMessageBox,
 )
 
-from .map_tool import ImageGeorefTool
-from .style_helper import UIStyleHelper
-from .core_logic import to_survey_coords, check_point_duplicate, build_point_ident
-from .main_dock_constants import UIConfig, UILabels, UIMessages, UIPlaceholders, UIDialogSizes
+from ..canvas.map_tool import ImageGeorefTool
+from .style import UIStyleHelper
+from ..logic.core import to_survey_coords, check_point_duplicate, build_point_ident
+from .constants import UIConfig, UILabels, UIMessages, UIPlaceholders, UIDialogSizes
 
 
 class ModelessSectionDialog(QDialog):

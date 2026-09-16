@@ -23,7 +23,7 @@ from qgis.core import (
     QgsPointXY,
 )
 
-from .layer_manager_models import get_local_crs, suppress_crs_prompt
+from .models import get_local_crs, suppress_crs_prompt
 
 
 class SessionIOMixin:

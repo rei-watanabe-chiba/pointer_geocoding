@@ -85,18 +85,18 @@ from qgis.PyQt.QtWidgets import (
     QPushButton,
 )
 
-from .map_tool import CanvasDigitizingTool, ImageGeorefTool
-from .style_helper import UIStyleHelper
+from ..canvas.map_tool import CanvasDigitizingTool, ImageGeorefTool
+from .style import UIStyleHelper
 # NOTE: UIConfig is not used directly in this module's own body, but is
 # re-exported here (rather than only via main_dock_constants) because
 # layer_manager.py and map_tool.py perform ``from .main_dock import UIConfig``
 # at call time. Keeping this import preserves that existing cross-module
 # contract unchanged after the Stage B mechanical split.
-from .main_dock_constants import UIConfig, UILabels, UIMessages
-from .main_dock_dialogs import ImageDialog, ModelessSectionDialog
-from .tab1_georef_mixin import Tab1GeorefMixin
-from .tab2_digitizing_mixin import Tab2DigitizingMixin
-from .tab3_settings_mixin import Tab3SettingsMixin
+from .constants import UIConfig, UILabels, UIMessages
+from .dialogs import ImageDialog, ModelessSectionDialog
+from .tab1_image import Tab1GeorefMixin
+from .tab2_plot import Tab2DigitizingMixin
+from .tab3_settings import Tab3SettingsMixin
 
 
 class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3SettingsMixin):

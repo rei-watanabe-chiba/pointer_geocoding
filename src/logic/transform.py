@@ -19,14 +19,14 @@ from qgis.core import (
 from qgis.PyQt.QtCore import QVariant
 from qgis.PyQt.QtWidgets import QWidget
 
-from .core_logic import (
+from .core import (
     to_survey_coords,
     from_survey_coords,
     update_point_layer_geometry,
     evaluate_residuals,
     batch_update_attributes,
 )
-from .style_helper import UIStyleHelper
+from ..ui.style import UIStyleHelper
 
 
 class CoordinateTransformer:
