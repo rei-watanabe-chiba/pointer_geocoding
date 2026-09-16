@@ -260,6 +260,11 @@ class CanvasDigitizingTool(QgsMapTool):
     # MainDockWidget._on_canvas_clicked, not by this tool.
     canvas_clicked = pyqtSignal(QgsPointXY)
     existing_point_selected = pyqtSignal(dict)
+    # T-0039: emitted when a blank-space click occurs while in edit mode
+    # (snap-to-existing-feature detection missed). Edit mode itself is
+    # kept; only the dock widget's currently-selected feature should be
+    # deselected in response (see Tab2DigitizingMixin._reset_point_selection).
+    blank_click_in_edit_mode = pyqtSignal()
 
     def __init__(
         self,
@@ -537,9 +542,10 @@ class CanvasDigitizingTool(QgsMapTool):
           every click is treated as a plain canvas click and forwarded to
           MainDockWidget._on_canvas_clicked for new-point digitizing.
         - "edit" mode: only existing-feature snap detection is performed;
-          a hit selects the point via existing_point_selected as before,
-          but a miss (blank click) does nothing (no new point is created,
-          and — per T-0037 — no selection-clear/reset side effect either).
+          a hit selects the point via existing_point_selected as before.
+          A miss (blank click) never creates a new point; per T-0039 it
+          emits blank_click_in_edit_mode so the dock widget can clear the
+          current selection while remaining in edit mode.
 
         Falls back to "new" mode if tab2_current_mode is missing or holds
         an unexpected value (defensive default, mirroring T-0036's
@@ -564,8 +570,9 @@ class CanvasDigitizingTool(QgsMapTool):
             return
 
         # Edit mode: only snap-to-existing-feature selection; a blank-space
-        # click is intentionally a no-op (T-0037 removes the former
-        # "blank click deselects" behavior).
+        # click never creates a new point, but per T-0039 it does emit
+        # blank_click_in_edit_mode so the dock widget clears the current
+        # selection (the mode itself stays "edit").
         nearest = self.find_nearest_feature_id(map_point)
         if nearest is not None:
             fid, _ = nearest
@@ -593,6 +600,10 @@ class CanvasDigitizingTool(QgsMapTool):
                 # selection changes).
                 self.show_selected_marker(QgsPointXY(feat["canvas_x"], feat["canvas_y"]))
                 self.existing_point_selected.emit(data)
+        else:
+            # Blank click while in edit mode: keep edit mode active, but let
+            # the dock widget clear any currently-selected feature (T-0039).
+            self.blank_click_in_edit_mode.emit()
 
     def clean_up(self) -> None:
         """Remove canvas vertex markers safely."""
