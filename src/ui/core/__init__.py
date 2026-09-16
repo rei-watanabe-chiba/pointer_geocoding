@@ -17,6 +17,13 @@ See .claude/state/v2-coreui-plan.md for the full architecture rationale.
 from .field_spec import ButtonDef, InfoLine, FieldSpec, PanelSpec, WidgetType
 from .builder import BuiltPanel, CoreUIBuilder
 from .rules import Rule
+from .validators import (
+    Validator,
+    ValidationResult,
+    RequiredValidator,
+    RegexValidator,
+    DuplicateValidator,
+)
 
 __all__ = [
     "ButtonDef",
@@ -27,4 +34,9 @@ __all__ = [
     "BuiltPanel",
     "CoreUIBuilder",
     "Rule",
+    "Validator",
+    "ValidationResult",
+    "RequiredValidator",
+    "RegexValidator",
+    "DuplicateValidator",
 ]
