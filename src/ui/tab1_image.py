@@ -40,16 +40,16 @@ from qgis.PyQt.QtWidgets import (
     QHeaderView,
 )
 
-from .transform import CoordinateTransformer
-from .style_helper import UIStyleHelper
-from .core_logic import (
+from ..logic.transform import CoordinateTransformer
+from .style import UIStyleHelper
+from ..logic.core import (
     to_survey_coords,
     from_survey_coords,
     update_point_layer_geometry,
     evaluate_residuals,
     safe_get_str,
 )
-from .main_dock_constants import (
+from .constants import (
     UIConfig,
     UILabels,
     UIPlaceholders,
@@ -57,7 +57,7 @@ from .main_dock_constants import (
     UIMessages,
     MAIN_RATIO,
 )
-from .main_dock_dialogs import GridInputDialog
+from .dialogs import GridInputDialog
 
 # T-0018: world file extensions recognized by this plugin's own georeferencing
 # output (see LayerManager.write_world_file()). Shared by the "既存ワールド

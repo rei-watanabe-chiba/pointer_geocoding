@@ -12,9 +12,9 @@ from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QIcon, QPixmap, QColor, QPainter
 from qgis.PyQt.QtWidgets import QAction, QMessageBox, QToolBar
 
-from .start_dialog import StartDialog
-from .layer_manager import LayerManager
-from .main_dock_constants import UIMessages
+from .ui.start_dialog import StartDialog
+from .layer.manager import LayerManager
+from .ui.constants import UIMessages
 
 
 class PointerGeocodingPlugin:
@@ -188,7 +188,7 @@ class PointerGeocodingPlugin:
         :type layers_dict: Optional[Dict[str, Any]]
         """
         try:
-            from .main_dock import MainDockWidget
+            from .ui.dock import MainDockWidget
 
             self._teardown_dock_widget()
 

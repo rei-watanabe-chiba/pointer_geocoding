@@ -26,7 +26,7 @@ from qgis.core import (
 )
 from qgis.PyQt.QtCore import QVariant
 
-from .layer_manager_models import get_local_crs
+from .models import get_local_crs
 
 
 class GpkgCacheMixin:

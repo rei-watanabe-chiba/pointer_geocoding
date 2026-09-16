@@ -88,9 +88,9 @@ except ImportError:
     from qgis.PyQt.QtCore import QRegExp
     HAS_QT_REGEX = False
 
-from .transform import export_points_to_csv
-from .style_helper import UIStyleHelper
-from .core_logic import (
+from ..logic.transform import export_points_to_csv
+from .style import UIStyleHelper
+from ..logic.core import (
     check_point_duplicate,
     build_point_ident,
     get_next_point_number,
@@ -103,7 +103,7 @@ from .core_logic import (
     ExcavationType,
     AttributeType,
 )
-from .main_dock_constants import (
+from .constants import (
     UIConfig,
     UILabels,
     UIPlaceholders,
@@ -111,7 +111,7 @@ from .main_dock_constants import (
     UIMessages,
     MAIN_RATIO,
 )
-from .main_dock_dialogs import FeatureCreateDialog, PointNameEntryDialog
+from .dialogs import FeatureCreateDialog, PointNameEntryDialog
 
 
 class Tab2DigitizingMixin:

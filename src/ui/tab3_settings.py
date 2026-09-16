@@ -25,8 +25,8 @@ from qgis.PyQt.QtWidgets import (
     QColorDialog,
 )
 
-from .style_helper import UIStyleHelper
-from .main_dock_constants import UIConfig, UILabels
+from .style import UIStyleHelper
+from .constants import UIConfig, UILabels
 
 
 class Tab3SettingsMixin:
