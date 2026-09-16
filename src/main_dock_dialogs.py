@@ -13,7 +13,8 @@ T-0021) has been replaced by three independent modeless dialogs opened from
 buttons on the right dock's (MainDockWidget's) own top row: 画像 (image),
 設定 (settings) and 出力 (CSV export). 設定/出力 are thin
 ModelessSectionDialog wrappers around the content widgets tab3_settings_mixin.py
-/ tab2_digitizing_mixin.py already build (_create_tab3_ui / _create_output_ui).
+/ tab2_digitizing_mixin.py already build (_create_tab3_ui / _create_tab4_ui,
+the latter renamed from _create_output_ui in T-0034).
 画像 is the dedicated ImageDialog class below, which also absorbs the former
 standalone PreviewDialog: the reference-point preview QgsMapCanvas (and its
 setup_raster/add_marker/clear_markers/clean_up API, used by
@@ -57,7 +58,8 @@ class ModelessSectionDialog(QDialog):
     Used for the 設定 (settings) and 出力 (CSV export) dialogs: the dialog
     itself owns no business logic, it simply presents a content widget built
     by the corresponding tab mixin (tab3_settings_mixin.py's
-    ``_create_tab3_ui`` / tab2_digitizing_mixin.py's ``_create_output_ui``)
+    ``_create_tab3_ui`` / tab2_digitizing_mixin.py's ``_create_tab4_ui``,
+    renamed from ``_create_output_ui`` in T-0034)
     and, since it is modeless and reopenable, notifies MainDockWidget of its
     show/close events via the optional ``on_show``/``on_close`` callbacks so
     the main canvas digitizing tool can be suspended while it is open and

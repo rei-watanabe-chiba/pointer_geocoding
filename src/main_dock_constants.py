@@ -31,6 +31,46 @@ class UIConfig:
     # instead scrolls internally. ---
     DRAWING_LIST_HEIGHT = 180
 
+    # --- T-0034: layout margin/spacing constants extracted from previously
+    # hardcoded setContentsMargins()/setSpacing() call sites in main_dock.py
+    # (root_layout/top_layout) and tab2_digitizing_mixin.py (Tab2 panel
+    # container), so spacing values have a single named source of truth and
+    # can be adjusted independently without hunting through multiple files.
+    # Values below are a direct copy of the pre-T-0034 hardcoded numbers
+    # (no visual change), except SEPARATOR_MARGIN_TOP/BOTTOM which are newly
+    # introduced (see below). ---
+    # main_dock.py: root_layout.setContentsMargins(6, 6, 6, 6)
+    DOCK_OUTER_MARGIN = 6
+    # main_dock.py: top_layout.setSpacing(6) (画像/設定/出力/保存 button row)
+    TOP_ROW_BUTTON_SPACING = 6
+    # main_dock.py: root_layout.setSpacing(6) (gap between top_row, the new
+    # T-0034 separator, and tab2_container)
+    SECTION_GAP = 6
+    # tab2_digitizing_mixin.py: layout.setContentsMargins(4, 4, 16, 4)
+    # (Tab2 panel container; right margin is intentionally wider than the
+    # others to leave room for the QScrollArea's scrollbar).
+    PANEL_CONTAINER_MARGIN_LEFT = 4
+    PANEL_CONTAINER_MARGIN_TOP = 4
+    PANEL_CONTAINER_MARGIN_RIGHT = 16
+    PANEL_CONTAINER_MARGIN_BOTTOM = 4
+    # tab2_digitizing_mixin.py: layout.setSpacing(8) (vertical gap between
+    # the 4 always-expanded panels themselves).
+    PANEL_GROUP_SPACING = 8
+    # tab2_digitizing_mixin.py: info_layout.setSpacing(6) / attr_layout.
+    # setSpacing(6) / focus_layout.setSpacing(6) (spacing of rows *inside*
+    # each individual panel).
+    PANEL_INNER_SPACING = 6
+    # --- T-0034: dedicated top/bottom spacing around each HLine panel
+    # separator (UIStyleHelper.build_separator()), independent of
+    # PANEL_GROUP_SPACING. Previously the separators were simply addWidget()'d
+    # into the panel-container layout and inherited its uniform
+    # PANEL_GROUP_SPACING on both sides, which is what made the space
+    # directly below each separator look too wide. Initial values are half
+    # of PANEL_GROUP_SPACING as a starting point; fine-tuning is expected via
+    # manual (in-QGIS) review rather than further code changes. ---
+    SEPARATOR_MARGIN_TOP = 4
+    SEPARATOR_MARGIN_BOTTOM = 4
+
 
 class UIDialogSizes:
     """T-0025: dialog-level width/height constants for the modeless/modal
@@ -45,15 +85,23 @@ class UIDialogSizes:
 class UILabels:
     DOCK_TITLE = "点群座標取得パネル"
     BTN_SAVE_PROJECT = "💾 プロジェクトを保存"
-    TAB_1_TITLE = "画像管理"
-    TAB_2_TITLE = "遺物点作成"
-    TAB_3_TITLE = "設定"
+    # --- T-0034: tab display strings shortened to English abbreviations
+    # (画像管理/遺物点作成/設定/CSV出力 -> IMG/PLOT/SET/OUT); internal module/
+    # class/variable/method identifiers (tab1/tab2/tab3/output_*) are
+    # unchanged, this only affects the strings shown in the UI. ---
+    TAB_1_TITLE = "IMG"
+    TAB_2_TITLE = "PLOT"
+    TAB_3_TITLE = "SET"
     # --- T-0024: right-dock top button row (image / settings / output / save) ---
     BTN_TOP_IMAGE = "画像"
     BTN_TOP_SETTINGS = "設定"
     BTN_TOP_OUTPUT = "出力"
     BTN_TOP_SAVE = "保存"
-    OUTPUT_DIALOG_TITLE = "CSV出力"
+    # --- T-0034: renamed from OUTPUT_DIALOG_TITLE to TAB_4_TITLE to align
+    # with the TAB_1_TITLE/TAB_2_TITLE/TAB_3_TITLE naming pattern used by
+    # the other three dialogs' content mixins (see main_dock.py's
+    # self.tab4_container / tab2_digitizing_mixin.py's _create_tab4_ui). ---
+    TAB_4_TITLE = "OUT"
     # --- Settings Tab ---
     TAB3_SECTION_REF_SYMBOL   = "基準点"
     TAB3_SECTION_POINT_SYMBOL = "遺物点"

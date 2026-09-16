@@ -127,8 +127,13 @@ class Tab2DigitizingMixin:
 
         container = QWidget()
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(4, 4, 16, 4)
-        layout.setSpacing(8)
+        layout.setContentsMargins(
+            UIConfig.PANEL_CONTAINER_MARGIN_LEFT,
+            UIConfig.PANEL_CONTAINER_MARGIN_TOP,
+            UIConfig.PANEL_CONTAINER_MARGIN_RIGHT,
+            UIConfig.PANEL_CONTAINER_MARGIN_BOTTOM,
+        )
+        layout.setSpacing(UIConfig.PANEL_GROUP_SPACING)
 
         # =============================================================
         # Panel 1: 点情報パネル (T-0033: title removed, replaced by an HLine
@@ -138,11 +143,13 @@ class Tab2DigitizingMixin:
         # editable point-name/branch inputs and existing-point-only action
         # buttons live below this frame, outside of it.)
         # =============================================================
+        layout.addSpacing(UIConfig.SEPARATOR_MARGIN_TOP)
         layout.addWidget(UIStyleHelper.build_separator(container))
+        layout.addSpacing(UIConfig.SEPARATOR_MARGIN_BOTTOM)
 
         self.group_point_info = QGroupBox(container)
         info_layout = QVBoxLayout(self.group_point_info)
-        info_layout.setSpacing(6)
+        info_layout.setSpacing(UIConfig.PANEL_INNER_SPACING)
 
         # T-0033: flat multi-line summary (status + 出土形態 + 点名+枝番 +
         # XY座標) inside a create_status_panel()-style left-border frame;
@@ -231,11 +238,13 @@ class Tab2DigitizingMixin:
         # (作成・カラーの行)→対象図面→(既設点編集時のみ)属性変更ボタン;
         # T-0033: title removed, replaced by an HLine separator)
         # =============================================================
+        layout.addSpacing(UIConfig.SEPARATOR_MARGIN_TOP)
         layout.addWidget(UIStyleHelper.build_separator(container))
+        layout.addSpacing(UIConfig.SEPARATOR_MARGIN_BOTTOM)
 
         self.group_attribute_panel = QGroupBox(container)
         attr_layout = QVBoxLayout(self.group_attribute_panel)
-        attr_layout.setSpacing(6)
+        attr_layout.setSpacing(UIConfig.PANEL_INNER_SPACING)
 
         # 属性 (T-0032: display-only labels "S:石器"/"P:土器"/"C:炭化物"/"SP";
         # the raw AttributeType value is stored as itemData and must be read
@@ -333,11 +342,13 @@ class Tab2DigitizingMixin:
         # removed -- opacity is refreshed via slider release only, as before
         # T-0032)
         # =============================================================
+        layout.addSpacing(UIConfig.SEPARATOR_MARGIN_TOP)
         layout.addWidget(UIStyleHelper.build_separator(container))
+        layout.addSpacing(UIConfig.SEPARATOR_MARGIN_BOTTOM)
 
         self.group_focus = QGroupBox(container)
         focus_layout = QVBoxLayout(self.group_focus)
-        focus_layout.setSpacing(6)
+        focus_layout.setSpacing(UIConfig.PANEL_INNER_SPACING)
 
         self.btn_focus_mode = QPushButton(UILabels.BTN_FOCUS_OFF, self.group_focus)
         self.btn_focus_mode.setCheckable(True)
@@ -398,7 +409,7 @@ class Tab2DigitizingMixin:
 
         return scroll
 
-    def _create_output_ui(self) -> QWidget:
+    def _create_tab4_ui(self) -> QWidget:
         """Construct the 出力 (CSV export) dialog content (T-0024).
 
         Formerly Section 4 of Tab 2 (embedded at the bottom of the main
@@ -406,6 +417,11 @@ class Tab2DigitizingMixin:
         main digitizing area stays focused on continuous point entry. The
         widgets/handlers themselves (_browse_csv_path / _on_export_csv_clicked)
         are unchanged.
+
+        T-0034: renamed from _create_output_ui() to _create_tab4_ui() to
+        align with the tab1/tab2/tab3 naming pattern used by main_dock.py's
+        self.tab1_container / self.tab2_container / self.tab3_container /
+        self.tab4_container.
         """
         csv_group = QgsCollapsibleGroupBox(UILabels.GROUP_CSV)
         csv_layout = QVBoxLayout(csv_group)
