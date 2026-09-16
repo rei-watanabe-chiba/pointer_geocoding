@@ -104,6 +104,7 @@ class UIStyleHelper:
             border: 1px solid palette(mid);
             border-radius: 4px;
             padding: 0px 4px;
+            padding-right: 20px;
             min-height: 28px;
             min-width: 70px;
             selection-background-color: palette(highlight);
@@ -114,9 +115,26 @@ class UIStyleHelper:
             border: 1.5px solid palette(highlight);
         }
 
-        QSpinBox::up-button, QSpinBox::down-button {
+        /* T-0044 follow-up: up-button/down-button now each declare their own
+           subcontrol-position (previously omitted, which left the buttons
+           visually detached from the box with no working hover/click hit
+           area). border-left forms a subtle divider from the text area, and
+           only the outer corners get border-radius so the buttons still read
+           as part of the same rounded box. */
+        QSpinBox::up-button {
             subcontrol-origin: border;
+            subcontrol-position: top right;
             width: 18px;
+            border-left: 1px solid palette(mid);
+            border-top-right-radius: 4px;
+        }
+
+        QSpinBox::down-button {
+            subcontrol-origin: border;
+            subcontrol-position: bottom right;
+            width: 18px;
+            border-left: 1px solid palette(mid);
+            border-bottom-right-radius: 4px;
         }
 
         /* Default Buttons */
