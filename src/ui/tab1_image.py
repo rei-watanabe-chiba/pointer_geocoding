@@ -50,7 +50,12 @@ from .constants import (
 )
 from .dialogs import GridInputDialog
 from .core import CoreUIBuilder
-from .core.validators import RequiredValidator, RegexValidator, DuplicateValidator
+from .core.validators import (
+    RequiredValidator,
+    RegexValidator,
+    DuplicateValidator,
+    show_validation_error,
+)
 from .schemas import (
     TAB1_IMAGE_SECTION_SPEC,
     TAB1_INFO_PANEL_SPEC,
@@ -441,26 +446,21 @@ class Tab1GeorefMixin:
 
         layer_name = self._tab1_image_panel.get_value("image_name").strip()
 
-        # T-0045-b (③): required/forbidden-pattern/duplicate checks below are
-        # judged via the generic ui/core/validators.py Validator classes;
-        # the error messages/QMessageBox.warning() display and focus
-        # handling are unchanged from before.
-        if not RequiredValidator().validate(layer_name).is_valid:
-            QMessageBox.warning(
-                self,
-                UIMessages.ERR_TITLE_INPUT,
-                UIMessages.ERR_REQUIRED_IMAGE_NAME,
-            )
-            self.edit_image_name.setFocus()
+        # T-0045-b (③) + extension: required/forbidden-pattern/duplicate
+        # checks are judged via the generic ui/core/validators.py Validator
+        # classes, and their failure display (QMessageBox.warning() + focus)
+        # is collapsed via show_validation_error(); messages/focus targets
+        # are unchanged from before.
+        result = RequiredValidator(UIMessages.ERR_REQUIRED_IMAGE_NAME).validate(layer_name)
+        if not result.is_valid:
+            show_validation_error(self, UIMessages.ERR_TITLE_INPUT, result, focus_widget=self.edit_image_name)
             return
 
-        if not RegexValidator(self.INVALID_CHARS_PATTERN).validate(layer_name).is_valid:
-            QMessageBox.warning(
-                self,
-                UIMessages.ERR_TITLE_INPUT,
-                UIMessages.ERR_INVALID_IMAGE_NAME,
-            )
-            self.edit_image_name.setFocus()
+        result = RegexValidator(
+            self.INVALID_CHARS_PATTERN, message=UIMessages.ERR_INVALID_IMAGE_NAME
+        ).validate(layer_name)
+        if not result.is_valid:
+            show_validation_error(self, UIMessages.ERR_TITLE_INPUT, result, focus_widget=self.edit_image_name)
             return
 
         # T-0015: the on-disk image file name no longer doubles as the layer
@@ -468,13 +468,12 @@ class Tab1GeorefMixin:
         # keys directly (previously this was checked indirectly via the
         # destination file-existence check inside copy_image_to_session()).
         meta = self.layer_manager.load_image_metadata()
-        if not DuplicateValidator(lambda name: name in meta).validate(layer_name).is_valid:
-            QMessageBox.warning(
-                self,
-                UIMessages.ERR_TITLE_DUPLICATE,
-                UIMessages.ERR_DUPLICATE_LAYER_NAME.format(name=layer_name),
-            )
-            self.edit_image_name.setFocus()
+        result = DuplicateValidator(
+            lambda name: name in meta,
+            message=UIMessages.ERR_DUPLICATE_LAYER_NAME.format(name=layer_name),
+        ).validate(layer_name)
+        if not result.is_valid:
+            show_validation_error(self, UIMessages.ERR_TITLE_DUPLICATE, result, focus_widget=self.edit_image_name)
             return
 
         src_path = self._tab1_image_panel.get_value("image_path").strip()

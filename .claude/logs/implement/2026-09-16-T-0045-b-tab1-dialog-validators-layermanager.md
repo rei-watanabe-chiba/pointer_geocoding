@@ -76,3 +76,55 @@ no-op（移植元の既存ガード条件と同一）。
 一部として扱った）。`tab2_plot.py`/`start_dialog.py`/`src/ui/constants.py`等には触れていない。
 `src/ui/constants.py`の`MSG_TRANSFORM_COMPLETE_TITLE`が未使用定数として残る点は上記「変更概要」に
 記載の通り、スコープ外ファイルのため意図的に手を入れていない。
+
+---
+
+## 追記: T-0045-b 延長（Validatorのエラー表示ヘルパー化）
+
+### タスクID
+T-0045-b（延長）: `.claude/state/v2-coreui-plan.md`「T-0045-b 延長: Validatorのエラー表示ヘルパー化」節
+
+### 変更ファイル一覧
+- `src/ui/core/validators.py`（変更、116行→144行、`show_validation_error()`関数を追加）
+- `src/ui/tab1_image.py`（変更、1047行→1046行）
+
+### 変更概要
+`src/ui/core/validators.py`に`show_validation_error(parent, title, result: ValidationResult,
+focus_widget=None) -> None`関数を追加した。`result.is_valid`がFalseの場合に
+`QMessageBox.warning(parent, title, result.message)`を表示し、`focus_widget`が指定されていれば
+`.setFocus()`を呼ぶ。`is_valid`がTrueの場合は何もしない（呼び出し側は`if not result.is_valid: return`と
+組み合わせて使う）。`QMessageBox`/`QWidget`のimportは`tab1_image.py`と同じ`qgis.PyQt.QtWidgets`から
+行った。
+
+`tab1_image.py`の`_on_confirm_image_clicked`内、新規追加モード分岐の3箇所
+（`RequiredValidator`/`RegexValidator`/`DuplicateValidator`）を、各Validatorのコンストラクタに既存の
+エラーメッセージ文言（`UIMessages.ERR_REQUIRED_IMAGE_NAME`/`UIMessages.ERR_INVALID_IMAGE_NAME`/
+`UIMessages.ERR_DUPLICATE_LAYER_NAME.format(name=layer_name)`）を`message`引数として渡す形に変更し、
+判定→`QMessageBox.warning`直書き→`setFocus`→`return`（4〜6行）を、
+`result = Validator(...).validate(value)` / `if not result.is_valid: show_validation_error(...); return`
+の2〜3行に圧縮した。エラータイトル（`UIMessages.ERR_TITLE_INPUT`/`ERR_TITLE_DUPLICATE`）・メッセージ
+文言・フォーカス先ウィジェット（`self.edit_image_name`）はすべて変更前と同一のものを使用しており、
+表示挙動は変更していない。importを`from .core.validators import (RequiredValidator, RegexValidator,
+DuplicateValidator, show_validation_error)`に更新した。
+
+`_on_rename_layer_clicked`内の同種チェックは、今回のスコープ（`_on_confirm_image_clicked`内の3箇所）に
+含まれないため変更していない。
+
+`src/ui/core/__init__.py`は、タスク指示で「対象は`validators.py`、`tab1_image.py`のみ」と明示されて
+いたため、`show_validation_error`のexport追加は行っていない（`tab1_image.py`は`.core.validators`から
+直接importしており、`.core`パッケージ経由のexportに依存していないため動作上の支障はない）。
+
+### 行数の変化
+- `src/ui/tab1_image.py`: 1047行 → 1046行（純減1行。3箇所とも「判定4〜6行→2〜3行」に圧縮された分、
+  コメント2行を追記した影響で差引はわずかとなった）
+- `src/ui/core/validators.py`: 116行 → 144行（`show_validation_error`関数本体・docstring・import追加分、
+  +28行）
+
+### 自動テスト実行結果
+自動テストなし（`python3 -m py_compile src/ui/core/validators.py src/ui/tab1_image.py`によるバイト
+コンパイル確認のみ実施し、両ファイルとも構文エラーがないことを確認した。実行時動作の保証はしない）。
+
+### スコープ外変更の有無
+なし。指示された2ファイル（`src/ui/core/validators.py`, `src/ui/tab1_image.py`）のみを変更した。
+`src/ui/core/__init__.py`・`src/ui/constants.py`・`_on_rename_layer_clicked`等、スコープに含まれない
+箇所には触れていない。

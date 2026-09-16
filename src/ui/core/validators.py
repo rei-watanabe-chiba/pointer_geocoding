@@ -27,6 +27,8 @@ from dataclasses import dataclass
 import re
 from typing import Callable, Optional
 
+from qgis.PyQt.QtWidgets import QMessageBox, QWidget
+
 
 @dataclass(frozen=True)
 class ValidationResult:
@@ -113,3 +115,30 @@ class DuplicateValidator(Validator):
         if self.exists_check(value):
             return ValidationResult(False, self.message)
         return ValidationResult(True)
+
+
+def show_validation_error(
+    parent: Optional[QWidget],
+    title: str,
+    result: ValidationResult,
+    focus_widget: Optional[QWidget] = None,
+) -> None:
+    """Display ``result``'s failure message via ``QMessageBox.warning``.
+
+    T-0045-b extension: pairs with the Validator classes above to collapse
+    each caller's "judge -> QMessageBox.warning(...) -> setFocus()" block
+    into a couple of lines. Does nothing when ``result.is_valid`` is True,
+    so callers can call this unconditionally and still need their own
+    ``if not result.is_valid: return`` for early-exit control flow.
+
+    :param parent: Parent widget for the message box (may be None).
+    :param title: Message box title (e.g. ``UIMessages.ERR_TITLE_INPUT``).
+    :param result: The :class:`ValidationResult` to display on failure.
+    :param focus_widget: Widget to call ``.setFocus()`` on after the
+        message box is dismissed, if given.
+    """
+    if result.is_valid:
+        return
+    QMessageBox.warning(parent, title, result.message)
+    if focus_widget is not None:
+        focus_widget.setFocus()
