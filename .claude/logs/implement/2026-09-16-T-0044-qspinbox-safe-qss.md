@@ -248,3 +248,54 @@ QSpinBox:focus::down-button:pressed {
 
 ### スコープ外変更の有無（フォーカス+押下の複合状態修正）
 なし。変更は`src/ui/style.py`の`get_style_sheet()`内、`QSpinBox:focus`のボーダー幅差し戻しと、`QSpinBox:focus::up-button:pressed`/`QSpinBox:focus::down-button:pressed`ルールの新規追加の2点のみ。他ファイル・他ウィジェットの`:focus`ルールには手を加えていない。
+
+## 押下フィードバック方式の転換（背景色→矢印色）（2026-09-16）
+
+### 経緯
+「押下フィードバック追加」以降に追加した3つの修正（背景色`:pressed`ルール、角丸修正、フォーカス+押下複合セレクタでの`border-left`再宣言）が、フォーカス枠とのオーバーラップやinput全体の背景色崩壊など不具合を連鎖的に引き起こした。ユーザーの指示により、これらの背景色変化アプローチを完全に撤去し、代わりに矢印SVGアイコン自体の色を押下時に切り替える方式へ転換した。
+
+### 削除した内容
+`src/ui/style.py`の`get_style_sheet()`から、以下を完全に削除した（付随するT-0044由来の説明コメントも含む）。
+
+- `QSpinBox::up-button:pressed { background-color: palette(midlight); border-top-right-radius: 4px; }`
+- `QSpinBox::down-button:pressed { background-color: palette(midlight); border-bottom-right-radius: 4px; }`
+- `QSpinBox:focus::up-button:pressed { background-color: palette(midlight); border-left: 1px solid palette(mid); border-top-right-radius: 4px; }`
+- `QSpinBox:focus::down-button:pressed { background-color: palette(midlight); border-left: 1px solid palette(mid); border-bottom-right-radius: 4px; }`
+- 上記4ルールに付随していた「T-0044 5th follow-up」「T-0044 6th follow-up」の説明コメントブロック（押下フィードバック・pressed状態の経緯を記した注記）。
+
+`QSpinBox:focus`のボーダー幅（`1.5px`）は変更していない。
+
+### 追加した内容
+1. **新規SVGファイル2件**（`src/icon/`）を追加した。既存の`spin_up_arrow.svg`/`spin_down_arrow.svg`（8x6、ニュートラルグレー`#6B6B6B`）と同形状で、押下時用に濃いグレー`#404040`で塗った三角形。
+   - `src/icon/spin_up_arrow_pressed.svg`: `<path d="M4 0L8 6H0Z" fill="#404040"/>`
+   - `src/icon/spin_down_arrow_pressed.svg`: `<path d="M0 0H8L4 6Z" fill="#404040"/>`
+
+2. `get_style_sheet()`冒頭に、既存の`up_arrow_path`/`down_arrow_path`と同じ計算方式で`up_arrow_pressed_path`/`down_arrow_pressed_path`を追加した（`icon_dir`から各pressed用SVGへの絶対パス、`os.sep`を`/`に正規化）。
+
+3. 既存の`QSpinBox::up-arrow`/`QSpinBox::down-arrow`（非pressed）ルールの直後に、以下を追加した。
+
+```css
+QSpinBox::up-arrow:pressed {
+    image: url(__UP_ARROW_PRESSED_PATH__);
+    width: 8px;
+    height: 6px;
+}
+
+QSpinBox::down-arrow:pressed {
+    image: url(__DOWN_ARROW_PRESSED_PATH__);
+    width: 8px;
+    height: 6px;
+}
+```
+
+4. テンプレート文字列末尾の`.replace()`チェーンに`__UP_ARROW_PRESSED_PATH__`/`__DOWN_ARROW_PRESSED_PATH__`のプレースホルダ置換を追加した（既存の`__UP_ARROW_PATH__`/`__DOWN_ARROW_PATH__`と同じ置換パターン）。
+
+`QSpinBox`本体・`QSpinBox:focus`（ボーダー幅`1.5px`のまま）・`up-button`/`down-button`（非pressed、`subcontrol-position`等）・通常時の矢印画像参照（`::up-arrow`/`::down-arrow`、非pressed）には一切変更を加えていない。`create_spinbox()`のロジックも変更していない。
+
+### 自動テスト実行結果（押下フィードバック方式の転換）
+自動テストなし。`python3 -m py_compile src/ui/style.py`を実行し、構文エラーがないことを確認した（成功、エラーなし）。
+
+`qgis`モジュールが実行環境に存在しないため`UIStyleHelper.get_style_sheet()`を直接呼び出す確認はできなかった。代わりに、`get_style_sheet()`内のパス計算ロジック（`os.path.join`/`os.path.dirname`/`os.sep`置換）を`src/ui/style.py`の実際の場所を起点に単体で再現し、`spin_up_arrow_pressed.svg`/`spin_down_arrow_pressed.svg`への絶対パスが`os.path.exists()`でいずれも`True`になることを確認した（静的なパス解決確認であり、QGIS上での実際の描画結果を保証するものではない）。
+
+### スコープ外変更の有無（押下フィードバック方式の転換）
+なし。変更は`src/ui/style.py`（`get_style_sheet()`内の背景色`:pressed`系ルール4件・付随コメントの削除、矢印pressedルール2件とパス計算・プレースホルダ置換の追加）と、`src/icon/`配下への新規SVGファイル2件の追加のみ。他ファイル・`create_spinbox()`自体・`QSpinBox`本体/`:focus`/`up-button`/`down-button`（非pressed）/矢印画像参照（非pressed）には手を加えていない。

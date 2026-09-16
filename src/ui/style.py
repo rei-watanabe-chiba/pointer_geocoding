@@ -43,6 +43,12 @@ class UIStyleHelper:
         )
         up_arrow_path = os.path.join(icon_dir, "spin_up_arrow.svg").replace(os.sep, "/")
         down_arrow_path = os.path.join(icon_dir, "spin_down_arrow.svg").replace(os.sep, "/")
+        up_arrow_pressed_path = os.path.join(
+            icon_dir, "spin_up_arrow_pressed.svg"
+        ).replace(os.sep, "/")
+        down_arrow_pressed_path = os.path.join(
+            icon_dir, "spin_down_arrow_pressed.svg"
+        ).replace(os.sep, "/")
         # NOTE: the bulk of this QSS template uses literal `{`/`}` for rule
         # blocks, so a plain f-string/str.format() would require escaping
         # every one of them. Instead we keep this a plain triple-quoted
@@ -144,43 +150,6 @@ class UIStyleHelper:
             border-bottom-right-radius: 4px;
         }
 
-        /* T-0044 5th follow-up: pressed-state feedback for the up/down
-           buttons. Previously the buttons gave no visual response on
-           click. Tone matched to the existing QPushButton:pressed rule
-           (rgba(128, 128, 128, 0.28) below), kept simpler here per the
-           requested palette(midlight) approach since QSpinBox buttons
-           have no separate hover rule to stay consistent with. */
-        QSpinBox::up-button:pressed {
-            background-color: palette(midlight);
-            border-top-right-radius: 4px;
-        }
-
-        QSpinBox::down-button:pressed {
-            background-color: palette(midlight);
-            border-bottom-right-radius: 4px;
-        }
-
-        /* T-0044 6th follow-up: when the QSpinBox is focused AND a button is
-           pressed at the same time, Qt failed to carry over the box info
-           (background/border/radius) from the plain :pressed rule above,
-           causing the pressed background-color to visually overlap/bleed
-           into the QSpinBox:focus border. Declaring the combined
-           QSpinBox:focus::up-button:pressed / down-button:pressed selectors
-           explicitly (re-including border-left, which the plain :pressed
-           rule above omits) fixes the focus+pressed combination without
-           touching the non-focus pressed behavior. */
-        QSpinBox:focus::up-button:pressed {
-            background-color: palette(midlight);
-            border-left: 1px solid palette(mid);
-            border-top-right-radius: 4px;
-        }
-
-        QSpinBox:focus::down-button:pressed {
-            background-color: palette(midlight);
-            border-left: 1px solid palette(mid);
-            border-bottom-right-radius: 4px;
-        }
-
         /* T-0044 3rd follow-up: the border-trick used previously (transparent
            left/right borders + a single colored border to fake a triangle)
            rendered as a solid black square rather than a triangle on the
@@ -210,6 +179,27 @@ class UIStyleHelper:
 
         QSpinBox::down-arrow {
             image: url(__DOWN_ARROW_PATH__);
+            width: 8px;
+            height: 6px;
+        }
+
+        /* T-0044 7th follow-up: press-state feedback moved from the button
+           background-color to the arrow glyph color itself (see the 5th/6th
+           follow-up rules removed above, which caused focus-border overlap
+           and background bleed). Swapping to a darker-filled SVG on
+           ::up-arrow:pressed / ::down-arrow:pressed avoids the box-model
+           overlap issues entirely since only the small arrow image changes,
+           not any background/border geometry. width/height are redeclared
+           explicitly since Qt has not reliably carried over sub-control
+           properties across state changes in this stylesheet before. */
+        QSpinBox::up-arrow:pressed {
+            image: url(__UP_ARROW_PRESSED_PATH__);
+            width: 8px;
+            height: 6px;
+        }
+
+        QSpinBox::down-arrow:pressed {
+            image: url(__DOWN_ARROW_PRESSED_PATH__);
             width: 8px;
             height: 6px;
         }
@@ -376,6 +366,8 @@ class UIStyleHelper:
         }
         """.replace("__UP_ARROW_PATH__", up_arrow_path).replace(
             "__DOWN_ARROW_PATH__", down_arrow_path
+        ).replace("__UP_ARROW_PRESSED_PATH__", up_arrow_pressed_path).replace(
+            "__DOWN_ARROW_PRESSED_PATH__", down_arrow_pressed_path
         )
 
     @staticmethod

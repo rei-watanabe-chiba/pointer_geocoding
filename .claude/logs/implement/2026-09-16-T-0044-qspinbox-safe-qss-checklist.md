@@ -79,3 +79,17 @@
 4. 矢印グリフ（三角形）の表示・位置・クリックによる値の増減自体には影響がないこと（今回の変更は背景色ルールの追加のみで、矢印描画・ボタン位置には触れていない）。
 
 期待される挙動の根拠: 本項目は`.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md`の「押下フィードバック追加」セクションに記載の通り、`QSpinBox::up-button:pressed, QSpinBox::down-button:pressed { background-color: palette(midlight); }`ルールを新規追加したことによる。既存の`QSpinBox`本体・`:focus`・`up-button`/`down-button`の`subcontrol-position`・矢印画像参照には変更を加えていない。
+
+---
+
+### 押下フィードバック方式の転換の確認項目（2026-09-16、背景色→矢印色への切り替え分）
+
+「押下フィードバック追加」以降の3つの背景色系修正（`:pressed`背景色ルール・角丸修正・フォーカス+押下複合セレクタでの`border-left`再宣言）が、フォーカス枠とのオーバーラップやinput全体の背景色崩壊を連鎖的に引き起こしたため、それらを完全に撤去し、矢印SVGアイコン自体の色を押下時に切り替える方式（`::up-arrow:pressed`/`::down-arrow:pressed`）へ転換した修正の確認項目。上記の手順1〜4を再度実施する際、以下の点も併せて確認すること。
+
+1. **最優先**: start_dialog.py・tab2_plot.py（`edit_point_name`）・その他QSpinBox使用箇所の全てで、上ボタン・下ボタンを押し下げている間、**矢印グリフの色**が通常時のニュートラルグレー（`#6B6B6B`相当）から、より濃いグレー（`#404040`相当）へ変化して見えること。ボタンの背景色自体は変化しない（意図的に背景色変化アプローチを廃止したため）。
+2. **最優先**: これまで問題となっていた、input（QSpinBox）全体の背景色が崩れる、またはフォーカス時の青いボーダー（`QSpinBox:focus`）に何らかのオーバーラップ・欠けが見える、といった異常が発生していないこと。フォーカス状態と押下状態が同時に起きる場合（フォーカス中のQSpinBoxのボタンを押す）も含めて確認すること。
+3. ボタンを離した後は、矢印の色が押下前（ニュートラルグレー）の見た目に戻ること。
+4. 矢印の位置・サイズ（8x6px相当）がボタン領域内に収まっており、色が変わる以外の見た目（形状・配置）に変化がないこと。
+5. 上下ボタンをクリックした際の値の増減自体（クリック判定領域）に変化がないこと（今回の変更は矢印画像の色切り替えのみで、ボタンのジオメトリ・クリック判定には触れていない）。
+
+期待される挙動の根拠: 本項目は`.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md`の「押下フィードバック方式の転換（背景色→矢印色）」セクションに記載の通り、`QSpinBox::up-button:pressed`/`QSpinBox::down-button:pressed`/`QSpinBox:focus::up-button:pressed`/`QSpinBox:focus::down-button:pressed`の背景色系ルールをすべて削除し、代わりに`QSpinBox::up-arrow:pressed`/`QSpinBox::down-arrow:pressed`で`src/icon/spin_up_arrow_pressed.svg`/`spin_down_arrow_pressed.svg`（`fill="#404040"`）を参照するルールを新規追加したことによる。`QSpinBox`本体・`QSpinBox:focus`（ボーダー幅`1.5px`のまま）・`up-button`/`down-button`（非pressed）・通常時の矢印画像参照（非pressed）には変更を加えていない。
