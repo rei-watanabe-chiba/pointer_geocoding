@@ -111,7 +111,7 @@ from .main_dock_constants import (
     UIMessages,
     MAIN_RATIO,
 )
-from .main_dock_dialogs import FeatureCreateDialog
+from .main_dock_dialogs import FeatureCreateDialog, PointNameEntryDialog
 
 
 class Tab2DigitizingMixin:
@@ -1453,10 +1453,21 @@ class Tab2DigitizingMixin:
         clearing is now only triggered explicitly (e.g. the dock's reset
         button), never by a plain canvas click.
 
+        T-0040: when the 自動連番/解除 toggle is set to 解除 (including while
+        it is forced to 解除 by an SP attribute selection, see
+        _update_autonum_toggle_for_sp), the click is instead routed to
+        _handle_release_mode_click, which pops up PointNameEntryDialog at
+        the click location to collect 点名/枝番 instead of relying on the
+        panel's (possibly stale/empty) edit_point_name(_sp) value.
+
         :param map_point: Click location in standard mathematical/canvas coordinates.
         :type map_point: QgsPointXY
         """
         if not self.point_layer or not self.point_layer.isValid():
+            return
+
+        if getattr(self, "tab2_autonum_mode", "auto") == "release":
+            self._handle_release_mode_click(map_point)
             return
 
         # 1. Retrieve and validate current digitizing input state
@@ -1470,6 +1481,104 @@ class Tab2DigitizingMixin:
             self._update_point_info_status()
             return
 
+        self._create_digitized_point_from_state(state, map_point)
+
+    def _handle_release_mode_click(self, map_point: QgsPointXY) -> None:
+        """Handle a plain canvas click while 自動連番/解除 is set to 解除 (T-0040).
+
+        Pops up PointNameEntryDialog near the click location so the user can
+        enter 点名/枝番 explicitly (instead of relying on the panel's
+        edit_point_name(_sp) value, which 解除 mode leaves untouched/cleared
+        rather than auto-filled -- see _apply_next_point_number). 出土形態・
+        遺構名・属性・色・対象図面 are taken from the panel's current values,
+        unchanged. On dialog cancel, no feature is created.
+
+        :param map_point: Click location in standard mathematical/canvas coordinates.
+        :type map_point: QgsPointXY
+        """
+        if self._is_feature_name_missing():
+            self._update_point_info_status()
+            return
+
+        drawing_name = (
+            self.combo_drawing_name.currentText().strip()
+            if hasattr(self, "combo_drawing_name")
+            else ""
+        )
+        excavation_type = self.combo_excavation_type.currentText()
+        feature_name = self.combo_feature_name.currentText()
+        if feature_name == UILabels.FEATURE_NEW_OPTION:
+            feature_name = ""
+
+        dlg = PointNameEntryDialog(
+            self.point_layer,
+            excavation_type,
+            feature_name,
+            drawing_name,
+            self,
+        )
+        UIStyleHelper.apply_theme(dlg)
+        self._position_dialog_near_map_point(dlg, map_point)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+
+        point_name, branch_no = dlg.get_values()
+
+        state = {
+            "drawing_name": drawing_name,
+            "excavation_type": excavation_type,
+            "feature_name": feature_name,
+            "color_code": self.current_feature_color.name(),
+            "attribute_type": self._get_attribute_value(),
+            "point_name": point_name,
+            "branch_no": branch_no,
+        }
+        self._create_digitized_point_from_state(state, map_point)
+
+    def _position_dialog_near_map_point(self, dlg: QDialog, map_point: QgsPointXY) -> None:
+        """Move ``dlg`` to appear near the screen position of ``map_point`` on the main canvas.
+
+        Converts the clicked map coordinate to canvas pixel coordinates via
+        the main canvas's coordinate transform (mirrors the
+        toCanvasCoordinates() pattern used by the QgsMapCanvasItem-based
+        markers in map_tool.py), then to a global screen position via
+        QWidget.mapToGlobal(). As with any QDialog, the window manager is
+        not guaranteed to honor the exact requested position.
+
+        :param dlg: Dialog to reposition.
+        :type dlg: QDialog
+        :param map_point: Click location in map/canvas coordinates.
+        :type map_point: QgsPointXY
+        """
+        if not hasattr(self, "map_tool") or not self.map_tool or not hasattr(self.map_tool, "canvas"):
+            return
+        canvas = self.map_tool.canvas
+        try:
+            from qgis.PyQt.QtCore import QPoint
+
+            canvas_pt = canvas.getCoordinateTransform().transform(map_point)
+            local_pt = QPoint(round(canvas_pt.x()), round(canvas_pt.y()))
+            dlg.move(canvas.mapToGlobal(local_pt))
+        except Exception:
+            # Best-effort positioning only; fall back to Qt's default
+            # placement if the canvas/coordinate transform is unavailable.
+            pass
+
+    def _create_digitized_point_from_state(self, state: Dict[str, Any], map_point: QgsPointXY) -> None:
+        """Build and insert a new digitized point feature from a resolved input state dict.
+
+        Extracted (T-0040) from the tail of _on_canvas_clicked so both the
+        自動連番 flow (state built from get_digitizing_input_state) and the
+        解除 flow (state built in _handle_release_mode_click from
+        PointNameEntryDialog's values) share the same feature-creation code.
+
+        :param state: Dict with drawing_name/excavation_type/feature_name/
+            color_code/attribute_type/point_name/branch_no keys (see
+            get_digitizing_input_state).
+        :type state: Dict[str, Any]
+        :param map_point: Click location in standard mathematical/canvas coordinates.
+        :type map_point: QgsPointXY
+        """
         drawing_name = state.get("drawing_name", "")
         excavation_type = state["excavation_type"]
         feature_name = state["feature_name"]
@@ -1478,10 +1587,10 @@ class Tab2DigitizingMixin:
         point_name = state["point_name"]
         branch_no = state["branch_no"]
 
-        # 3. Determine next point_id
+        # 1. Determine next point_id
         next_point_id = get_next_point_id(self.point_layer)
 
-        # 4. Resolve pixel coordinates on the source drawing via the affine adapter
+        # 2. Resolve pixel coordinates on the source drawing via the affine adapter
         pixel_coords = (0.0, 0.0)
         if drawing_name and self.layer_manager:
             meta = self.layer_manager.load_image_metadata()
@@ -1489,7 +1598,7 @@ class Tab2DigitizingMixin:
             affine_params = layer_meta.get("affine_params") if layer_meta else None
             pixel_coords = pixel_from_affine(affine_params, map_point)
 
-        # 5. Build the feature (pre-georeferenced: canvas coords ARE real coords)
+        # 3. Build the feature (pre-georeferenced: canvas coords ARE real coords)
         new_feat = build_digitized_feature(
             self.point_layer,
             next_point_id,
@@ -1506,10 +1615,10 @@ class Tab2DigitizingMixin:
             pixel_coords=pixel_coords,
         )
 
-        # 6. Write the new feature to the layer
+        # 4. Write the new feature to the layer
         insert_feature_to_layer(self.point_layer, new_feat)
 
-        # 7. Update UI (auto-increment point number / point info panel)
+        # 5. Update UI (auto-increment point number / point info panel)
         self._on_point_digitized({
             "point_id": next_point_id,
             "drawing_name": drawing_name,
