@@ -3,6 +3,7 @@
  PointerGeocoding Plugin - UI Style Helper (Material & High DPI Adaptation)
  ***************************************************************************/
 """
+import os
 from typing import Optional, Tuple, List, Any, Callable, Iterable
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
@@ -37,6 +38,22 @@ class UIStyleHelper:
         :return: QSS stylesheet string.
         :rtype: str
         """
+        icon_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "icon"
+        )
+        up_arrow_path = os.path.join(icon_dir, "spin_up_arrow.svg").replace(os.sep, "/")
+        down_arrow_path = os.path.join(icon_dir, "spin_down_arrow.svg").replace(os.sep, "/")
+        up_arrow_pressed_path = os.path.join(
+            icon_dir, "spin_up_arrow_pressed.svg"
+        ).replace(os.sep, "/")
+        down_arrow_pressed_path = os.path.join(
+            icon_dir, "spin_down_arrow_pressed.svg"
+        ).replace(os.sep, "/")
+        # NOTE: the bulk of this QSS template uses literal `{`/`}` for rule
+        # blocks, so a plain f-string/str.format() would require escaping
+        # every one of them. Instead we keep this a plain triple-quoted
+        # string with unique %%-style placeholders substituted via
+        # str.replace() below (see T-0044 4th follow-up).
         return """
         /* General Widget Typography & Spacing */
         QWidget {
@@ -89,6 +106,102 @@ class UIStyleHelper:
 
         QLineEdit:focus, QgsFilterLineEdit:focus, QComboBox:focus {
             border: 1.5px solid palette(highlight);
+        }
+
+        /* T-0044: QSpinBox base styling. NOTE: only the outer box and the
+           up/down button sub-control geometry are styled here; arrow glyphs
+           are handled separately below (see T-0044 2nd follow-up). */
+        QSpinBox {
+            background-color: palette(base);
+            color: palette(text);
+            border: 1px solid palette(mid);
+            border-radius: 4px;
+            padding: 0px 4px;
+            padding-right: 20px;
+            min-height: 28px;
+            min-width: 70px;
+            selection-background-color: palette(highlight);
+            selection-color: palette(highlighted-text);
+        }
+
+        QSpinBox:focus {
+            border: 1.5px solid palette(highlight);
+        }
+
+        /* T-0044 follow-up: up-button/down-button now each declare their own
+           subcontrol-position (previously omitted, which left the buttons
+           visually detached from the box with no working hover/click hit
+           area). border-left forms a subtle divider from the text area, and
+           only the outer corners get border-radius so the buttons still read
+           as part of the same rounded box. */
+        QSpinBox::up-button {
+            subcontrol-origin: border;
+            subcontrol-position: top right;
+            width: 18px;
+            border-left: 1px solid palette(mid);
+            border-top-right-radius: 4px;
+        }
+
+        QSpinBox::down-button {
+            subcontrol-origin: border;
+            subcontrol-position: bottom right;
+            width: 18px;
+            border-left: 1px solid palette(mid);
+            border-bottom-right-radius: 4px;
+        }
+
+        /* T-0044 3rd follow-up: the border-trick used previously (transparent
+           left/right borders + a single colored border to fake a triangle)
+           rendered as a solid black square rather than a triangle on the
+           QSpinBox arrow sub-controls (known-unstable behavior of the CSS
+           border-triangle hack against Qt's QSS arrow sub-controls; see Qt
+           Forum reports). The officially recommended workaround is to supply
+           an actual icon via the `image` property instead of drawing the
+           shape with borders.
+           T-0044 4th follow-up: the 3rd follow-up's base64 data-URI
+           (image: url(data:image/svg+xml;base64,...)) turned out to be a
+           known Qt QSS limitation (QTBUG-51081: QSS url() does not reliably
+           load embedded data URIs), so the arrow disappeared entirely
+           instead of rendering as a triangle. This has been replaced with
+           references to real SVG files under src/icon/ (spin_up_arrow.svg /
+           spin_down_arrow.svg), resolved to an absolute, forward-slash path
+           at runtime below (__UP_ARROW_PATH__ / __DOWN_ARROW_PATH__
+           placeholders substituted via str.replace() after this template).
+           Both files are fixed 8x6 triangles filled with a neutral gray
+           (#6B6B6B); this is a fixed, theme-non-adaptive color (does not
+           follow palette(text) / dark-light mode), which is an accepted
+           trade-off for this fix. */
+        QSpinBox::up-arrow {
+            image: url(__UP_ARROW_PATH__);
+            width: 8px;
+            height: 6px;
+        }
+
+        QSpinBox::down-arrow {
+            image: url(__DOWN_ARROW_PATH__);
+            width: 8px;
+            height: 6px;
+        }
+
+        /* T-0044 7th follow-up: press-state feedback moved from the button
+           background-color to the arrow glyph color itself (see the 5th/6th
+           follow-up rules removed above, which caused focus-border overlap
+           and background bleed). Swapping to a darker-filled SVG on
+           ::up-arrow:pressed / ::down-arrow:pressed avoids the box-model
+           overlap issues entirely since only the small arrow image changes,
+           not any background/border geometry. width/height are redeclared
+           explicitly since Qt has not reliably carried over sub-control
+           properties across state changes in this stylesheet before. */
+        QSpinBox::up-arrow:pressed {
+            image: url(__UP_ARROW_PRESSED_PATH__);
+            width: 8px;
+            height: 6px;
+        }
+
+        QSpinBox::down-arrow:pressed {
+            image: url(__DOWN_ARROW_PRESSED_PATH__);
+            width: 8px;
+            height: 6px;
         }
 
         /* Default Buttons */
@@ -251,7 +364,11 @@ class UIStyleHelper:
             border: 1px solid rgba(0, 0, 0, 0.1);
             font-weight: bold;
         }
-        """
+        """.replace("__UP_ARROW_PATH__", up_arrow_path).replace(
+            "__DOWN_ARROW_PATH__", down_arrow_path
+        ).replace("__UP_ARROW_PRESSED_PATH__", up_arrow_pressed_path).replace(
+            "__DOWN_ARROW_PRESSED_PATH__", down_arrow_pressed_path
+        )
 
     @staticmethod
     def show_error_dialog(parent: Optional[QWidget], title: str, message: str) -> None:
