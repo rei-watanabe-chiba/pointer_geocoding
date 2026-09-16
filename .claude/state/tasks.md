@@ -35,7 +35,7 @@
 | T-0025 | UI改修: ①右ドック幅300固定（UIConfigへ`DOCK_WIDTH`追加）②画像/設定モードレスダイアログの幅・高さを先頭定義化（UIDialogSizes新設）③未定数化のメッセージ文字列をUIMessagesへ回収（plugin.py分も追加発見・対応）④確認ダイアログ等のボタンをstyle_helper.py新規`build_centered_button_row()`で整列表示 | 完了 | `.claude/logs/implement/2026-09-15-T-0025-ui-constants-and-alignment.md` | 静的検証: 問題なし | 完了 |
 | T-0040 | UX追加2/2: 新規モードで[解除]選択中にキャンバスクリックした場合、クリック地点付近に点名・枝番入力ダイアログ(`PointNameEntryDialog`新設、OK/キャンセル、バリデーションエラーはボタン上に赤字表示、FeatureCreateDialog方式を流用)をポップアップ表示。OK押下時はcheck_point_duplicate()で重複判定し、通れば入力値でフィーチャ作成(既存作成本体を`_create_digitized_point_from_state()`へ抽出し共用)。他の属性はパネルの現在値を使用。SP属性選択時は英数字バリデータ付きQLineEdit、非SP時は整数QSpinBoxに切替対応済み | 完了 | `.claude/logs/implement/2026-09-16-T-0040-release-mode-click-dialog.md` | 静的検証: 問題なし | 完了 |
 
-| T-0041 | UX軽微改修4点: ①②④はユーザー確認済み。③のQSpinBoxへのグローバルQSS追加が`docs/integrated_master_design.md`23-24行目の設計原則(QSpinBoxはOSネイティブUI保護のためQSS適用対象外)に違反し回帰を引き起こしたため、QSpinBox用QSS一式を全削除しOSネイティブ描画に戻した(「矢印つぶれ」の再調査は別タスク) | 静的検証中 | `.claude/logs/implement/2026-09-16-T-0041-minor-ux-fixes.md` | - | ①②④確認済み |
+| T-0041 | UX軽微改修4点: ①②④はユーザー確認済み。③のQSpinBoxへのグローバルQSS追加が`docs/integrated_master_design.md`23-24行目の設計原則(QSpinBoxはOSネイティブUI保護のためQSS適用対象外)に違反し回帰を引き起こしたため、QSpinBox用QSS一式を全削除しOSネイティブ描画に戻した(「矢印つぶれ」の再調査は別タスク) | 人手確認待ち | `.claude/logs/implement/2026-09-16-T-0041-minor-ux-fixes.md` | 静的検証: 問題なし(QSS削除の範囲・設計書整合性を確認)。実行環境での確認が必要 | ①②④確認済み |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
