@@ -28,7 +28,7 @@ is open (see MainDockWidget._update_main_map_tool_state).
 # 【変更不可侵の絶対的ルール】 測量座標系（X軸=南北, Y軸=東西）を採用。QGISキャンバス上のX座標(東西)はSurvey Y、Y座標(南北)はSurvey Xに対応する。
 
 import re
-from typing import Optional, Dict, Any, List, Callable
+from typing import Optional, Dict, Any, List, Callable, Tuple
 
 from qgis.core import QgsRasterLayer
 from qgis.gui import QgsMapCanvas
@@ -48,7 +48,7 @@ from qgis.PyQt.QtWidgets import (
 
 from .map_tool import ImageGeorefTool
 from .style_helper import UIStyleHelper
-from .core_logic import to_survey_coords
+from .core_logic import to_survey_coords, check_point_duplicate, build_point_ident
 from .main_dock_constants import UIConfig, UILabels, UIMessages, UIPlaceholders, UIDialogSizes
 
 
@@ -625,3 +625,167 @@ class FeatureCreateDialog(QDialog):
             return
         self.result_text = text
         self.accept()
+
+
+class PointNameEntryDialog(QDialog):
+    """T-0040: Modal dialog for entering a 点名/枝番 at click time while the
+    新規モード点情報パネルの自動連番/解除トグル is set to 解除 (or while it is
+    forced to 解除 by an SP attribute selection, see
+    Tab2DigitizingMixin._update_autonum_toggle_for_sp).
+
+    While 解除 is active, edit_point_name (QSpinBox) is left untouched by
+    _apply_next_point_number and edit_point_name_sp is cleared for SP, so
+    neither panel widget reliably holds the value the user actually wants
+    at the moment of a canvas click. This dialog pops up at click time
+    (positioned near the click via Tab2DigitizingMixin._on_canvas_clicked)
+    to collect 点名/枝番 explicitly, following the same
+    OK/キャンセル + red-text-above-buttons error pattern as
+    FeatureCreateDialog. On OK, a duplicate check
+    (core_logic.check_point_duplicate) is run against the panel's current
+    出土形態/遺構名/対象図面 (passed in by the caller, unchanged by this
+    dialog); a duplicate blocks acceptance and shows
+    core_logic.build_point_ident()'s message in ``self.lbl_error`` instead.
+    On success, ``result_point_name``/``result_branch_no`` hold the
+    validated values for the caller to build the digitized feature with.
+    """
+
+    def __init__(
+        self,
+        point_layer,
+        excavation_type: str,
+        feature_name: str,
+        drawing_name: str = "",
+        is_sp_attribute: bool = False,
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        """Initialize the point-name/branch-number entry dialog.
+
+        :param point_layer: Vector layer to check for duplicate point identities against.
+        :type point_layer: QgsVectorLayer
+        :param excavation_type: ExcavationType.GRID.value or ExcavationType.FEATURE.value,
+            taken from the 点情報パネル's current selection.
+        :type excavation_type: str
+        :param feature_name: Current 遺構名 selection (empty when excavation_type is グリッド).
+        :type feature_name: str
+        :param drawing_name: Current 対象図面 選択.
+        :type drawing_name: str
+        :param is_sp_attribute: True when the panel's currently selected 属性
+            is SP (Tab2DigitizingMixin._is_sp_attribute()). SP点名は英数字の
+            自由記述（edit_point_name_sp と同じバリデーション）で入力させ、
+            それ以外は従来通り整数QSpinBoxで入力させる (see T-0040 followup
+            fix: SP属性は解除モード固定のため、このダイアログ経由でしか
+            SP点名を入力できない).
+        :type is_sp_attribute: bool
+        :param parent: Optional parent QWidget.
+        :type parent: Optional[QWidget]
+        """
+        super().__init__(parent)
+        self._point_layer = point_layer
+        self._excavation_type = excavation_type
+        self._feature_name = feature_name
+        self._drawing_name = drawing_name
+        self._is_sp_attribute = is_sp_attribute
+        self.result_point_name: str = ""
+        self.result_branch_no: str = ""
+
+        self.setWindowTitle(UILabels.POINT_NAME_ENTRY_DIALOG_TITLE)
+        self.setModal(True)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+        )
+        layout.setSpacing(UIConfig.DIALOG_MARGIN)
+
+        layout.addWidget(QLabel(UILabels.POINT_NAME, self))
+        self.spin_point_name: Optional[QSpinBox] = None
+        self.edit_point_name_sp: Optional[QLineEdit] = None
+        if self._is_sp_attribute:
+            # SP属性: edit_point_name_sp (tab2_digitizing_mixin.py) と同じ
+            # 英数字・ハイフン・アンダースコアのみ許可のバリデータを踏襲する。
+            self.edit_point_name_sp = QLineEdit(self)
+            self.edit_point_name_sp.setPlaceholderText(UIPlaceholders.POINT_NAME_SP)
+            self.edit_point_name_sp.setValidator(
+                QRegExpValidator(QRegExp(r"^[A-Za-z0-9_-]+$"), self.edit_point_name_sp)
+            )
+            layout.addWidget(self.edit_point_name_sp)
+        else:
+            self.spin_point_name = UIStyleHelper.create_spinbox(1, 999999, 1, self)
+            layout.addWidget(self.spin_point_name)
+
+        layout.addWidget(QLabel(UILabels.BRANCH_NO, self))
+        self.edit_branch_no = QLineEdit(self)
+        self.edit_branch_no.setPlaceholderText(UIPlaceholders.BRANCH_NO)
+        layout.addWidget(self.edit_branch_no)
+
+        self.lbl_error = QLabel("", self)
+        self.lbl_error.setStyleSheet("color: #C62828;")
+        self.lbl_error.setWordWrap(True)
+        self.lbl_error.hide()
+        layout.addWidget(self.lbl_error)
+
+        self.btn_ok = QPushButton(UILabels.BTN_CONFIRM, self)
+        UIStyleHelper.set_primary_button(self.btn_ok)
+        self.btn_ok.clicked.connect(self._on_ok_clicked)
+
+        self.btn_cancel = QPushButton(UILabels.BTN_CANCEL, self)
+        self.btn_cancel.clicked.connect(self.reject)
+
+        layout.addLayout(UIStyleHelper.build_centered_button_row([self.btn_ok, self.btn_cancel]))
+
+    def _get_point_name_text(self) -> str:
+        """Return the currently entered 点名 as a string, regardless of which
+        input widget (spin_point_name / edit_point_name_sp) is active for the
+        current 属性 (SP or not, see __init__'s is_sp_attribute).
+
+        :return: 点名 as a string (e.g. "123" for non-SP, "SP-1" for SP).
+        :rtype: str
+        """
+        if self._is_sp_attribute:
+            return self.edit_point_name_sp.text().strip()
+        return str(self.spin_point_name.value())
+
+    def _on_ok_clicked(self) -> None:
+        """Validate (duplicate-check) the entered 点名/枝番 and accept if unique."""
+        point_name = self._get_point_name_text()
+        branch_no = self.edit_branch_no.text().strip()
+
+        if self._is_sp_attribute and not point_name:
+            self.lbl_error.setText(UIMessages.ERR_POINT_NAME_REQUIRED)
+            self.lbl_error.show()
+            return
+
+        is_dup = check_point_duplicate(
+            self._point_layer,
+            self._excavation_type,
+            self._feature_name,
+            point_name,
+            branch_no,
+            self._drawing_name,
+        )
+        if is_dup:
+            ident = build_point_ident(
+                self._excavation_type,
+                self._feature_name,
+                point_name,
+                branch_no,
+                self._drawing_name,
+            )
+            self.lbl_error.setText(ident)
+            self.lbl_error.show()
+            return
+
+        self.result_point_name = point_name
+        self.result_branch_no = branch_no
+        self.accept()
+
+    def get_values(self) -> Tuple[str, str]:
+        """Return the validated (point_name, branch_no) pair after an accepted dialog.
+
+        :return: Tuple of (point_name, branch_no) strings.
+        :rtype: Tuple[str, str]
+        """
+        return self.result_point_name, self.result_branch_no

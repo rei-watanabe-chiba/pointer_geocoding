@@ -207,6 +207,8 @@ class UILabels:
     BTN_CREATE_FEATURE = "作成"
     FEATURE_CREATE_DIALOG_TITLE = "遺構名作成"
     NEW_FEATURE_NAME = "新規遺構名:"
+    # --- T-0040: 新規モード「解除」時のクリック位置への点名・枝番入力ダイアログ ---
+    POINT_NAME_ENTRY_DIALOG_TITLE = "点名・枝番入力"
     # --- T-0032: 点情報パネル ステータス帯 文言 ---
     STATUS_NEW_POINT = "新規点作成"
     STATUS_EDIT_POINT = "既設点編集"
