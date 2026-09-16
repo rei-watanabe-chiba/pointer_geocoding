@@ -159,6 +159,9 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
         )
         self.map_tool.canvas_clicked.connect(self._on_canvas_clicked)
         self.map_tool.existing_point_selected.connect(self._on_existing_point_selected)
+        # T-0039: blank click in edit mode deselects the current feature
+        # (edit mode itself is left unchanged).
+        self.map_tool.blank_click_in_edit_mode.connect(self._on_blank_click_in_edit_mode)
         # Step3-B: react to LayerManager persisting settings, rather than the
         # settings-apply handler doing the UI refresh inline.
         self.layer_manager.settings_changed.connect(self._on_layer_manager_settings_changed)

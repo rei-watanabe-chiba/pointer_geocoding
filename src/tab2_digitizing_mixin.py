@@ -1627,6 +1627,22 @@ class Tab2DigitizingMixin:
         self._update_point_info_status()
         self._suppress_realtime_commit = False
 
+    @pyqtSlot()
+    def _on_blank_click_in_edit_mode(self) -> None:
+        """Deselect the current feature on a blank-space click in edit mode.
+
+        T-0039: CanvasDigitizingTool._handle_digitize_click() emits
+        blank_click_in_edit_mode when a click while in edit mode misses
+        every existing feature (snap detection failed). This clears the
+        current selection (form reverts to new-point-creation display,
+        selection marker cleared) via _reset_point_selection(), while
+        leaving self.tab2_current_mode ("edit") untouched — only the
+        mode-change handler (_on_tab2_mode_changed) may alter the mode.
+        """
+        if self.selected_edit_point_id is None:
+            return
+        self._reset_point_selection()
+
     def _reset_point_selection(self) -> None:
         """Reset form back to new point creation mode."""
         self.selected_edit_point_id = None
