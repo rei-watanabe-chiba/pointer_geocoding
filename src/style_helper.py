@@ -62,6 +62,19 @@ class UIStyleHelper:
             color: palette(window-text);
         }
 
+        /* T-0041: override for title-less QGroupBox instances (e.g. tab2's
+           group_point_info, whose title was removed in T-0033). The base
+           QGroupBox rule above reserves margin-top/padding-top for title
+           text; without a title that space is wasted, showing up as excess
+           whitespace above the box (most noticeable directly below the
+           新規/編集モード segmented toggle added in T-0036, which has no
+           title-area spacing to visually absorb it). Widgets opt in via
+           setProperty("titleless", True). */
+        QGroupBox[titleless="true"] {
+            margin-top: 0px;
+            padding-top: 6px;
+        }
+
         /* Input Controls - Rounded, padded, base-palette responsive */
         QLineEdit, QgsFilterLineEdit, QComboBox {
             background-color: palette(base);
@@ -77,7 +90,6 @@ class UIStyleHelper:
         QLineEdit:focus, QgsFilterLineEdit:focus, QComboBox:focus {
             border: 1.5px solid palette(highlight);
         }
-
 
         /* Default Buttons */
         QPushButton {

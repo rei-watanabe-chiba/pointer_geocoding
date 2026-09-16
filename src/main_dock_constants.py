@@ -290,6 +290,10 @@ class UIMessages:
     MSG_RENAME_LAYER_SUCCESS = "レイヤ名を '{old}' から '{new}' に変更しました。"
     ERR_POINT_NAME_REQUIRED = "点名（点番号）を入力してください。"
     ERR_NEW_FEATURE_REQUIRED = "新規遺構名を入力してください。"
+    # --- T-0041: PointNameEntryDialog重複エラー文言を点情報パネルの
+    # UILabels.STATUS_ERR_DUPLICATE("点名重複エラー")と揃えるためのプレフィックス付き
+    # フォーマット。core_logic.build_point_ident()が返す識別子文字列と組み合わせて使う。 ---
+    ERR_POINT_NAME_DUPLICATE = UILabels.STATUS_ERR_DUPLICATE + ": {ident}"
     MSG_DELETE_SUCCESS_TITLE = "ポイント削除"
     MSG_DELETE_SUCCESS = "ポイントを削除しました。"
     MSG_EXPORT_CSV_TITLE = "CSV出力完了"
