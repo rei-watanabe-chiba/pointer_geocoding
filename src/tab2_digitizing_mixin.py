@@ -136,6 +136,29 @@ class Tab2DigitizingMixin:
         layout.setSpacing(UIConfig.PANEL_MARGIN)
 
         # =============================================================
+        # T-0036: tab2先頭の新規/編集モード切替トグル。tab1_georef_mixin.py の
+        # self.tab1_mode_container/tab1_mode_buttons と同じ
+        # UIStyleHelper.build_segmented_toggle() パターンを踏襲する。
+        # 今回はUI表示の切替(点情報パネルのボタンエリア)のみを担当し、
+        # 既存のselected_edit_point_id/キャンバスクリック処理には接続しない
+        # (実際のクリック挙動連動はT-0037で別途実装)。
+        # =============================================================
+        self.tab2_current_mode = "new"
+        self.tab2_mode_container, self.tab2_mode_buttons = UIStyleHelper.build_segmented_toggle(
+            [UILabels.TAB2_MODE_NEW, UILabels.TAB2_MODE_EDIT], default_index=0, parent=container
+        )
+        tab2_mode_row = UIStyleHelper.build_flex_row(
+            main_label=None,
+            child_configs=[(self.tab2_mode_container, 1)],
+            main_ratio=(0, 10),
+            row_height=UIConfig.ROW_HEIGHT,
+        )
+        layout.addWidget(tab2_mode_row)
+
+        self.tab2_mode_buttons[0].toggled.connect(lambda checked: self._on_tab2_mode_changed(0) if checked else None)
+        self.tab2_mode_buttons[1].toggled.connect(lambda checked: self._on_tab2_mode_changed(1) if checked else None)
+
+        # =============================================================
         # Panel 1: 点情報パネル (T-0033: title removed; the status band +
         # 出土形態/点名+枝番/XY座標 summary is now a single flat multi-line
         # QLabel inside a left-border color-coded QFrame, matching
@@ -211,9 +234,13 @@ class Tab2DigitizingMixin:
         )
         info_layout.addWidget(row_branch_no)
 
-        # Existing-point-only actions: 削除 (immediate, no confirmation) /
-        # 点名変更 (T-0032: commits the current edit_point_name(_sp)/edit_branch_no
-        # values directly to the selected feature; no longer opens a dialog).
+        # Existing-point-only actions: 点名変更 (T-0032: commits the current
+        # edit_point_name(_sp)/edit_branch_no values directly to the selected
+        # feature; no longer opens a dialog). T-0036: 削除(btn_delete_point)
+        # is relocated below into the mode-linked button area
+        # (widget_edit_mode_actions); this row now holds only 点名変更, and
+        # T-0038 is expected to retire it entirely once attribute changes
+        # become real-time (per this task's scope note, left untouched here).
         self.row_existing_actions = QWidget(self.group_point_info)
         existing_actions_layout = QHBoxLayout(self.row_existing_actions)
         existing_actions_layout.setContentsMargins(0, 0, 0, 0)
@@ -223,12 +250,51 @@ class Tab2DigitizingMixin:
         self.btn_rename_point.clicked.connect(self._on_rename_point_clicked)
         existing_actions_layout.addWidget(self.btn_rename_point)
 
-        self.btn_delete_point = QPushButton(UILabels.BTN_DELETE_POINT, self.row_existing_actions)
-        self.btn_delete_point.clicked.connect(self._on_delete_selected_point)
-        existing_actions_layout.addWidget(self.btn_delete_point)
-
         info_layout.addWidget(self.row_existing_actions)
         self.row_existing_actions.hide()
+
+        # =============================================================
+        # T-0036: モード連動ボタンエリア。新規モード=自動連番/解除トグル
+        # (自動連番=既存の直前打刻追従型採番を適用/解除=点名フィールドへの
+        # 自動上書きをスキップしユーザーの手入力を許す。SP属性選択時は
+        # 元々自動採番の対象外なので、トグルは自動的に「解除」側へ固定し
+        # 無効化する。see _update_autonum_toggle_for_sp)、
+        # 編集モード=削除のみ(btn_delete_point。既存の削除ロジックは変更しない)。
+        # この2つの領域はtab2_current_mode(①のトグル)に連動して表示/非表示を
+        # 切り替えるのみで、selected_edit_point_id/キャンバスクリック処理とは
+        # 独立している(T-0037で別途統合予定)。
+        # =============================================================
+        self.tab2_autonum_mode = "auto"
+        self.tab2_autonum_container, self.tab2_autonum_buttons = UIStyleHelper.build_segmented_toggle(
+            [UILabels.AUTONUM_MODE_AUTO, UILabels.AUTONUM_MODE_RELEASE],
+            default_index=0,
+            parent=self.group_point_info,
+        )
+        self.tab2_autonum_buttons[0].toggled.connect(
+            lambda checked: self._on_tab2_autonum_mode_changed(0) if checked else None
+        )
+        self.tab2_autonum_buttons[1].toggled.connect(
+            lambda checked: self._on_tab2_autonum_mode_changed(1) if checked else None
+        )
+
+        self.widget_new_mode_actions = QWidget(self.group_point_info)
+        new_mode_actions_layout = QHBoxLayout(self.widget_new_mode_actions)
+        new_mode_actions_layout.setContentsMargins(0, 0, 0, 0)
+        new_mode_actions_layout.setSpacing(8)
+        new_mode_actions_layout.addWidget(self.tab2_autonum_container)
+        info_layout.addWidget(self.widget_new_mode_actions)
+
+        self.widget_edit_mode_actions = QWidget(self.group_point_info)
+        edit_mode_actions_layout = QHBoxLayout(self.widget_edit_mode_actions)
+        edit_mode_actions_layout.setContentsMargins(0, 0, 0, 0)
+        edit_mode_actions_layout.setSpacing(8)
+
+        self.btn_delete_point = QPushButton(UILabels.BTN_DELETE_POINT, self.widget_edit_mode_actions)
+        self.btn_delete_point.clicked.connect(self._on_delete_selected_point)
+        edit_mode_actions_layout.addWidget(self.btn_delete_point)
+
+        info_layout.addWidget(self.widget_edit_mode_actions)
+        self.widget_edit_mode_actions.hide()
 
         layout.addWidget(self.group_point_info)
 
@@ -893,10 +959,76 @@ class Tab2DigitizingMixin:
 
         S/P/C attributes use the QSpinBox (edit_point_name); SP uses the
         free-text QLineEdit (edit_point_name_sp). See T-0022.
+
+        T-0036: also keeps the 自動連番/解除 toggle (tab2_autonum_container)
+        in sync with the SP selection, since SP already has its own
+        always-manual numbering behavior (see _update_autonum_toggle_for_sp).
         """
         is_sp = self._is_sp_attribute()
         self.edit_point_name.setVisible(not is_sp)
         self.edit_point_name_sp.setVisible(is_sp)
+        self._update_autonum_toggle_for_sp(is_sp)
+
+    def _update_autonum_toggle_for_sp(self, is_sp: bool) -> None:
+        """Force the 自動連番/解除 toggle to 解除+disabled while SP is selected.
+
+        SP attributes never use the QSpinBox auto-numbering widget (they use
+        edit_point_name_sp, a free-text field awaiting manual entry per
+        T-0022/_apply_next_point_number), so the 自動連番/解除 toggle would be
+        meaningless while SP is active. T-0036: automatically select 解除
+        (index 1) and disable both buttons in that case; re-enable them (and
+        leave whichever side the user last had selected) once a non-SP
+        attribute is selected again.
+
+        :param is_sp: Whether the currently selected attribute is SP.
+        :type is_sp: bool
+        """
+        if not hasattr(self, "tab2_autonum_buttons"):
+            return
+        if is_sp:
+            if not self.tab2_autonum_buttons[1].isChecked():
+                self.tab2_autonum_buttons[1].setChecked(True)
+            self.tab2_autonum_buttons[0].setEnabled(False)
+            self.tab2_autonum_buttons[1].setEnabled(False)
+        else:
+            self.tab2_autonum_buttons[0].setEnabled(True)
+            self.tab2_autonum_buttons[1].setEnabled(True)
+
+    def _on_tab2_autonum_mode_changed(self, index: int) -> None:
+        """Handle 自動連番(0)/解除(1) toggle changes in the 新規モード button area.
+
+        自動連番 re-applies the existing "直前打刻追従型" auto-numbering
+        (core_logic.get_next_point_number, unchanged) to edit_point_name
+        immediately. 解除 leaves the current edit_point_name value untouched
+        so the user can type a point name manually; see _apply_next_point_number
+        for where this flag is consulted to skip the auto-overwrite.
+
+        :param index: 0 for 自動連番, 1 for 解除.
+        :type index: int
+        """
+        self.tab2_autonum_mode = "auto" if index == 0 else "release"
+        if self.tab2_autonum_mode == "auto" and not self._is_sp_attribute():
+            self.edit_point_name.setValue(self._get_next_point_number())
+            self._refresh_point_info_labels()
+
+    def _on_tab2_mode_changed(self, index: int) -> None:
+        """Handle tab2先頭の新規(0)/編集(1)モードトグルの切り替え (T-0036).
+
+        This only toggles which button area is visible inside 点情報パネル
+        (新規モード=自動連番/解除トグル、編集モード=削除ボタンのみ). It is
+        intentionally independent from selected_edit_point_id and the
+        existing canvas click handlers (_on_canvas_clicked /
+        _on_existing_point_selected) -- integrating actual click behavior
+        with this mode is planned separately for T-0037.
+
+        :param index: 0 for 新規, 1 for 編集.
+        :type index: int
+        """
+        self.tab2_current_mode = "new" if index == 0 else "edit"
+        if hasattr(self, "widget_new_mode_actions"):
+            self.widget_new_mode_actions.setVisible(self.tab2_current_mode == "new")
+        if hasattr(self, "widget_edit_mode_actions"):
+            self.widget_edit_mode_actions.setVisible(self.tab2_current_mode == "edit")
 
     def _get_next_point_number(self) -> int:
         """Calculate next point number based on current excavation type and feature name.
@@ -1144,11 +1276,17 @@ class Tab2DigitizingMixin:
         "直前打刻追従型" numbering logic. For SP, auto-numbering is skipped
         entirely and the free-text QLineEdit is cleared, awaiting manual entry.
         T-0027: also refreshes the 点情報パネル preview labels.
+
+        T-0036: for S/P/C attributes, the QSpinBox auto-increment is further
+        gated by the 自動連番/解除 toggle (tab2_autonum_mode) -- while 解除 is
+        selected, the current edit_point_name value is left untouched instead
+        of being overwritten, so the user can type a point name manually
+        (mirrors, but does not replace, the SP-only manual-entry path above).
         """
         self._update_point_name_widget_visibility()
         if self._is_sp_attribute():
             self.edit_point_name_sp.clear()
-        else:
+        elif getattr(self, "tab2_autonum_mode", "auto") == "auto":
             next_num = self._get_next_point_number()
             self.edit_point_name.setValue(next_num)
         self._refresh_point_info_labels()

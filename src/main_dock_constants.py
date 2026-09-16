@@ -214,6 +214,13 @@ class UILabels:
     STATUS_EDIT_POINT = "既設点編集"
     STATUS_ERR_FEATURE_REQUIRED = "遺構名未指定"
     STATUS_ERR_DUPLICATE = "点名重複エラー"
+    # --- T-0036: tab2先頭の新規/編集モード切替トグル、点情報パネルの
+    # モード連動ボタンエリア(新規モード=自動連番/解除トグル、編集モード=削除)。
+    # 命名はtab1_georef_mixin.pyの新規追加/編集削除トグルの命名パターンに揃える。 ---
+    TAB2_MODE_NEW = "新規"
+    TAB2_MODE_EDIT = "編集"
+    AUTONUM_MODE_AUTO = "自動連番"
+    AUTONUM_MODE_RELEASE = "解除"
     ENCODING = "文字コード:"
     RADIO_UTF8 = "UTF-8 (BOM付き)"
     RADIO_SJIS = "Shift-JIS"
