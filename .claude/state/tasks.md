@@ -16,9 +16,14 @@ v2開発はタスクIDをT-0043から連番継続する。
 
 ## 進行中
 
+**巨大3ファイル(tab2_plot.py/tab1_image.py/start_dialog.py)対応の計画（T-0044〜T-0047）**:
+T-0044 QSpinBoxへの安全なQSS適用パターンの単体検証(矢印つぶれ対策) → T-0045 CoreUI(宣言的UI構築エンジン+汎用業務ロジックルール)の試作、tab1_image.pyに適用 → T-0046 start_dialog.py等その他画面への展開 → T-0047 tab2_plot.pyへの適用。
+T-0044がQGISで人手確認OKになった場合のみ、`docs/integrated_master_design.md`のQSpinBox QSS絶対禁止原則を「安全パターンに限り許可」へ改訂してからT-0045へ進む。
+
 | タスクID | 内容 | 状態 | 実装ログ | 検証結果 | 人手確認 |
 |---|---|---|---|---|---|
 | T-0043 | v2開始: src配下を責務別フォルダ(ui/layer/logic/canvas)へ再構成。ロジック変更なし、ファイル移動+import文の追従修正のみ。設計書(1.3/1.4節)も新パスへ追従更新済み | 完了 | `.claude/logs/implement/2026-09-16-T-0043-restructure-src-into-responsibility-folders.md` | 静的検証: 問題なし | 完了 |
+| T-0044 | QSpinBoxへの安全なQSS適用パターン検証。枠線/背景/フォーカス色/`min-width`のみをQSSで指定し、`::up-arrow`/`::down-arrow`にはimageを指定せずベーススタイルの矢印描画へフォールバックさせることで、T-0041で発生した矢印消失の回帰を避けつつ矢印つぶれ(狭幅起因)を解消する。`UIStyleHelper.get_style_sheet()`へQSpinBox用QSSを追加し、`create_spinbox()`が生成する全箇所(tab2の点名/枝番、start_dialogのグリッド設定等)に適用 | 実装中 | - | - | - |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
