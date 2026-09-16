@@ -14,16 +14,19 @@
 
 v2開発はタスクIDをT-0043から連番継続する。
 
+## v2開発フェーズ（完了・統合済み）
+
+| タスクID | 概要 | 状態 |
+|---|---|---|
+| T-0043 | src配下を責務別フォルダ(ui/layer/logic/canvas)へ再構成。ロジック変更なし、ファイル移動+import文の追従修正のみ | 完了 |
+| T-0044 | QSpinBoxへの安全なQSS適用パターン確立(矢印つぶれ対策)。試行錯誤の詳細は`.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md`参照。確定した安全パターン: ①ボタン`subcontrol-position`必須指定 ②矢印グリフはborder-triangleハック不可・base64データURIも不可(QTBUG-51081)、`src/icon/`の実SVGファイルを絶対パスurl()参照 ③押下フィードバックはボタン背景色変化ではなく矢印アイコン自体の色替え(`::up-arrow:pressed`等)で行う(背景色変化はフォーカス枠等とのボックスモデル重なりを誘発するため不採用) | 完了 |
+
 ## 進行中
 
-**巨大3ファイル(tab2_plot.py/tab1_image.py/start_dialog.py)対応の計画（T-0044〜T-0047）**:
-T-0044 QSpinBoxへの安全なQSS適用パターンの単体検証(矢印つぶれ対策) → T-0045 CoreUI(宣言的UI構築エンジン+汎用業務ロジックルール)の試作、tab1_image.pyに適用 → T-0046 start_dialog.py等その他画面への展開 → T-0047 tab2_plot.pyへの適用。
-T-0044がQGISで人手確認OKになった場合のみ、`docs/integrated_master_design.md`のQSpinBox QSS絶対禁止原則を「安全パターンに限り許可」へ改訂してからT-0045へ進む。
+**巨大3ファイル(tab2_plot.py/tab1_image.py/start_dialog.py)対応の計画（T-0045〜T-0047）**:
+詳細計画は`.claude/state/v2-coreui-plan.md`を参照。T-0045 CoreUI(宣言的UI構築エンジン+汎用業務ロジックルール)の試作、tab1_image.pyに適用 → T-0046 start_dialog.py等その他画面への展開 → T-0047 tab2_plot.pyへの適用。
 
-| タスクID | 内容 | 状態 | 実装ログ | 検証結果 | 人手確認 |
-|---|---|---|---|---|---|
-| T-0043 | v2開始: src配下を責務別フォルダ(ui/layer/logic/canvas)へ再構成。ロジック変更なし、ファイル移動+import文の追従修正のみ。設計書(1.3/1.4節)も新パスへ追従更新済み | 完了 | `.claude/logs/implement/2026-09-16-T-0043-restructure-src-into-responsibility-folders.md` | 静的検証: 問題なし | 完了 |
-| T-0044 | QSpinBoxへの安全なQSS適用パターン検証。人手確認4回目で矢印表示・クリック動作とも正常化を確認(この時点がコアの安定状態)。押下フィードバックをボタン背景色変化(`:pressed`のbackground-color)で実装したところ、フォーカス枠オーバーラップ→修正→input全体の背景色崩壊、と繰り返し不具合が連鎖したため、背景色変化アプローチを完全に撤去し、矢印SVG自体の色変化(`::up-arrow:pressed`/`::down-arrow:pressed`、濃いグレー#404040の別SVGへ差し替え)で押下フィードバックを表現する方式へ転換 | 人手確認待ち | `.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md` | 静的検証: 問題なし(コア部分。矢印色変化方式は軽微につき統括レビューのみ) | - |
+（現在、進行中のタスクなし。T-0045から着手）
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
