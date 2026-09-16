@@ -527,11 +527,45 @@ class CanvasDigitizingTool(QgsMapTool):
         self._handle_digitize_click(map_point)
 
     def _handle_digitize_click(self, map_point: QgsPointXY) -> None:
-        """Process click event on main georeferenced canvas."""
+        """Process click event on main georeferenced canvas.
+
+        T-0037: click behavior now branches on the dock widget's
+        tab2_current_mode ("new" / "edit", set by
+        Tab2DigitizingMixin._on_tab2_mode_changed):
+
+        - "new" mode: existing-feature snap detection is skipped entirely;
+          every click is treated as a plain canvas click and forwarded to
+          MainDockWidget._on_canvas_clicked for new-point digitizing.
+        - "edit" mode: only existing-feature snap detection is performed;
+          a hit selects the point via existing_point_selected as before,
+          but a miss (blank click) does nothing (no new point is created,
+          and — per T-0037 — no selection-clear/reset side effect either).
+
+        Falls back to "new" mode if tab2_current_mode is missing or holds
+        an unexpected value (defensive default, mirroring T-0036's
+        default_index=0 = new mode).
+        """
         if not self.dock_widget:
             return
 
-        # 1. Check for existing point selection within 15px tolerance (filtered by focus mode if active)
+        mode = getattr(self.dock_widget, "tab2_current_mode", "new")
+        if mode not in ("new", "edit"):
+            mode = "new"
+
+        if mode == "new":
+            # New mode: always a plain canvas click, no snap-to-existing-
+            # feature check. Input validation, duplicate checking, feature
+            # construction and the layer write are all handled by
+            # MainDockWidget._on_canvas_clicked (Step3: event-driven
+            # decoupling — this tool no longer reads dock_widget state or
+            # touches point_layer directly).
+            self.clear_selected_marker()
+            self.canvas_clicked.emit(map_point)
+            return
+
+        # Edit mode: only snap-to-existing-feature selection; a blank-space
+        # click is intentionally a no-op (T-0037 removes the former
+        # "blank click deselects" behavior).
         nearest = self.find_nearest_feature_id(map_point)
         if nearest is not None:
             fid, _ = nearest
@@ -559,16 +593,6 @@ class CanvasDigitizingTool(QgsMapTool):
                 # selection changes).
                 self.show_selected_marker(QgsPointXY(feat["canvas_x"], feat["canvas_y"]))
                 self.existing_point_selected.emit(data)
-                return
-
-        # 2. No existing point hit: this is a plain canvas click, which clears
-        # any active selection marker (T-0023). Input validation, duplicate
-        # checking, feature construction and the layer write are all handled
-        # by MainDockWidget._on_canvas_clicked (Step3: event-driven
-        # decoupling — this tool no longer reads dock_widget state or touches
-        # point_layer directly).
-        self.clear_selected_marker()
-        self.canvas_clicked.emit(map_point)
 
     def clean_up(self) -> None:
         """Remove canvas vertex markers safely."""

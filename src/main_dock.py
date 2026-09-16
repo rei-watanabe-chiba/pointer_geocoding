@@ -145,6 +145,13 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
         self.selected_edit_point_id: Optional[int] = None
         self.feature_name_list: List[str] = []
         self._has_digitized_with_branch: bool = False
+        # T-0036: tab2先頭の新規/編集モード切替トグル、および点情報パネルの
+        # 自動連番/解除トグルの状態。実体は_create_tab2_ui()内で再設定される
+        # (self.tab2_mode_container/self.tab2_autonum_container構築時)が、
+        # selected_edit_point_idと同様、UI構築前からgetattr()で安全に参照
+        # できるようここでも初期化しておく。
+        self.tab2_current_mode: str = "new"
+        self.tab2_autonum_mode: str = "auto"
 
         # Main digitizing tool for real-world canvas
         self.map_tool = CanvasDigitizingTool(
