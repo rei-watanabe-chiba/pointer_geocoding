@@ -119,7 +119,7 @@ class UIStyleHelper:
         }
 
         QSpinBox:focus {
-            border: 1.5px solid palette(highlight);
+            border: 1px solid palette(highlight);
         }
 
         /* T-0044 follow-up: up-button/down-button now each declare their own

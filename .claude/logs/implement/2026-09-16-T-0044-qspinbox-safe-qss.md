@@ -185,3 +185,28 @@ QSpinBox::down-button:pressed {
 
 ### スコープ外変更の有無（押下フィードバックの角丸修正）
 なし。変更は`src/ui/style.py`の`get_style_sheet()`内、`QSpinBox::up-button:pressed`/`QSpinBox::down-button:pressed`ルールをそれぞれ個別セレクタに分離し角丸を再宣言した点のみ。
+
+## フォーカスボーダー幅の統一修正（2026-09-16）
+
+### 不具合内容
+ユーザーがQGIS上で確認したところ、フォーカス時の青いボーダー（`QSpinBox:focus { border: 1.5px solid palette(highlight); }`）の上に、上下ボタンの背景色（`::up-button`/`::down-button`、押下時は`:pressed`）がオーバーラップして表示され、フォーカス枠が一部隠れてしまう不具合が判明した。
+
+### 原因
+ベースの`QSpinBox`ルールは`border: 1px solid palette(mid);`で1px幅。フォーカス時のみ`1.5px`へ太くなるため、あらかじめ1px基準で配置されているup-button/down-buttonサブコントロールのジオメトリとズレが生じ、太くなった分のボーダー領域にボタンの背景色が重なって見えていたと考えられる。
+
+### 修正概要
+`src/ui/style.py`の`get_style_sheet()`内、`QSpinBox:focus`ルールのボーダー幅をベースと同じ`1px`に変更した（色は`palette(highlight)`のまま）。
+
+```css
+QSpinBox:focus {
+    border: 1px solid palette(highlight);
+}
+```
+
+依頼の制約通り、このボーダー幅の値以外は変更していない。`QSpinBox`本体・`::up-button`/`::down-button`（`:pressed`含む）・矢印画像参照(`image: url(...)`)には一切手を加えていない。他ウィジェット（`QLineEdit`/`QgsFilterLineEdit`/`QComboBox`の`:focus`ルール、`1.5px`のまま）にも変更はない。`create_spinbox()`のロジックも変更していない。
+
+### 自動テスト実行結果（フォーカスボーダー幅の統一修正）
+自動テストなし。`python3 -m py_compile src/ui/style.py`を実行し、構文エラーがないことを確認した（成功、エラーなし）。
+
+### スコープ外変更の有無（フォーカスボーダー幅の統一修正）
+なし。変更は`src/ui/style.py`の`get_style_sheet()`内、`QSpinBox:focus`ルールのボーダー幅を`1.5px`から`1px`に変更した1点のみ。他ファイル・他ウィジェットの`:focus`ルールには手を加えていない。
