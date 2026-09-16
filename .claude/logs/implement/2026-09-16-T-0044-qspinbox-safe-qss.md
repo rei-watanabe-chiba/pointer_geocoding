@@ -69,3 +69,27 @@ T-0044
 
 ### スコープ外変更の有無（2回目のフォローアップ）
 なし。`src/ui/style.py` の `get_style_sheet()` メソッド内、矢印サブコントロールルールの追加と、それに伴う直前コメントの更新のみ。他ファイル・`create_spinbox()` 自体・矢印以外の既存ルールには手を加えていない。
+
+---
+
+## 3回目のフォローアップ修正（2026-09-16）
+
+### 不具合内容
+2回目のフォローアップで追加したボーダートリック方式（`border-left`/`border-right: transparent` + 片側のみ色付きボーダー）による矢印描画が、人手確認で三角形ではなく**黒塗りの四角形**として表示される不具合が判明した。Web調査の結果、QSSのボーダートリックによる三角形描画はQtの`QSpinBox`矢印サブコントロールに対して既知の不安定挙動であり（Qt Forum等で同様の報告あり）、公式に推奨される解決策は`image`プロパティで実際のアイコン画像を指定する方式であることが判明した。
+
+### 修正概要
+`src/ui/style.py` の `get_style_sheet()` 内、`QSpinBox::up-arrow` / `QSpinBox::down-arrow` ルールを、ボーダートリック方式からインラインSVG（base64データURI）を`image`プロパティで指定する方式へ置き換えた。
+
+- `QSpinBox::up-arrow`: `border-left`/`border-right`/`border-bottom`を用いたボーダートリック記述を削除し、`image: url(data:image/svg+xml;base64,...)`（8x6の上向き三角形SVG、`fill="#6B6B6B"`）、`width: 8px; height: 6px;` に置き換えた。
+- `QSpinBox::down-arrow`: 同様に`border-left`/`border-right`/`border-top`のボーダートリック記述を削除し、`image: url(data:image/svg+xml;base64,...)`（8x6の下向き三角形SVG、`fill="#6B6B6B"`）、`width: 8px; height: 6px;` に置き換えた。
+- base64文字列は改行を含まない1行の値として埋め込んだ。QSS全体はPythonのプレーンな三重引用符文字列（f-stringではない）内にあるため、base64中の記号（`+`, `/`, `=`）とPython構文の衝突はない（該当のbase64値自体にはこれらの記号は含まれていない）。
+
+**トレードオフ（依頼通り）**: 矢印の色は依頼指定のニュートラルグレー `#6B6B6B` にSVG内で固定した。2回目のフォローアップで採用していた `palette(text)` によるダーク/ライトモード自動追従は今回廃止しており、テーマに関わらず常に同じグレーで表示される。この点は依頼文の指示通り「テーマ非追従の固定色でよい」との承認に基づく仕様であり、今回はこれ以上の追従対応（動的SVG生成等）は行っていない。
+
+既存の `QSpinBox` 本体・`QSpinBox:focus`・`QSpinBox::up-button`/`QSpinBox::down-button`（`subcontrol-position`含む）には変更を加えていない。`create_spinbox()` のロジックにも変更はない。
+
+### 自動テスト実行結果（3回目のフォローアップ）
+自動テストなし。`python3 -m py_compile src/ui/style.py` を実行し、構文エラーがないことを確認した（成功、エラーなし）。
+
+### スコープ外変更の有無（3回目のフォローアップ）
+なし。`src/ui/style.py` の `get_style_sheet()` メソッド内、`QSpinBox::up-arrow`/`QSpinBox::down-arrow` ルールの中身（矢印描画方式）の置き換えのみ。他ファイル・`create_spinbox()` 自体・矢印以外の既存ルールには手を加えていない。

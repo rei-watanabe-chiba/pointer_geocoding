@@ -133,29 +133,27 @@ class UIStyleHelper:
             border-bottom-right-radius: 4px;
         }
 
-        /* T-0044 2nd follow-up: up-button/down-button sub-control geometry is
-           now correctly positioned (see note above), but the native arrow
-           glyphs were not being rendered inside them on some platforms/styles.
-           Draw the arrows explicitly using the border-trick (transparent
-           left/right borders + a single colored border to form a triangle).
-           palette(text) keeps the glyph color following the active theme
-           (dark/light mode) automatically. */
+        /* T-0044 3rd follow-up: the border-trick used previously (transparent
+           left/right borders + a single colored border to fake a triangle)
+           rendered as a solid black square rather than a triangle on the
+           QSpinBox arrow sub-controls (known-unstable behavior of the CSS
+           border-triangle hack against Qt's QSS arrow sub-controls; see Qt
+           Forum reports). The officially recommended workaround is to supply
+           an actual icon via the `image` property instead of drawing the
+           shape with borders. The SVG data URIs below are fixed 8x6 triangles
+           filled with a neutral gray (#6B6B6B); this is a fixed, theme-
+           non-adaptive color (does not follow palette(text) / dark-light
+           mode), which is an accepted trade-off for this fix. */
         QSpinBox::up-arrow {
-            image: none;
-            width: 0px;
-            height: 0px;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-bottom: 5px solid palette(text);
+            image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjYiIHZpZXdCb3g9IjAgMCA4IDYiPjxwYXRoIGQ9Ik00IDBMOCA2SDBaIiBmaWxsPSIjNkI2QjZCIi8+PC9zdmc+);
+            width: 8px;
+            height: 6px;
         }
 
         QSpinBox::down-arrow {
-            image: none;
-            width: 0px;
-            height: 0px;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-top: 5px solid palette(text);
+            image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjYiIHZpZXdCb3g9IjAgMCA4IDYiPjxwYXRoIGQ9Ik0wIDBIOEw0IDZaIiBmaWxsPSIjNkI2QjZCIi8+PC9zdmc+);
+            width: 8px;
+            height: 6px;
         }
 
         /* Default Buttons */
