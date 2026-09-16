@@ -24,10 +24,21 @@ v2開発はタスクIDをT-0043から連番継続する。
 
 ## 進行中
 
-**巨大3ファイル(tab2_plot.py/tab1_image.py/start_dialog.py)対応の計画（T-0045〜T-0047）**:
-詳細計画は`.claude/state/v2-coreui-plan.md`を参照。T-0045/T-0045-b完了。T-0046 start_dialog.py等その他画面への展開 → T-0047 tab2_plot.pyへの適用、が今後の予定。tab2改修時の申し送り事項は同ファイルの「⑤tab2改修（T-0046）への申し送り事項」節を参照。
+**巨大ファイル対応の計画（T-0045〜T-0051）**: 詳細計画は`.claude/state/v2-coreui-plan.md`を参照。
+T-0045/T-0045-b完了。`docs/fromGemini/`の2改定案を検討した結果、T-0046以降を以下の通り再構築
+（2026-09-16確定）。採用方針（UI→Logic→Layer→QGIS/Diskの単方向依存・薄いコントローラー化）、
+却下項目（core/2ファイル再編・SymbologyMixin剥離）の詳細は同ファイル「T-0046以降の方針確定」節
+を参照。tab2改修（T-0050）時の申し送り事項は同ファイルの「⑤tab2改修（旧T-0046、現T-0050）への
+申し送り事項」節を参照。
 
-（現在、進行中のタスクなし。T-0046のための調査を実施中）
+| タスクID | 概要 | 状態 |
+|---|---|---|
+| T-0046 | start_dialog.py（実測1101行）へCoreUI適用 | 承認待ち |
+| T-0047 | dialogs.py（実測808行）へCoreUI適用（GridInputDialog/FeatureCreateDialog/PointNameEntryDialog） | 承認待ち |
+| T-0048 | tab3_settings.py（実測367行）へCoreUI適用（最小規模から着手） | 承認待ち |
+| T-0049 | src/logic/分離状況の棚卸し（調査のみ、実装なし） | 承認待ち |
+| T-0050 | tab2_plot.py（実測1905行）へCoreUI適用＋T-0049結果に基づくlogic移管 | 承認待ち |
+| T-0051 | map_tool.pyのdock逆参照排除（getattr(self.dock_widget, "tab2_current_mode", "new")をPush通知化） | 承認待ち |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する

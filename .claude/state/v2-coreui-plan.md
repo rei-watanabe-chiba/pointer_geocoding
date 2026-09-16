@@ -1,4 +1,4 @@
-# v2: 巨大3ファイル対応 詳細計画（T-0045〜T-0047）
+# v2: 巨大3ファイル対応 詳細計画（T-0045〜T-0051）
 
 T-0043（責務別フォルダ再構成）・T-0044（QSpinBox安全QSSパターン確立）に続く、v2の中心テーマ。
 対象は1000行を超える3ファイル（`src/ui/tab2_plot.py` 1905行、`src/ui/tab1_image.py` 1151行、
@@ -188,8 +188,8 @@ T-0045-b完了後、ユーザーから「validators.py新設・LayerManager高�
 - `tab1_image.py`の`_on_confirm_image_clicked`内の3箇所（必須/禁止文字/重複チェック）を、
   「Validator生成→`show_validation_error`呼び出し→return」の3行程度に圧縮する。
 
-### ⑤tab2改修（T-0046）への申し送り事項
-explorer総合調査の⑤で判明した、tab2_plot.py(1906行)関連の所見をここに記録する。T-0046着手時に参照すること。
+### ⑤tab2改修（旧T-0046、現T-0050）への申し送り事項
+explorer総合調査の⑤で判明した、tab2_plot.py(1906行)関連の所見をここに記録する。T-0050着手時に参照すること。
 - tab2_plot.pyの肥大化要因はデジタイジング入力の状態管理の複雑さ（フォーカスモード/カテゴリフィルタ/
   既存点編集・新規点作成の分岐等、15〜20メソッド）そのものであり、単純なファイル分割では不十分。
   内部構造の明確化（Mixinのさらなる細分化、またはlogic層への移行）が必要。
@@ -200,6 +200,47 @@ explorer総合調査の⑤で判明した、tab2_plot.py(1906行)関連の所見
   （tab1のパターンをtab2にも展開できないか確認すること）。
 - ③のバリデーションヘルパー（`src/ui/core/validators.py`）は、tab1適用の実例を踏まえてtab2の
   重複チェック（`check_point_duplicate`呼び出し箇所）・必須チェックへの展開を検討する。
+
+## T-0046以降の方針確定（2026-09-16、docs/fromGemini/両改定案の検討結果）
+
+ユーザーから提示された2つの改定案（`docs/fromGemini/ui_refactoring_architecture.md`,
+`docs/fromGemini/repo_optimization_architecture.md`）を統括とユーザーで検討した結果、以下の通り
+方針が確定した。
+
+### 採用する設計思想（T-0046以降の共通方針）
+1. **UI→Logic→Layer→QGIS/Diskの単方向依存**: UIコントローラがQGIS低層API・ファイルI/Oを直接叩く
+   ことを避け、既存の`src/logic/`・LayerManagerを経由させる。
+2. **薄いコントローラー化**: UIファイルは「そのタブ/ダイアログ特有の処理」と「CoreUI
+   （field_spec/builder/rules/validators）・logic層・LayerManagerの汎用関数呼び出し」のみで
+   構成する。
+
+### 却下・保留した項目とその理由
+- `ui_refactoring_architecture.md`が提案した`src/ui/core/`の4ファイル（field_spec.py/builder.py/
+  rules.py/validators.py）から`engine.py`/`behavior.py`への2ファイル再編は**見送り**。理由:
+  提案の想定行数が実測と大きく乖離しており（例: tab2_plot.py 想定960行→実測1905行）、根拠が
+  薄弱なため。既存4ファイル構成（責務明確）を維持する。
+- `repo_optimization_architecture.md`が提案した`SymbologyMixin`剥離は**対象外**。理由:
+  調査の結果、`dock.py`は`SymbologyMixin`を多重継承しておらず、改定案の前提事実が誤りだった
+  ため。
+- 両改定案とも想定行数の精度に問題があるため、**今後の行数見積りは実測ベースで行う**こと
+  （改定案の数値をそのまま転記しない）。
+
+### T-0046以降のタスク再構築（いずれも状態は「承認待ち」）
+
+| タスクID | スコープ | 方針 |
+|---|---|---|
+| T-0046 | start_dialog.py（実測1101行）へCoreUI適用 | `get_session_data`等の手動フォーム読取りを`BuiltPanel.collect_values`化。`schemas.py`に`START_DIALOG_SPEC`追加。core/4ファイル構成は維持 |
+| T-0047 | dialogs.py（実測808行）へCoreUI適用 | `GridInputDialog`/`FeatureCreateDialog`/`PointNameEntryDialog`の3ダイアログをCoreUIDialogパターン化 |
+| T-0048 | tab3_settings.py（実測367行）へCoreUI適用 | 最小規模から着手し、パターン確立の足がかりにする |
+| T-0049 | `src/logic/`分離状況の棚卸し（調査のみ、実装なし） | tab2_plot.pyのFeature構築・採番処理のうち、既にlogicへ分離済みの範囲と未分離の範囲を実測で確認。新規service（`digitizing_service.py`等）の要否をここで判断してから着手する |
+| T-0050 | tab2_plot.py（実測1905行）へCoreUI適用＋T-0049の結果に基づくlogic移管 | UI側はCoreUI化、ロジック移管はT-0049の棚卸し結果次第でスコープ確定 |
+| T-0051 | map_tool.pyのdock逆参照排除 | `getattr(self.dock_widget, "tab2_current_mode", "new")`（509行・573行、実在確認済み）を`set_digitizing_mode`等の1-way Push通知に置換。UI変更と独立して着手可能な小粒タスク |
+
+旧計画で「T-0046: start_dialog.py等その他画面への展開」「T-0047: tab2_plot.pyへの適用」として
+記載していた内容は、上記表のT-0046〜T-0051に置き換える（tab2_plot.pyへの適用はT-0050に、
+dialogs.py/tab3_settings.pyへの適用が新規タスクとして追加、logic分離の棚卸しをT-0049として
+独立させた点が変更点）。「⑤tab2改修への申し送り事項」（旧T-0046向け、現T-0050向け）は
+そのまま有効なので、T-0050着手時に必ず参照すること。
 
 ## 確定済みの技術的制約（CoreUI実装時に必ず守ること）
 
