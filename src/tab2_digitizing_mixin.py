@@ -1062,6 +1062,15 @@ class Tab2DigitizingMixin:
             self.widget_new_mode_actions.setVisible(self.tab2_current_mode == "new")
         if hasattr(self, "widget_edit_mode_actions"):
             self.widget_edit_mode_actions.setVisible(self.tab2_current_mode == "edit")
+        # T-0042: switching back to 新規モード while an edit-mode selection is
+        # still held (selected_edit_point_id) leaves the duplicate-check
+        # exclusion and edit_point_name value stale, letting a duplicate
+        # point-name slip through on the next digitize click. Clear the
+        # selection state via the existing _reset_point_selection() (same
+        # helper _on_blank_click_in_edit_mode() uses) so the point-name is
+        # recalculated and the exclusion is dropped.
+        if self.tab2_current_mode == "new" and getattr(self, "selected_edit_point_id", None) is not None:
+            self._reset_point_selection()
 
     def _get_next_point_number(self) -> int:
         """Calculate next point number based on current excavation type and feature name.
