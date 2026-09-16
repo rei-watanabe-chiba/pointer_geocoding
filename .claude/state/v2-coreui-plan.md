@@ -172,6 +172,22 @@ tab1_image.pyの`_on_delete_layer_clicked`/`_on_rename_layer_clicked`が`point_l
 （LayerManager）に`clear_drawing_name_for_layer(layer_name)`/`rename_drawing_name(old_name, new_name)`
 という高レベルAPIとして切り出し、tab1_image.py側はそれらを呼ぶだけにする。
 
+### T-0045-b 延長: Validatorのエラー表示ヘルパー化
+T-0045-b完了後、ユーザーから「validators.py新設・LayerManager高レベルAPI追加をしても行数がほぼ変わらない
+のはなぜか」という指摘を受け調査した結果、③(Validator)は「エラー表示方法(QMessageBox.warning等)は変更
+しない」という当初の制約により、各バリデーション箇所が「判定条件1行をValidator呼び出しに差し替えただけ」
+で、表示部分の4〜5行がそのまま残っていたことが判明した（意図した設計だが、tab1単体では削減効果が薄い）。
+
+この延長として、`src/ui/core/validators.py`に表示ヘルパー関数を追加する。
+- `show_validation_error(parent, title, result: ValidationResult, focus_widget=None)`: 
+  `result.is_valid`がFalseの場合に`QMessageBox.warning(parent, title, result.message)`を表示し、
+  `focus_widget`が指定されていれば`.setFocus()`する。
+- 各Validatorクラスのコンストラクタに渡す`message`引数に、既存のエラーメッセージ文言
+  （`UIMessages.ERR_REQUIRED_IMAGE_NAME`等）をそのまま渡すよう変更し、`ValidationResult.message`に
+  格納されるようにする。
+- `tab1_image.py`の`_on_confirm_image_clicked`内の3箇所（必須/禁止文字/重複チェック）を、
+  「Validator生成→`show_validation_error`呼び出し→return」の3行程度に圧縮する。
+
 ### ⑤tab2改修（T-0046）への申し送り事項
 explorer総合調査の⑤で判明した、tab2_plot.py(1906行)関連の所見をここに記録する。T-0046着手時に参照すること。
 - tab2_plot.pyの肥大化要因はデジタイジング入力の状態管理の複雑さ（フォーカスモード/カテゴリフィルタ/
