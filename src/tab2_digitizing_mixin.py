@@ -185,15 +185,16 @@ class Tab2DigitizingMixin:
         layout.setSpacing(UIConfig.PANEL_GROUP_SPACING)
 
         # =============================================================
-        # Panel 1: 点情報パネル (T-0033: title removed, replaced by an HLine
-        # separator; the status band + 出土形態/点名+枝番/XY座標 summary is now
-        # a single flat multi-line QLabel inside a left-border color-coded
-        # QFrame, matching start_dialog.py's panel_preview_status style. The
-        # editable point-name/branch inputs and existing-point-only action
-        # buttons live below this frame, outside of it.)
+        # Panel 1: 点情報パネル (T-0033: title removed; the status band +
+        # 出土形態/点名+枝番/XY座標 summary is now a single flat multi-line
+        # QLabel inside a left-border color-coded QFrame, matching
+        # start_dialog.py's panel_preview_status style. The editable
+        # point-name/branch inputs and existing-point-only action buttons
+        # live below this frame, outside of it. T-0034: the leading HLine
+        # separator that used to precede this panel was removed because
+        # main_dock.py now places its own separator directly above
+        # tab2_container, avoiding two adjacent separators.)
         # =============================================================
-        layout.addWidget(self._build_padded_separator(container))
-
         self.group_point_info = QGroupBox(container)
         info_layout = QVBoxLayout(self.group_point_info)
         info_layout.setSpacing(UIConfig.PANEL_INNER_SPACING)

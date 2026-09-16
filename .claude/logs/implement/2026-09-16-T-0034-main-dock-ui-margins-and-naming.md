@@ -175,3 +175,27 @@ src/main_dock_constants.py src/style_helper.py` を実行し、構文エラー�
 なし。依頼スコープ（区切り線マージンの二重加算問題のみ）に限定して
 `tab2_digitizing_mixin.py` のみを変更した。前回実装（①区切り線追加/②
 その他の余白定数/③タブ名称変更）のスコープには触れていない。
+
+---
+
+## 追記2: 点情報パネル直前の区切り線を削除（同一タスクID内フォローアップ）
+
+`main_dock.py` 側に top_row と tab2_container の間の区切り線を新設した結果、
+点情報パネル(`group_point_info`)直前の区切り線と近接して2本並んでしまう
+視覚的重複が指摘されたため、`tab2_digitizing_mixin.py` の`_create_tab2_ui()`
+内、`layout.addWidget(self._build_padded_separator(container))`（点情報
+パネル直前の1箇所のみ）を削除した。属性パネル・フォーカスモードパネル前の
+区切り線（他の2箇所）は維持している。直前の説明コメントも、区切り線が
+存在しない旨がわかるよう文言を微修正した。
+
+### 変更ファイル一覧（追記2分）
+- `src/tab2_digitizing_mixin.py`（点情報パネル直前の区切り線1行削除＋
+  直前コメントの微修正のみ）
+
+### 自動テスト実行結果（追記2分）
+自動テストなし。`python3 -m py_compile src/tab2_digitizing_mixin.py` を実行し、
+構文エラーなく完了した。
+
+### スコープ外変更の有無（追記2分）
+なし。`src/tab2_digitizing_mixin.py` の該当1箇所（区切り線削除＋コメント）
+以外は変更していない。
