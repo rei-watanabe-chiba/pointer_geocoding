@@ -1014,12 +1014,13 @@ class Tab2DigitizingMixin:
     def _on_tab2_mode_changed(self, index: int) -> None:
         """Handle tab2先頭の新規(0)/編集(1)モードトグルの切り替え (T-0036).
 
-        This only toggles which button area is visible inside 点情報パネル
-        (新規モード=自動連番/解除トグル、編集モード=削除ボタンのみ). It is
-        intentionally independent from selected_edit_point_id and the
-        existing canvas click handlers (_on_canvas_clicked /
-        _on_existing_point_selected) -- integrating actual click behavior
-        with this mode is planned separately for T-0037.
+        This toggles which button area is visible inside 点情報パネル
+        (新規モード=自動連番/解除トグル、編集モード=削除ボタンのみ). The actual
+        canvas click routing (which of _on_canvas_clicked /
+        _on_existing_point_selected fires) is driven by
+        CanvasDigitizingTool._handle_digitize_click reading
+        self.tab2_current_mode directly (T-0037); this method itself only
+        updates the mode flag and the panel's visible button area.
 
         :param index: 0 for 新規, 1 for 編集.
         :type index: int
@@ -1309,25 +1310,25 @@ class Tab2DigitizingMixin:
         (Step3: event-driven decoupling — map_tool.py now only reports
         "canvas was clicked here").
 
-        T-0027: if an existing point is currently selected, a click on
-        blank canvas space (this handler is only reached when
-        CanvasDigitizingTool found no point hit) deselects it instead of
-        digitizing a new point, mirroring the former "連番再開" behavior.
-
         T-0032: the former QMessageBox-based duplicate-error prompt is
         removed; digitizing is silently blocked (no dialog) whenever the
         live 点情報パネル status would show an error (遺構名未指定 or 点名重複),
         since that state is already visible to the user via the panel's
         color/status band before they click.
 
+        T-0037: this handler is now only reached in 新規(new) mode
+        (CanvasDigitizingTool._handle_digitize_click routes clicks to
+        canvas_clicked without any existing-feature snap check while in
+        new mode, and does not call this handler at all while in 編集(edit)
+        mode). The former "blank click while a point is selected deselects
+        it" behavior (T-0027) has been removed accordingly; selection
+        clearing is now only triggered explicitly (e.g. the dock's reset
+        button), never by a plain canvas click.
+
         :param map_point: Click location in standard mathematical/canvas coordinates.
         :type map_point: QgsPointXY
         """
         if not self.point_layer or not self.point_layer.isValid():
-            return
-
-        if self.selected_edit_point_id is not None:
-            self._reset_point_selection()
             return
 
         # 1. Retrieve and validate current digitizing input state
