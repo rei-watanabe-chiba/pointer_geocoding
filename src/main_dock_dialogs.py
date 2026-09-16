@@ -13,7 +13,8 @@ T-0021) has been replaced by three independent modeless dialogs opened from
 buttons on the right dock's (MainDockWidget's) own top row: 画像 (image),
 設定 (settings) and 出力 (CSV export). 設定/出力 are thin
 ModelessSectionDialog wrappers around the content widgets tab3_settings_mixin.py
-/ tab2_digitizing_mixin.py already build (_create_tab3_ui / _create_output_ui).
+/ tab2_digitizing_mixin.py already build (_create_tab3_ui / _create_tab4_ui,
+the latter renamed from _create_output_ui in T-0034).
 画像 is the dedicated ImageDialog class below, which also absorbs the former
 standalone PreviewDialog: the reference-point preview QgsMapCanvas (and its
 setup_raster/add_marker/clear_markers/clean_up API, used by
@@ -48,7 +49,7 @@ from qgis.PyQt.QtWidgets import (
 from .map_tool import ImageGeorefTool
 from .style_helper import UIStyleHelper
 from .core_logic import to_survey_coords
-from .main_dock_constants import UILabels, UIMessages, UIPlaceholders, UIDialogSizes
+from .main_dock_constants import UIConfig, UILabels, UIMessages, UIPlaceholders, UIDialogSizes
 
 
 class ModelessSectionDialog(QDialog):
@@ -57,7 +58,8 @@ class ModelessSectionDialog(QDialog):
     Used for the 設定 (settings) and 出力 (CSV export) dialogs: the dialog
     itself owns no business logic, it simply presents a content widget built
     by the corresponding tab mixin (tab3_settings_mixin.py's
-    ``_create_tab3_ui`` / tab2_digitizing_mixin.py's ``_create_output_ui``)
+    ``_create_tab3_ui`` / tab2_digitizing_mixin.py's ``_create_tab4_ui``,
+    renamed from ``_create_output_ui`` in T-0034)
     and, since it is modeless and reopenable, notifies MainDockWidget of its
     show/close events via the optional ``on_show``/``on_close`` callbacks so
     the main canvas digitizing tool can be suspended while it is open and
@@ -92,7 +94,12 @@ class ModelessSectionDialog(QDialog):
         self._on_close = on_close
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setContentsMargins(
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+        )
         layout.addWidget(content_widget)
 
     def showEvent(self, event: Any) -> None:
@@ -146,8 +153,13 @@ class ImageDialog(QDialog):
         self._on_close = on_close
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(6)
+        layout.setContentsMargins(
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+        )
+        layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
         # Left: 画像管理 form (image add/edit, reference point table, transform)
         layout.addWidget(content_widget, 1)
@@ -310,8 +322,13 @@ class GridInputDialog(QDialog):
     def _init_ui(self) -> None:
         """Construct the 4-tier dialog interface."""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+        )
+        layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
         # -------------------------------------------------------------
         # Tier 1: [Xグリッド (数値SpinBox)] - [Yグリッド (英字のみテキスト入力)] - [小グリッド (00-99 数値SpinBox)]
@@ -570,8 +587,13 @@ class FeatureCreateDialog(QDialog):
         self.setModal(True)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+        )
+        layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
         layout.addWidget(QLabel(UILabels.NEW_FEATURE_NAME, self))
 

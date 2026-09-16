@@ -31,6 +31,45 @@ class UIConfig:
     # instead scrolls internally. ---
     DRAWING_LIST_HEIGHT = 180
 
+    # --- T-0035: full reset/simplification of the T-0034 margin/spacing
+    # constants. T-0034 introduced a large set of finely-subdivided margin
+    # constants (DOCK_OUTER_MARGIN, SECTION_GAP, PANEL_CONTAINER_MARGIN_TOP/
+    # BOTTOM, PANEL_GROUP_SPACING, PANEL_INNER_SPACING, SEPARATOR_MARGIN_TOP/
+    # BOTTOM); per user feedback that this subdivision added no real value,
+    # they are replaced by three simple, broadly-reused constants below
+    # (COMMON_MARGIN_LR / DIALOG_MARGIN / PANEL_MARGIN). See each call site
+    # (main_dock.py / tab1_georef_mixin.py / tab2_digitizing_mixin.py /
+    # tab3_settings_mixin.py / start_dialog.py / main_dock_dialogs.py) for
+    # how they are applied. ---
+    # Left/right margin for the top-level container of start_dialog.py,
+    # tab1_georef_mixin.py, tab3_settings_mixin.py and tab2_digitizing_mixin.
+    # py's _create_tab4_ui() (出力 dialog content).
+    COMMON_MARGIN_LR = 8
+    # Top/bottom margin and vertical setSpacing() for the top-level layout of
+    # each "dialog content" widget: start_dialog.py's main_layout; the four
+    # dialog classes in main_dock_dialogs.py (ImageDialog/GridInputDialog/
+    # FeatureCreateDialog/ModelessSectionDialog); and the top-level containers
+    # of tab1_georef_mixin.py / tab3_settings_mixin.py / tab2_digitizing_mixin.
+    # py's _create_tab4_ui().
+    DIALOG_MARGIN = 8
+    # Top/bottom/left/right margin and vertical setSpacing() for
+    # main_dock.py's root_layout (replacing the former separate
+    # DOCK_OUTER_MARGIN), and the top-level container + individual panels
+    # (info/attr/focus/drawing-list) of tab2_digitizing_mixin.py's
+    # _create_tab2_ui() (replacing the former PANEL_GROUP_SPACING/
+    # PANEL_CONTAINER_MARGIN_TOP/PANEL_CONTAINER_MARGIN_BOTTOM/
+    # PANEL_INNER_SPACING).
+    PANEL_MARGIN = 8
+    # tab2_digitizing_mixin.py: layout.setContentsMargins(4, PANEL_MARGIN, 16,
+    # PANEL_MARGIN) (Tab2 panel container; left/right kept as their own
+    # dedicated constants below -- right margin is intentionally wider than
+    # the others to leave room for the QScrollArea's scrollbar).
+    PANEL_CONTAINER_MARGIN_LEFT = 4
+    PANEL_CONTAINER_MARGIN_RIGHT = 16
+    # main_dock.py: top_layout.setSpacing(6) (画像/設定/出力/保存 button row;
+    # kept unchanged, out of scope for the T-0035 reset).
+    TOP_ROW_BUTTON_SPACING = 6
+
 
 class UIDialogSizes:
     """T-0025: dialog-level width/height constants for the modeless/modal
@@ -45,15 +84,23 @@ class UIDialogSizes:
 class UILabels:
     DOCK_TITLE = "点群座標取得パネル"
     BTN_SAVE_PROJECT = "💾 プロジェクトを保存"
-    TAB_1_TITLE = "画像管理"
-    TAB_2_TITLE = "遺物点作成"
-    TAB_3_TITLE = "設定"
+    # --- T-0034: tab display strings shortened to English abbreviations
+    # (画像管理/遺物点作成/設定/CSV出力 -> IMG/PLOT/SET/OUT); internal module/
+    # class/variable/method identifiers (tab1/tab2/tab3/output_*) are
+    # unchanged, this only affects the strings shown in the UI. ---
+    TAB_1_TITLE = "IMG"
+    TAB_2_TITLE = "PLOT"
+    TAB_3_TITLE = "SET"
     # --- T-0024: right-dock top button row (image / settings / output / save) ---
     BTN_TOP_IMAGE = "画像"
     BTN_TOP_SETTINGS = "設定"
     BTN_TOP_OUTPUT = "出力"
     BTN_TOP_SAVE = "保存"
-    OUTPUT_DIALOG_TITLE = "CSV出力"
+    # --- T-0034: renamed from OUTPUT_DIALOG_TITLE to TAB_4_TITLE to align
+    # with the TAB_1_TITLE/TAB_2_TITLE/TAB_3_TITLE naming pattern used by
+    # the other three dialogs' content mixins (see main_dock.py's
+    # self.tab4_container / tab2_digitizing_mixin.py's _create_tab4_ui). ---
+    TAB_4_TITLE = "OUT"
     # --- Settings Tab ---
     TAB3_SECTION_REF_SYMBOL   = "基準点"
     TAB3_SECTION_POINT_SYMBOL = "遺物点"

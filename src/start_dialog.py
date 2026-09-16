@@ -40,6 +40,7 @@ except ImportError:
 
 from .core_logic import from_excel_column, to_excel_column
 from .style_helper import UIStyleHelper
+from .main_dock_constants import UIConfig
 
 # UI Configuration dictionary and layout ratios
 UI_CONFIG = {
@@ -211,8 +212,13 @@ class StartDialog(QDialog):
     def _init_ui(self) -> None:
         """Construct the user interface programmatically using native QGIS widgets and flexbox builders."""
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(12)
-        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setSpacing(UIConfig.DIALOG_MARGIN)
+        main_layout.setContentsMargins(
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+        )
 
         # 1. Configuration Parameters Group (QgsCollapsibleGroupBox)
         config_group = QgsCollapsibleGroupBox(UI_CONFIG["LABELS"]["GROUP_SESSION"], self)

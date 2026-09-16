@@ -127,22 +127,28 @@ class Tab2DigitizingMixin:
 
         container = QWidget()
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(4, 4, 16, 4)
-        layout.setSpacing(8)
+        layout.setContentsMargins(
+            UIConfig.PANEL_CONTAINER_MARGIN_LEFT,
+            UIConfig.PANEL_MARGIN,
+            UIConfig.PANEL_CONTAINER_MARGIN_RIGHT,
+            UIConfig.PANEL_MARGIN,
+        )
+        layout.setSpacing(UIConfig.PANEL_MARGIN)
 
         # =============================================================
-        # Panel 1: 点情報パネル (T-0033: title removed, replaced by an HLine
-        # separator; the status band + 出土形態/点名+枝番/XY座標 summary is now
-        # a single flat multi-line QLabel inside a left-border color-coded
-        # QFrame, matching start_dialog.py's panel_preview_status style. The
-        # editable point-name/branch inputs and existing-point-only action
-        # buttons live below this frame, outside of it.)
+        # Panel 1: 点情報パネル (T-0033: title removed; the status band +
+        # 出土形態/点名+枝番/XY座標 summary is now a single flat multi-line
+        # QLabel inside a left-border color-coded QFrame, matching
+        # start_dialog.py's panel_preview_status style. The editable
+        # point-name/branch inputs and existing-point-only action buttons
+        # live below this frame, outside of it. T-0034: the leading HLine
+        # separator that used to precede this panel was removed because
+        # main_dock.py now places its own separator directly above
+        # tab2_container, avoiding two adjacent separators.)
         # =============================================================
-        layout.addWidget(UIStyleHelper.build_separator(container))
-
         self.group_point_info = QGroupBox(container)
         info_layout = QVBoxLayout(self.group_point_info)
-        info_layout.setSpacing(6)
+        info_layout.setSpacing(UIConfig.PANEL_MARGIN)
 
         # T-0033: flat multi-line summary (status + 出土形態 + 点名+枝番 +
         # XY座標) inside a create_status_panel()-style left-border frame;
@@ -235,7 +241,7 @@ class Tab2DigitizingMixin:
 
         self.group_attribute_panel = QGroupBox(container)
         attr_layout = QVBoxLayout(self.group_attribute_panel)
-        attr_layout.setSpacing(6)
+        attr_layout.setSpacing(UIConfig.PANEL_MARGIN)
 
         # 属性 (T-0032: display-only labels "S:石器"/"P:土器"/"C:炭化物"/"SP";
         # the raw AttributeType value is stored as itemData and must be read
@@ -337,7 +343,7 @@ class Tab2DigitizingMixin:
 
         self.group_focus = QGroupBox(container)
         focus_layout = QVBoxLayout(self.group_focus)
-        focus_layout.setSpacing(6)
+        focus_layout.setSpacing(UIConfig.PANEL_MARGIN)
 
         self.btn_focus_mode = QPushButton(UILabels.BTN_FOCUS_OFF, self.group_focus)
         self.btn_focus_mode.setCheckable(True)
@@ -372,7 +378,7 @@ class Tab2DigitizingMixin:
         # =============================================================
         self.group_drawing_list = QGroupBox(UILabels.GROUP_DRAWING_LIST, container)
         drawing_list_layout = QVBoxLayout(self.group_drawing_list)
-        drawing_list_layout.setSpacing(4)
+        drawing_list_layout.setSpacing(UIConfig.PANEL_MARGIN)
 
         self.list_drawing_visibility = QListWidget(self.group_drawing_list)
         self.list_drawing_visibility.setFixedHeight(UIConfig.DRAWING_LIST_HEIGHT)
@@ -398,7 +404,7 @@ class Tab2DigitizingMixin:
 
         return scroll
 
-    def _create_output_ui(self) -> QWidget:
+    def _create_tab4_ui(self) -> QWidget:
         """Construct the 出力 (CSV export) dialog content (T-0024).
 
         Formerly Section 4 of Tab 2 (embedded at the bottom of the main
@@ -406,10 +412,21 @@ class Tab2DigitizingMixin:
         main digitizing area stays focused on continuous point entry. The
         widgets/handlers themselves (_browse_csv_path / _on_export_csv_clicked)
         are unchanged.
+
+        T-0034: renamed from _create_output_ui() to _create_tab4_ui() to
+        align with the tab1/tab2/tab3 naming pattern used by main_dock.py's
+        self.tab1_container / self.tab2_container / self.tab3_container /
+        self.tab4_container.
         """
         csv_group = QgsCollapsibleGroupBox(UILabels.GROUP_CSV)
         csv_layout = QVBoxLayout(csv_group)
-        csv_layout.setSpacing(6)
+        csv_layout.setContentsMargins(
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+        )
+        csv_layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
         self.lbl_encoding = QLabel(UILabels.ENCODING, csv_group)
         self.radio_utf8 = QRadioButton(UILabels.RADIO_UTF8, csv_group)

@@ -44,8 +44,13 @@ class Tab3SettingsMixin:
 
         container = QWidget()
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(12)
+        layout.setContentsMargins(
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+        )
+        layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
         def _create_color_button(color_hex: str, handler) -> QPushButton:
             btn = QPushButton("")

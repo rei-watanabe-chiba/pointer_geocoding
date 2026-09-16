@@ -46,7 +46,9 @@ unchanged). 画像/設定/出力 each open their own independent modeless dialog
 (self.image_dialog / self.settings_dialog / self.output_dialog, see
 main_dock_dialogs.py's ImageDialog / ModelessSectionDialog) hosting the
 content Tab1GeorefMixin/Tab3SettingsMixin/Tab2DigitizingMixin's
-_create_tab1_ui() / _create_tab3_ui() / _create_output_ui() build; 保存
+_create_tab1_ui() / _create_tab3_ui() / _create_tab4_ui() build (T-0034:
+renamed from _create_output_ui() to align with the tab1/tab2/tab3 naming
+pattern); 保存
 keeps calling _save_project() directly as before, just relocated into the
 button row. Since all three dialogs are modeless and independently
 reopenable, the former single side-panel-driven digitizing-tool
@@ -214,14 +216,19 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
         """
         root_widget = QWidget(self)
         root_layout = QVBoxLayout(root_widget)
-        root_layout.setContentsMargins(6, 6, 6, 6)
-        root_layout.setSpacing(6)
+        root_layout.setContentsMargins(
+            UIConfig.PANEL_MARGIN,
+            UIConfig.PANEL_MARGIN,
+            UIConfig.PANEL_MARGIN,
+            UIConfig.PANEL_MARGIN,
+        )
+        root_layout.setSpacing(UIConfig.PANEL_MARGIN)
 
         # 1. Top button row: 画像 / 設定 / 出力 / 保存
         top_row = QWidget(root_widget)
         top_layout = QHBoxLayout(top_row)
         top_layout.setContentsMargins(0, 0, 0, 0)
-        top_layout.setSpacing(6)
+        top_layout.setSpacing(UIConfig.TOP_ROW_BUTTON_SPACING)
 
         self.btn_top_image = QPushButton(UILabels.BTN_TOP_IMAGE, top_row)
         self.btn_top_image.setObjectName("btnTopImage")
@@ -250,6 +257,12 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
 
         root_layout.addWidget(top_row)
 
+        # T-0034: lightweight HLine separator visually distinguishing the
+        # top button row from the always-visible main digitizing area below
+        # it (self.tab2_container), matching the panel separators
+        # Tab2DigitizingMixin uses internally (UIStyleHelper.build_separator).
+        root_layout.addWidget(UIStyleHelper.build_separator(root_widget))
+
         # 2. 画像 dialog content (former Tab 1) + embedded preview canvas
         self.tab1_container = self._create_tab1_ui()
         self.image_dialog = ImageDialog(
@@ -270,10 +283,10 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
         )
 
         # 4. 出力 dialog content (CSV export, split out of former Tab 2)
-        self.output_container = self._create_output_ui()
+        self.tab4_container = self._create_tab4_ui()
         self.output_dialog = ModelessSectionDialog(
-            UILabels.OUTPUT_DIALOG_TITLE,
-            self.output_container,
+            UILabels.TAB_4_TITLE,
+            self.tab4_container,
             on_show=self._update_main_map_tool_state,
             on_close=self._update_main_map_tool_state,
             parent=self,

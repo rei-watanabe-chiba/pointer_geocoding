@@ -77,8 +77,13 @@ class Tab1GeorefMixin:
 
         container = QWidget()
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(4, 4, 16, 4)
-        layout.setSpacing(12)
+        layout.setContentsMargins(
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+        )
+        layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
         # Information Panel (T-0020: constructed here, but placed at the
         # bottom of the side panel below; see layout.addWidget(...) near the
