@@ -106,6 +106,55 @@ from .main_dock_dialogs import FeatureCreateDialog
 class Tab2DigitizingMixin:
     """Mixin providing Tab 2 (Master Focus Mode, Digitizing & CSV Export) behavior for MainDockWidget."""
 
+    @staticmethod
+    def _build_padded_separator(parent: QWidget) -> QWidget:
+        """T-0034 follow-up fix (verifier-reported double-spacing bug):
+
+        Wrap UIStyleHelper.build_separator() in its own single-purpose
+        QWidget/QVBoxLayout so SEPARATOR_MARGIN_TOP/BOTTOM apply as this
+        wrapper's own contentsMargins (spacing=0 inside the wrapper),
+        instead of being fed to the *parent* layout via addSpacing().
+
+        Rationale: a QVBoxLayout applies its own setSpacing() gap between
+        *every* pair of adjacent items it manages, including QSpacerItems
+        created by addSpacing(). The previous implementation did
+        `layout.addSpacing(TOP); layout.addWidget(separator);
+        layout.addSpacing(BOTTOM)` inside a layout that already had
+        `layout.setSpacing(PANEL_GROUP_SPACING)` set. That made each
+        addSpacing() spacer item into its own layout item, so
+        PANEL_GROUP_SPACING was inserted on *both* sides of the spacer
+        (once between the previous widget and the spacer, once between the
+        spacer and the separator line), on top of the explicit addSpacing()
+        value itself -- i.e. 2 x PANEL_GROUP_SPACING + SEPARATOR_MARGIN on
+        each side, instead of the intended PANEL_GROUP_SPACING +
+        SEPARATOR_MARGIN.
+
+        By instead adding a single wrapper *widget* (this method's return
+        value) directly via the parent's addWidget(), the wrapper counts as
+        exactly one ordinary layout item like any other panel widget, so the
+        parent's setSpacing(PANEL_GROUP_SPACING) is applied exactly once on
+        each side of it (same as between any two ordinary sibling widgets).
+        The wrapper's own contentsMargins then add SEPARATOR_MARGIN_TOP/
+        BOTTOM on top of that, exactly once, matching the originally
+        intended "PANEL_GROUP_SPACING + SEPARATOR_MARGIN" total with no
+        double counting.
+
+        :param parent: Parent widget for the wrapper (and, transitively,
+            the separator QFrame it contains).
+        :type parent: QWidget
+        :return: A QWidget containing a single HLine separator, padded with
+            SEPARATOR_MARGIN_TOP/BOTTOM via contentsMargins.
+        :rtype: QWidget
+        """
+        wrapper = QWidget(parent)
+        wrapper_layout = QVBoxLayout(wrapper)
+        wrapper_layout.setContentsMargins(
+            0, UIConfig.SEPARATOR_MARGIN_TOP, 0, UIConfig.SEPARATOR_MARGIN_BOTTOM
+        )
+        wrapper_layout.setSpacing(0)
+        wrapper_layout.addWidget(UIStyleHelper.build_separator(wrapper))
+        return wrapper
+
     def _create_tab2_ui(self) -> QWidget:
         """Construct Tab 2: 4 always-expanded panels (T-0027, restructured T-0032/T-0033).
 
@@ -143,9 +192,7 @@ class Tab2DigitizingMixin:
         # editable point-name/branch inputs and existing-point-only action
         # buttons live below this frame, outside of it.)
         # =============================================================
-        layout.addSpacing(UIConfig.SEPARATOR_MARGIN_TOP)
-        layout.addWidget(UIStyleHelper.build_separator(container))
-        layout.addSpacing(UIConfig.SEPARATOR_MARGIN_BOTTOM)
+        layout.addWidget(self._build_padded_separator(container))
 
         self.group_point_info = QGroupBox(container)
         info_layout = QVBoxLayout(self.group_point_info)
@@ -238,9 +285,7 @@ class Tab2DigitizingMixin:
         # (作成・カラーの行)→対象図面→(既設点編集時のみ)属性変更ボタン;
         # T-0033: title removed, replaced by an HLine separator)
         # =============================================================
-        layout.addSpacing(UIConfig.SEPARATOR_MARGIN_TOP)
-        layout.addWidget(UIStyleHelper.build_separator(container))
-        layout.addSpacing(UIConfig.SEPARATOR_MARGIN_BOTTOM)
+        layout.addWidget(self._build_padded_separator(container))
 
         self.group_attribute_panel = QGroupBox(container)
         attr_layout = QVBoxLayout(self.group_attribute_panel)
@@ -342,9 +387,7 @@ class Tab2DigitizingMixin:
         # removed -- opacity is refreshed via slider release only, as before
         # T-0032)
         # =============================================================
-        layout.addSpacing(UIConfig.SEPARATOR_MARGIN_TOP)
-        layout.addWidget(UIStyleHelper.build_separator(container))
-        layout.addSpacing(UIConfig.SEPARATOR_MARGIN_BOTTOM)
+        layout.addWidget(self._build_padded_separator(container))
 
         self.group_focus = QGroupBox(container)
         focus_layout = QVBoxLayout(self.group_focus)
