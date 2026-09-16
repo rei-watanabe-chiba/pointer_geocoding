@@ -31,45 +31,44 @@ class UIConfig:
     # instead scrolls internally. ---
     DRAWING_LIST_HEIGHT = 180
 
-    # --- T-0034: layout margin/spacing constants extracted from previously
-    # hardcoded setContentsMargins()/setSpacing() call sites in main_dock.py
-    # (root_layout/top_layout) and tab2_digitizing_mixin.py (Tab2 panel
-    # container), so spacing values have a single named source of truth and
-    # can be adjusted independently without hunting through multiple files.
-    # Values below are a direct copy of the pre-T-0034 hardcoded numbers
-    # (no visual change), except SEPARATOR_MARGIN_TOP/BOTTOM which are newly
-    # introduced (see below). ---
-    # main_dock.py: root_layout.setContentsMargins(6, 6, 6, 6)
-    DOCK_OUTER_MARGIN = 6
-    # main_dock.py: top_layout.setSpacing(6) (画像/設定/出力/保存 button row)
-    TOP_ROW_BUTTON_SPACING = 6
-    # main_dock.py: root_layout.setSpacing(6) (gap between top_row, the new
-    # T-0034 separator, and tab2_container)
-    SECTION_GAP = 6
-    # tab2_digitizing_mixin.py: layout.setContentsMargins(4, 4, 16, 4)
-    # (Tab2 panel container; right margin is intentionally wider than the
-    # others to leave room for the QScrollArea's scrollbar).
+    # --- T-0035: full reset/simplification of the T-0034 margin/spacing
+    # constants. T-0034 introduced a large set of finely-subdivided margin
+    # constants (DOCK_OUTER_MARGIN, SECTION_GAP, PANEL_CONTAINER_MARGIN_TOP/
+    # BOTTOM, PANEL_GROUP_SPACING, PANEL_INNER_SPACING, SEPARATOR_MARGIN_TOP/
+    # BOTTOM); per user feedback that this subdivision added no real value,
+    # they are replaced by three simple, broadly-reused constants below
+    # (COMMON_MARGIN_LR / DIALOG_MARGIN / PANEL_MARGIN). See each call site
+    # (main_dock.py / tab1_georef_mixin.py / tab2_digitizing_mixin.py /
+    # tab3_settings_mixin.py / start_dialog.py / main_dock_dialogs.py) for
+    # how they are applied. ---
+    # Left/right margin for the top-level container of start_dialog.py,
+    # tab1_georef_mixin.py, tab3_settings_mixin.py and tab2_digitizing_mixin.
+    # py's _create_tab4_ui() (出力 dialog content).
+    COMMON_MARGIN_LR = 8
+    # Top/bottom margin and vertical setSpacing() for the top-level layout of
+    # each "dialog content" widget: start_dialog.py's main_layout; the four
+    # dialog classes in main_dock_dialogs.py (ImageDialog/GridInputDialog/
+    # FeatureCreateDialog/ModelessSectionDialog); and the top-level containers
+    # of tab1_georef_mixin.py / tab3_settings_mixin.py / tab2_digitizing_mixin.
+    # py's _create_tab4_ui().
+    DIALOG_MARGIN = 8
+    # Top/bottom/left/right margin and vertical setSpacing() for
+    # main_dock.py's root_layout (replacing the former separate
+    # DOCK_OUTER_MARGIN), and the top-level container + individual panels
+    # (info/attr/focus/drawing-list) of tab2_digitizing_mixin.py's
+    # _create_tab2_ui() (replacing the former PANEL_GROUP_SPACING/
+    # PANEL_CONTAINER_MARGIN_TOP/PANEL_CONTAINER_MARGIN_BOTTOM/
+    # PANEL_INNER_SPACING).
+    PANEL_MARGIN = 8
+    # tab2_digitizing_mixin.py: layout.setContentsMargins(4, PANEL_MARGIN, 16,
+    # PANEL_MARGIN) (Tab2 panel container; left/right kept as their own
+    # dedicated constants below -- right margin is intentionally wider than
+    # the others to leave room for the QScrollArea's scrollbar).
     PANEL_CONTAINER_MARGIN_LEFT = 4
-    PANEL_CONTAINER_MARGIN_TOP = 4
     PANEL_CONTAINER_MARGIN_RIGHT = 16
-    PANEL_CONTAINER_MARGIN_BOTTOM = 4
-    # tab2_digitizing_mixin.py: layout.setSpacing(8) (vertical gap between
-    # the 4 always-expanded panels themselves).
-    PANEL_GROUP_SPACING = 8
-    # tab2_digitizing_mixin.py: info_layout.setSpacing(6) / attr_layout.
-    # setSpacing(6) / focus_layout.setSpacing(6) (spacing of rows *inside*
-    # each individual panel).
-    PANEL_INNER_SPACING = 6
-    # --- T-0034: dedicated top/bottom spacing around each HLine panel
-    # separator (UIStyleHelper.build_separator()), independent of
-    # PANEL_GROUP_SPACING. Previously the separators were simply addWidget()'d
-    # into the panel-container layout and inherited its uniform
-    # PANEL_GROUP_SPACING on both sides, which is what made the space
-    # directly below each separator look too wide. Initial values are half
-    # of PANEL_GROUP_SPACING as a starting point; fine-tuning is expected via
-    # manual (in-QGIS) review rather than further code changes. ---
-    SEPARATOR_MARGIN_TOP = 4
-    SEPARATOR_MARGIN_BOTTOM = 4
+    # main_dock.py: top_layout.setSpacing(6) (画像/設定/出力/保存 button row;
+    # kept unchanged, out of scope for the T-0035 reset).
+    TOP_ROW_BUTTON_SPACING = 6
 
 
 class UIDialogSizes:

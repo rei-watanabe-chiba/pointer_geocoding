@@ -49,7 +49,7 @@ from qgis.PyQt.QtWidgets import (
 from .map_tool import ImageGeorefTool
 from .style_helper import UIStyleHelper
 from .core_logic import to_survey_coords
-from .main_dock_constants import UILabels, UIMessages, UIPlaceholders, UIDialogSizes
+from .main_dock_constants import UIConfig, UILabels, UIMessages, UIPlaceholders, UIDialogSizes
 
 
 class ModelessSectionDialog(QDialog):
@@ -94,7 +94,12 @@ class ModelessSectionDialog(QDialog):
         self._on_close = on_close
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setContentsMargins(
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+        )
         layout.addWidget(content_widget)
 
     def showEvent(self, event: Any) -> None:
@@ -148,8 +153,13 @@ class ImageDialog(QDialog):
         self._on_close = on_close
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(6)
+        layout.setContentsMargins(
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+        )
+        layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
         # Left: 画像管理 form (image add/edit, reference point table, transform)
         layout.addWidget(content_widget, 1)
@@ -312,8 +322,13 @@ class GridInputDialog(QDialog):
     def _init_ui(self) -> None:
         """Construct the 4-tier dialog interface."""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+        )
+        layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
         # -------------------------------------------------------------
         # Tier 1: [Xグリッド (数値SpinBox)] - [Yグリッド (英字のみテキスト入力)] - [小グリッド (00-99 数値SpinBox)]
@@ -572,8 +587,13 @@ class FeatureCreateDialog(QDialog):
         self.setModal(True)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+            UIConfig.COMMON_MARGIN_LR,
+            UIConfig.DIALOG_MARGIN,
+        )
+        layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
         layout.addWidget(QLabel(UILabels.NEW_FEATURE_NAME, self))
 

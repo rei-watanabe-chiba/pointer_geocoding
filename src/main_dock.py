@@ -217,12 +217,12 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
         root_widget = QWidget(self)
         root_layout = QVBoxLayout(root_widget)
         root_layout.setContentsMargins(
-            UIConfig.DOCK_OUTER_MARGIN,
-            UIConfig.DOCK_OUTER_MARGIN,
-            UIConfig.DOCK_OUTER_MARGIN,
-            UIConfig.DOCK_OUTER_MARGIN,
+            UIConfig.PANEL_MARGIN,
+            UIConfig.PANEL_MARGIN,
+            UIConfig.PANEL_MARGIN,
+            UIConfig.PANEL_MARGIN,
         )
-        root_layout.setSpacing(UIConfig.SECTION_GAP)
+        root_layout.setSpacing(UIConfig.PANEL_MARGIN)
 
         # 1. Top button row: 画像 / 設定 / 出力 / 保存
         top_row = QWidget(root_widget)
