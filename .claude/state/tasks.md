@@ -23,7 +23,7 @@ T-0044がQGISで人手確認OKになった場合のみ、`docs/integrated_master
 | タスクID | 内容 | 状態 | 実装ログ | 検証結果 | 人手確認 |
 |---|---|---|---|---|---|
 | T-0043 | v2開始: src配下を責務別フォルダ(ui/layer/logic/canvas)へ再構成。ロジック変更なし、ファイル移動+import文の追従修正のみ。設計書(1.3/1.4節)も新パスへ追従更新済み | 完了 | `.claude/logs/implement/2026-09-16-T-0043-restructure-src-into-responsibility-folders.md` | 静的検証: 問題なし | 完了 |
-| T-0044 | QSpinBoxへの安全なQSS適用パターン検証。フォローアップ修正: up-button/down-buttonを個別セレクタに分離し`subcontrol-position`(top right/bottom right)を明示指定、`padding-right`でボタン領域確保、`border-left`+外周のみ`border-radius`でボーダー内統合の見た目に。矢印サブコントロールには引き続き一切触れない | 静的検証中 | `.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md` | - | - |
+| T-0044 | QSpinBoxへの安全なQSS適用パターン検証。フォローアップ修正: up-button/down-buttonを個別セレクタに分離し`subcontrol-position`(top right/bottom right)を明示指定、`padding-right`でボタン領域確保、`border-left`+外周のみ`border-radius`でボーダー内統合の見た目に。矢印サブコントロールには引き続き一切触れない | 人手確認待ち | `.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md` | 静的検証: 問題なし | - |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
