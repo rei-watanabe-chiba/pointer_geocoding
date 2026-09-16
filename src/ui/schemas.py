@@ -1,18 +1,27 @@
 """
 /***************************************************************************
- PointerGeocoding Plugin - Tab 1 (Georeferencing) CoreUI Schema
+ PointerGeocoding Plugin - CoreUI Screen Schemas
  ***************************************************************************/
 
-T-0045: declarative description of Tab 1's panels (画像管理フォーム・情報パネル
-等), consumed by CoreUIBuilder.build() in tab1_image.py's
-Tab1GeorefMixin._create_tab1_ui(). This file only declares widget kinds/
-labels/hook names; all business logic (event handler bodies) stays in
-tab1_image.py, bound via BuiltPanel.bind(hook_name, callback) after
-building.
+T-0045 (追加スコープ): single consolidated file for all CoreUI declarative
+panel/field schemas, one section per screen (``# --- TAB1 ---`` etc.), so
+that adding TAB2/TAB3/START_DIALOG schemas in T-0046/T-0047 does not
+re-fragment the schema layer back into one file per screen (see
+.claude/state/v2-coreui-plan.md's "スキーマファイル統合" note). Originally
+``tab1_image_schema.py``; moved here unchanged aside from this consolidation.
+
+This file only declares widget kinds/labels/hook names; all business logic
+(event handler bodies) stays in each screen's own module (e.g.
+tab1_image.py's Tab1GeorefMixin), bound via BuiltPanel.bind(hook_name,
+callback) after building.
 """
 from .constants import UILabels, UIPlaceholders
 
 from .core import ButtonDef, FieldSpec, InfoLine, PanelSpec, WidgetType
+
+# --- TAB1 --------------------------------------------------------------
+# Tab 1 (Georeferencing): consumed by CoreUIBuilder.build() in
+# tab1_image.py's Tab1GeorefMixin._create_tab1_ui().
 
 # --- Information panel (bottom of the 図面管理 side panel) -----------------
 TAB1_INFO_PANEL_SPEC = PanelSpec(

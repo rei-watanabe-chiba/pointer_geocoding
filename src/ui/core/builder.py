@@ -13,10 +13,15 @@ Event wiring is deferred: building a panel never touches the caller's
 business-logic methods directly. Instead, each field that declares an
 on_click/on_change hook name registers a "pending connector" closure; the
 caller later attaches its real callback via ``BuiltPanel.bind(hook_name,
-callback)``. This is what lets tab1_image_schema.py stay a pure data file
-with zero references to Tab1GeorefMixin's methods.
+callback)``. This is what lets schemas.py stay a pure data file with zero
+references to Tab1GeorefMixin's methods.
+
+T-0045 追加スコープ: ``BuiltPanel`` also exposes ``get_value()``/
+``set_value()``/``collect_values()`` for the value-bearing widget kinds
+(LINEEDIT_ROW/COMBOBOX_ROW/SEGMENTED_TOGGLE), so callers no longer need to
+keep raw widget references around just to read/write a field's value.
 """
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from qgis.gui import QgsFilterLineEdit
 from qgis.PyQt.QtWidgets import (
@@ -53,6 +58,17 @@ class BuiltPanel:
     hooks to caller-supplied callbacks.
     """
 
+    #: WidgetType kinds get_value()/set_value()/collect_values() know how to
+    #: read/write. TABLE and the pure-display/action kinds (BUTTON,
+    #: BUTTON_ROW, INFO_PANEL) are intentionally excluded (see
+    #: v2-coreui-plan.md's T-0045 追加スコープ note on TABLE's complex row
+    #: structure staying individually handled).
+    _VALUE_WIDGET_TYPES = (
+        WidgetType.LINEEDIT_ROW,
+        WidgetType.COMBOBOX_ROW,
+        WidgetType.SEGMENTED_TOGGLE,
+    )
+
     def __init__(
         self,
         widget: QWidget,
@@ -60,12 +76,14 @@ class BuiltPanel:
         row_widgets: Dict[str, QWidget],
         buttons_lists: Dict[str, List[QPushButton]],
         pending_hooks: Dict[str, List[Callable[[Callable], None]]],
+        field_types: Optional[Dict[str, WidgetType]] = None,
     ) -> None:
         self.widget = widget
         self._field_widgets = field_widgets
         self._row_widgets = row_widgets
         self._buttons_lists = buttons_lists
         self._pending_hooks = pending_hooks
+        self._field_types = field_types or {}
 
     def get(self, field_id: str) -> QWidget:
         """Return the primary built widget registered under ``field_id``."""
@@ -89,6 +107,65 @@ class BuiltPanel:
         for connector in self._pending_hooks.get(hook_name, []):
             connector(callback)
 
+    def get_value(self, field_id: str) -> Any:
+        """Read the current value of a value-bearing field (LINEEDIT_ROW ->
+        raw ``.text()``, COMBOBOX_ROW -> ``.currentText()``,
+        SEGMENTED_TOGGLE -> checked segment index). Callers that need
+        stripped/validated text should post-process the returned value
+        themselves (get_value never strips/casts).
+
+        :raises KeyError: if ``field_id`` was never registered.
+        :raises NotImplementedError: if ``field_id``'s widget_type does not
+            carry a scalar value (BUTTON/BUTTON_ROW/TABLE/INFO_PANEL).
+        """
+        widget_type = self._field_types[field_id]
+        if widget_type == WidgetType.LINEEDIT_ROW:
+            return self._field_widgets[field_id].text()
+        if widget_type == WidgetType.COMBOBOX_ROW:
+            return self._field_widgets[field_id].currentText()
+        if widget_type == WidgetType.SEGMENTED_TOGGLE:
+            for idx, btn in enumerate(self._buttons_lists[field_id]):
+                if btn.isChecked():
+                    return idx
+            return -1
+        raise NotImplementedError(
+            f"get_value() is not supported for field '{field_id}' (widget_type={widget_type})"
+        )
+
+    def set_value(self, field_id: str, value: Any) -> None:
+        """Write a value into a value-bearing field, symmetric with
+        ``get_value()``.
+
+        :raises KeyError: if ``field_id`` was never registered.
+        :raises NotImplementedError: if ``field_id``'s widget_type does not
+            carry a scalar value (BUTTON/BUTTON_ROW/TABLE/INFO_PANEL).
+        """
+        widget_type = self._field_types[field_id]
+        if widget_type == WidgetType.LINEEDIT_ROW:
+            self._field_widgets[field_id].setText(value)
+            return
+        if widget_type == WidgetType.COMBOBOX_ROW:
+            index = self._field_widgets[field_id].findText(value)
+            if index >= 0:
+                self._field_widgets[field_id].setCurrentIndex(index)
+            return
+        if widget_type == WidgetType.SEGMENTED_TOGGLE:
+            self._buttons_lists[field_id][value].setChecked(True)
+            return
+        raise NotImplementedError(
+            f"set_value() is not supported for field '{field_id}' (widget_type={widget_type})"
+        )
+
+    def collect_values(self) -> Dict[str, Any]:
+        """Return ``{field_id: get_value(field_id)}`` for every registered
+        value-bearing field (LINEEDIT_ROW/COMBOBOX_ROW/SEGMENTED_TOGGLE).
+        """
+        return {
+            field_id: self.get_value(field_id)
+            for field_id, widget_type in self._field_types.items()
+            if widget_type in self._VALUE_WIDGET_TYPES
+        }
+
 
 class CoreUIBuilder:
     """Builds a PanelSpec into a real QWidget tree. Stateless: all state
@@ -106,6 +183,7 @@ class CoreUIBuilder:
         row_widgets: Dict[str, QWidget] = {}
         buttons_lists: Dict[str, List[QPushButton]] = {}
         pending_hooks: Dict[str, List[Callable[[Callable], None]]] = {}
+        field_types: Dict[str, WidgetType] = {}
 
         def register_hook(hook_name: Optional[str], connector: Callable[[Callable], None]) -> None:
             if hook_name:
@@ -117,11 +195,14 @@ class CoreUIBuilder:
                 f, container, field_widgets, buttons_lists, register_hook
             )
             row_widgets[f.field_id] = row_widget
+            field_types[f.field_id] = f.widget_type
             layout.addWidget(row_widget)
             if not f.visible:
                 row_widget.hide()
 
-        panel = BuiltPanel(container, field_widgets, row_widgets, buttons_lists, pending_hooks)
+        panel = BuiltPanel(
+            container, field_widgets, row_widgets, buttons_lists, pending_hooks, field_types
+        )
         for rule in spec.rules:
             rule.apply(panel)
         return panel

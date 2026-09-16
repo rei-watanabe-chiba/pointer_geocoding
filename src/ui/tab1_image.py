@@ -50,7 +50,7 @@ from .constants import (
 )
 from .dialogs import GridInputDialog
 from .core import CoreUIBuilder
-from .tab1_image_schema import (
+from .schemas import (
     TAB1_IMAGE_SECTION_SPEC,
     TAB1_INFO_PANEL_SPEC,
     TAB1_MODE_TOGGLE_SPEC,
@@ -71,7 +71,7 @@ class Tab1GeorefMixin:
         """Construct Tab 1: Image Addition & Pre-Georeferencing.
 
         T-0045: widget construction is delegated to CoreUIBuilder against
-        the declarative panels in tab1_image_schema.py; this method wires
+        the declarative panels in schemas.py (TAB1_* specs); this method wires
         the built widgets/rows to the instance attributes used throughout
         this mixin and binds each panel's event hooks to the actual
         business-logic handlers below.
@@ -108,6 +108,7 @@ class Tab1GeorefMixin:
 
         # 3. Mode-specific inputs + 4. Reference Points Table
         image_panel = CoreUIBuilder.build(TAB1_IMAGE_SECTION_SPEC, parent=container)
+        self._tab1_image_panel = image_panel
         self.sec_image = image_panel.widget
         self.row_image_path = image_panel.get_row("image_path")
         self.edit_image_path = image_panel.get("image_path")
@@ -195,7 +196,7 @@ class Tab1GeorefMixin:
         )
 
     def _on_edit_layer_changed(self) -> None:
-        layer_name = self.combo_edit_layer.currentText()
+        layer_name = self._tab1_image_panel.get_value("edit_layer")
         if not layer_name:
             self.edit_image_name.clear()
             self.ref_points_data.clear()
@@ -226,7 +227,7 @@ class Tab1GeorefMixin:
         self._refresh_ref_points_table_and_markers()
 
     def _on_delete_layer_clicked(self) -> None:
-        layer_name = self.combo_edit_layer.currentText()
+        layer_name = self._tab1_image_panel.get_value("edit_layer")
         if not layer_name:
             return
             
@@ -322,11 +323,11 @@ class Tab1GeorefMixin:
         ``os.rename()``), so this operation cannot raise a Windows
         ``[WinError 32]``-style file-locking error by construction.
         """
-        old_name = self.combo_edit_layer.currentText()
+        old_name = self._tab1_image_panel.get_value("edit_layer")
         if not old_name:
             return
 
-        new_name = self.edit_image_name.text().strip()
+        new_name = self._tab1_image_panel.get_value("image_name").strip()
 
         if not new_name:
             QMessageBox.warning(
@@ -448,7 +449,7 @@ class Tab1GeorefMixin:
             self._on_setup_ref_points_clicked()
             return
 
-        layer_name = self.edit_image_name.text().strip()
+        layer_name = self._tab1_image_panel.get_value("image_name").strip()
 
         if not layer_name:
             QMessageBox.warning(
@@ -482,7 +483,7 @@ class Tab1GeorefMixin:
             self.edit_image_name.setFocus()
             return
 
-        src_path = self.edit_image_path.text().strip()
+        src_path = self._tab1_image_panel.get_value("image_path").strip()
         if not src_path or not os.path.isfile(src_path):
             QMessageBox.warning(
                 self,
@@ -933,7 +934,7 @@ class Tab1GeorefMixin:
             )
             return
 
-        layer_name = self.confirmed_layer_name or self.edit_image_name.text().strip()
+        layer_name = self.confirmed_layer_name or self._tab1_image_panel.get_value("image_name").strip()
 
         # T-0018: previously this block had a fallback that searched
         # session_image_dir for a file whose basename matched layer_name when
