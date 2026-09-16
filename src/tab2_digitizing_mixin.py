@@ -1515,6 +1515,7 @@ class Tab2DigitizingMixin:
             excavation_type,
             feature_name,
             drawing_name,
+            self._is_sp_attribute(),
             self,
         )
         UIStyleHelper.apply_theme(dlg)

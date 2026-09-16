@@ -655,6 +655,7 @@ class PointNameEntryDialog(QDialog):
         excavation_type: str,
         feature_name: str,
         drawing_name: str = "",
+        is_sp_attribute: bool = False,
         parent: Optional[QWidget] = None,
     ) -> None:
         """Initialize the point-name/branch-number entry dialog.
@@ -666,8 +667,15 @@ class PointNameEntryDialog(QDialog):
         :type excavation_type: str
         :param feature_name: Current 遺構名 selection (empty when excavation_type is グリッド).
         :type feature_name: str
-        :param drawing_name: Current 対象図面 selection.
+        :param drawing_name: Current 対象図面 選択.
         :type drawing_name: str
+        :param is_sp_attribute: True when the panel's currently selected 属性
+            is SP (Tab2DigitizingMixin._is_sp_attribute()). SP点名は英数字の
+            自由記述（edit_point_name_sp と同じバリデーション）で入力させ、
+            それ以外は従来通り整数QSpinBoxで入力させる (see T-0040 followup
+            fix: SP属性は解除モード固定のため、このダイアログ経由でしか
+            SP点名を入力できない).
+        :type is_sp_attribute: bool
         :param parent: Optional parent QWidget.
         :type parent: Optional[QWidget]
         """
@@ -676,6 +684,7 @@ class PointNameEntryDialog(QDialog):
         self._excavation_type = excavation_type
         self._feature_name = feature_name
         self._drawing_name = drawing_name
+        self._is_sp_attribute = is_sp_attribute
         self.result_point_name: str = ""
         self.result_branch_no: str = ""
 
@@ -692,8 +701,20 @@ class PointNameEntryDialog(QDialog):
         layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
         layout.addWidget(QLabel(UILabels.POINT_NAME, self))
-        self.spin_point_name = UIStyleHelper.create_spinbox(1, 999999, 1, self)
-        layout.addWidget(self.spin_point_name)
+        self.spin_point_name: Optional[QSpinBox] = None
+        self.edit_point_name_sp: Optional[QLineEdit] = None
+        if self._is_sp_attribute:
+            # SP属性: edit_point_name_sp (tab2_digitizing_mixin.py) と同じ
+            # 英数字・ハイフン・アンダースコアのみ許可のバリデータを踏襲する。
+            self.edit_point_name_sp = QLineEdit(self)
+            self.edit_point_name_sp.setPlaceholderText(UIPlaceholders.POINT_NAME_SP)
+            self.edit_point_name_sp.setValidator(
+                QRegExpValidator(QRegExp(r"^[A-Za-z0-9_-]+$"), self.edit_point_name_sp)
+            )
+            layout.addWidget(self.edit_point_name_sp)
+        else:
+            self.spin_point_name = UIStyleHelper.create_spinbox(1, 999999, 1, self)
+            layout.addWidget(self.spin_point_name)
 
         layout.addWidget(QLabel(UILabels.BRANCH_NO, self))
         self.edit_branch_no = QLineEdit(self)
@@ -715,10 +736,27 @@ class PointNameEntryDialog(QDialog):
 
         layout.addLayout(UIStyleHelper.build_centered_button_row([self.btn_ok, self.btn_cancel]))
 
+    def _get_point_name_text(self) -> str:
+        """Return the currently entered 点名 as a string, regardless of which
+        input widget (spin_point_name / edit_point_name_sp) is active for the
+        current 属性 (SP or not, see __init__'s is_sp_attribute).
+
+        :return: 点名 as a string (e.g. "123" for non-SP, "SP-1" for SP).
+        :rtype: str
+        """
+        if self._is_sp_attribute:
+            return self.edit_point_name_sp.text().strip()
+        return str(self.spin_point_name.value())
+
     def _on_ok_clicked(self) -> None:
         """Validate (duplicate-check) the entered 点名/枝番 and accept if unique."""
-        point_name = str(self.spin_point_name.value())
+        point_name = self._get_point_name_text()
         branch_no = self.edit_branch_no.text().strip()
+
+        if self._is_sp_attribute and not point_name:
+            self.lbl_error.setText(UIMessages.ERR_POINT_NAME_REQUIRED)
+            self.lbl_error.show()
+            return
 
         is_dup = check_point_duplicate(
             self._point_layer,
