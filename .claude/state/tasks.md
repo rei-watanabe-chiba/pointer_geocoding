@@ -23,7 +23,7 @@ T-0044がQGISで人手確認OKになった場合のみ、`docs/integrated_master
 | タスクID | 内容 | 状態 | 実装ログ | 検証結果 | 人手確認 |
 |---|---|---|---|---|---|
 | T-0043 | v2開始: src配下を責務別フォルダ(ui/layer/logic/canvas)へ再構成。ロジック変更なし、ファイル移動+import文の追従修正のみ。設計書(1.3/1.4節)も新パスへ追従更新済み | 完了 | `.claude/logs/implement/2026-09-16-T-0043-restructure-src-into-responsibility-folders.md` | 静的検証: 問題なし | 完了 |
-| T-0044 | QSpinBoxへの安全なQSS適用パターン検証。人手確認4回目で矢印表示・クリック動作とも正常化を確認。追加で`QSpinBox::up-button:pressed, QSpinBox::down-button:pressed`に`background-color: palette(midlight)`を追加し押下フィードバックを付与(軽微な変更のためverifier省略) | 人手確認待ち | `.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md` | 静的検証: 問題なし(コア部分。押下フィードバックは軽微につき省略) | - |
+| T-0044 | QSpinBoxへの安全なQSS適用パターン検証。人手確認4回目で矢印表示・クリック動作とも正常化を確認(この時点がコアの安定状態)。押下フィードバックをボタン背景色変化(`:pressed`のbackground-color)で実装したところ、フォーカス枠オーバーラップ→修正→input全体の背景色崩壊、と繰り返し不具合が連鎖したため、背景色変化アプローチを完全に撤去し、矢印SVG自体の色変化(`::up-arrow:pressed`/`::down-arrow:pressed`、濃いグレー#404040の別SVGへ差し替え)で押下フィードバックを表現する方式へ転換中 | 実装中 | `.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md` | - | - |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
