@@ -91,6 +91,34 @@ class UIStyleHelper:
             border: 1.5px solid palette(highlight);
         }
 
+        /* T-0044: QSpinBox base styling. NOTE: intentionally does NOT touch
+           QSpinBox::up-arrow / QSpinBox::down-arrow (no image/border overrides).
+           A prior attempt (T-0041) redrew the arrow sub-controls with a custom
+           triangle hack and broke native arrow rendering across the plugin
+           (regression rolled back). This time only the outer box and the
+           up/down button sub-control geometry are styled; arrow glyphs are
+           left entirely to the platform's base style. */
+        QSpinBox {
+            background-color: palette(base);
+            color: palette(text);
+            border: 1px solid palette(mid);
+            border-radius: 4px;
+            padding: 0px 4px;
+            min-height: 28px;
+            min-width: 70px;
+            selection-background-color: palette(highlight);
+            selection-color: palette(highlighted-text);
+        }
+
+        QSpinBox:focus {
+            border: 1.5px solid palette(highlight);
+        }
+
+        QSpinBox::up-button, QSpinBox::down-button {
+            subcontrol-origin: border;
+            width: 18px;
+        }
+
         /* Default Buttons */
         QPushButton {
             background-color: palette(button);
