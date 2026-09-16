@@ -121,6 +121,33 @@ tab2の「モードに応じた表示切替」「編集中フィールドのリ�
   （業務ロジックのファイル分割等も選択肢。ただしui/フォルダ内での分割であり、過去の「ファイル分割が
   多く管理しづらい」という懸念には該当しない）
 
+## T-0045 追加スコープ: 業務ロジック共通化の第一段階（値の抜き出し/書き込み）
+
+T-0045完了後、ユーザーから「tab1〜3で共通する業務ロジックの汎用化も行うこと。inputからの情報抜き出しと
+格納/upload部分の共通化」という追加指示を受け、以下の切り分けで対応する。
+
+### 汎用化する部分: 値の抜き出し/書き込み（今回対応）
+`BuiltPanel`（`src/ui/core/builder.py`）に以下を追加する。
+- `get_value(field_id) -> Any`: フィールドのwidget_typeに応じた値取得
+  （LINEEDIT_ROW→`.text()`, COMBOBOX_ROW→`.currentText()`, SEGMENTED_TOGGLE→選択中インデックス）
+- `set_value(field_id, value) -> None`: 対称的な書き込み
+- `collect_values() -> Dict[str, Any]`: 登録済み値系フィールドを全て`get_value`して辞書化
+- TABLE型は行構造が複雑なため対象外（個別ロジックのまま）。
+- `tab1_image.py`側の既存handler（`_on_rename_layer_clicked`/`_on_confirm_image_clicked`/
+  `_on_export_layer_clicked`等）を、キャッシュしたウィジェット参照への直接`.text()`/`.currentText()`
+  呼び出しから、`panel.get_value()`/`collect_values()`経由に置き換える。
+
+### 汎用化を据え置く部分: 格納/upload（storage）
+`rules.py`のRule抽象基底のdocstringに既に明記されている「1画面（tab1）だけの実例から形を決め打ちせず、
+2〜3画面目（tab2のリアルタイムコミット・重複バリデーション等）が揃ってから確定する」という方針を踏襲する。
+tab1には複雑な「格納」パターン（リアルタイムコミット等）が存在せず、ここで汎用Ruleを作ると
+tab2の実例に合わず手戻りするリスクが高いため、CommitRule等のstorage側汎用ルールはT-0047まで据え置く。
+
+### スキーマファイル統合
+`src/ui/tab1_image_schema.py`は単独ファイルのまま画面ごとに増やすと再度のファイル分散を招くため、
+`src/ui/schemas.py`という単一ファイルに統合する。`TAB1_*`（今回）/`TAB2_*`/`TAB3_*`/`START_DIALOG_*`
+（T-0046/T-0047で追記）とセクション分けして1ファイルに集約する。
+
 ## 確定済みの技術的制約（CoreUI実装時に必ず守ること）
 
 - **QSpinBoxへのQSS適用パターン**: `docs/integrated_master_design.md` 1.2節「OSネイティブUIの保護と

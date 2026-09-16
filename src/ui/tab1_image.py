@@ -21,23 +21,16 @@ from qgis.core import (
     QgsPointXY,
     Qgis,
 )
-from qgis.gui import QgsFilterLineEdit
 from qgis.PyQt.QtCore import Qt, pyqtSlot
 from qgis.PyQt.QtWidgets import (
     QWidget,
     QDialog,
     QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QComboBox,
     QScrollArea,
     QFileDialog,
     QMessageBox,
     QFrame,
-    QTableWidget,
     QTableWidgetItem,
-    QHeaderView,
 )
 
 from ..logic.transform import CoordinateTransformer
@@ -52,12 +45,17 @@ from ..logic.core import (
 from .constants import (
     UIConfig,
     UILabels,
-    UIPlaceholders,
     UIDialogTitles,
     UIMessages,
-    MAIN_RATIO,
 )
 from .dialogs import GridInputDialog
+from .core import CoreUIBuilder
+from .schemas import (
+    TAB1_IMAGE_SECTION_SPEC,
+    TAB1_INFO_PANEL_SPEC,
+    TAB1_MODE_TOGGLE_SPEC,
+    TAB1_TRANSFORM_SECTION_SPEC,
+)
 
 # T-0018: world file extensions recognized by this plugin's own georeferencing
 # output (see LayerManager.write_world_file()). Shared by the "既存ワールド
@@ -70,7 +68,14 @@ class Tab1GeorefMixin:
     """Mixin providing Tab 1 (Image Addition & Pre-Georeferencing) behavior for MainDockWidget."""
 
     def _create_tab1_ui(self) -> QWidget:
-        """Construct Tab 1: Image Addition & Pre-Georeferencing."""
+        """Construct Tab 1: Image Addition & Pre-Georeferencing.
+
+        T-0045: widget construction is delegated to CoreUIBuilder against
+        the declarative panels in schemas.py (TAB1_* specs); this method wires
+        the built widgets/rows to the instance attributes used throughout
+        this mixin and binds each panel's event hooks to the actual
+        business-logic handlers below.
+        """
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -88,147 +93,50 @@ class Tab1GeorefMixin:
         # Information Panel (T-0020: constructed here, but placed at the
         # bottom of the side panel below; see layout.addWidget(...) near the
         # end of this method instead of here).
-        self.panel_tab1_info = QFrame(container)
-        UIStyleHelper.set_status_panel(self.panel_tab1_info)
-        panel_layout = QVBoxLayout(self.panel_tab1_info)
-        panel_layout.setContentsMargins(8, 8, 8, 8)
-        panel_layout.setSpacing(4)
-        
-        # 1段目
-        self.lbl_tab1_info_1 = QLabel(UILabels.TAB1_INFO_IMAGE_REF.format(
-            name=UILabels.UNLOADED, count=0
-        ), self.panel_tab1_info)
-        self.lbl_tab1_info_1.setStyleSheet("font-weight: bold;")
-        panel_layout.addWidget(self.lbl_tab1_info_1)
-        
-        # hr
-        hr = QFrame(self.panel_tab1_info)
-        hr.setFrameShape(QFrame.HLine)
-        hr.setStyleSheet("border-top: 1px dashed palette(mid); background: transparent;")
-        panel_layout.addWidget(hr)
-        
-        # 2段目
-        self.lbl_tab1_info_2 = QLabel(UILabels.TRANSFORM_INIT_STATUS, self.panel_tab1_info)
-        panel_layout.addWidget(self.lbl_tab1_info_2)
-        
-        # 3〜6段目
-        self.lbl_tab1_info_3_6 = QLabel(UILabels.TAB1_INFO_RESIDUAL_INIT, self.panel_tab1_info)
-        self.lbl_tab1_info_3_6.setWordWrap(True)
-        self.lbl_tab1_info_3_6.setMinimumHeight(14 * 4) # Space for approx 4 lines
-        panel_layout.addWidget(self.lbl_tab1_info_3_6)
+        info_panel = CoreUIBuilder.build(TAB1_INFO_PANEL_SPEC, parent=container)
+        self.panel_tab1_info = info_panel.get("tab1_info")
+        self.lbl_tab1_info_1 = info_panel.get("tab1_info.line1")
+        self.lbl_tab1_info_2 = info_panel.get("tab1_info.line2")
+        self.lbl_tab1_info_3_6 = info_panel.get("tab1_info.line3_6")
 
         # 2. Mode Toggle
-        self.tab1_mode_container, self.tab1_mode_buttons = UIStyleHelper.build_segmented_toggle(
-            ["新規追加", "編集削除"], default_index=0, parent=container
-        )
-        
-        mode_row = UIStyleHelper.build_flex_row(
-            main_label=None,
-            child_configs=[(self.tab1_mode_container, 1)],
-            main_ratio=(0, 10),
-            row_height=UIConfig.ROW_HEIGHT
-        )
-        layout.addWidget(mode_row)
-        
-        self.tab1_mode_buttons[0].toggled.connect(lambda checked: self._on_tab1_mode_changed(0) if checked else None)
-        self.tab1_mode_buttons[1].toggled.connect(lambda checked: self._on_tab1_mode_changed(1) if checked else None)
+        mode_panel = CoreUIBuilder.build(TAB1_MODE_TOGGLE_SPEC, parent=container)
+        self.tab1_mode_container = mode_panel.get("tab1_mode")
+        self.tab1_mode_buttons = mode_panel.get_buttons("tab1_mode")
+        mode_panel.bind("mode_changed", self._on_tab1_mode_changed)
+        layout.addWidget(mode_panel.widget)
 
-        # 3. Mode-specific inputs
-        self.sec_image = QWidget(container)
-        img_layout = QVBoxLayout(self.sec_image)
-        img_layout.setContentsMargins(0, 0, 0, 0)
-        img_layout.setSpacing(6)
+        # 3. Mode-specific inputs + 4. Reference Points Table
+        image_panel = CoreUIBuilder.build(TAB1_IMAGE_SECTION_SPEC, parent=container)
+        self._tab1_image_panel = image_panel
+        self.sec_image = image_panel.widget
+        self.row_image_path = image_panel.get_row("image_path")
+        self.edit_image_path = image_panel.get("image_path")
+        self.btn_browse_image = image_panel.get("browse_image")
+        self.row_edit_layer = image_panel.get_row("edit_layer")
+        self.combo_edit_layer = image_panel.get("edit_layer")
+        self.edit_image_name = image_panel.get("image_name")
+        self.row_rename_delete = image_panel.get_row("rename_delete")
+        self.btn_rename_layer = image_panel.get("rename_layer")
+        self.btn_delete_layer = image_panel.get("delete_layer")
+        self.btn_confirm_image = image_panel.get("confirm_image")
+        self.table_ref_points = image_panel.get("ref_points_table")
 
-        # 3a. Image File (New Mode)
-        self.row_image_path = QWidget(self.sec_image)
-        row_image_layout = QHBoxLayout(self.row_image_path)
-        row_image_layout.setContentsMargins(0, 0, 0, 0)
-        self.lbl_image_path = QLabel(UILabels.IMAGE_FILE, self.row_image_path)
-        self.edit_image_path = QgsFilterLineEdit(self.row_image_path)
-        self.edit_image_path.setPlaceholderText(UIPlaceholders.IMAGE_PATH)
-        self.btn_browse_image = QPushButton(UILabels.BTN_BROWSE, self.row_image_path)
-        self.btn_browse_image.clicked.connect(self._browse_image_file)
-        row_image_layout.addWidget(self.lbl_image_path, 3)
-        row_image_layout.addWidget(self.edit_image_path, 6)
-        row_image_layout.addWidget(self.btn_browse_image, 1)
-        img_layout.addWidget(self.row_image_path)
-
-        # 3b. Edit Layer Selector (Edit Mode)
-        self.lbl_edit_layer = QLabel("編集レイヤ:", self.sec_image)
-        self.combo_edit_layer = QComboBox(self.sec_image)
-        self.combo_edit_layer.currentIndexChanged.connect(self._on_edit_layer_changed)
-        self.row_edit_layer = UIStyleHelper.build_flex_row(
-            self.lbl_edit_layer, [(self.combo_edit_layer, 1)], main_ratio=MAIN_RATIO, row_height=UIConfig.ROW_HEIGHT
-        )
-        img_layout.addWidget(self.row_edit_layer)
-        self.row_edit_layer.hide()
-
-        # 3c. Layer Name (Both Modes)
-        self.lbl_image_name = QLabel(UILabels.LAYER_NAME, self.sec_image)
-        self.edit_image_name = QgsFilterLineEdit(self.sec_image)
-        self.edit_image_name.setPlaceholderText(UIPlaceholders.IMAGE_NAME)
-        row_image_name = UIStyleHelper.build_flex_row(
-            self.lbl_image_name, [(self.edit_image_name, 1)], main_ratio=MAIN_RATIO, row_height=UIConfig.ROW_HEIGHT
-        )
-        img_layout.addWidget(row_image_name)
-
-        # 3d. Actions: Rename & Delete (Edit/Delete mode only), and Setup Reference Points (both modes)
-        # T-0015: layer rename is now metadata-only (no file I/O), so it gets its own
-        # dedicated button instead of being folded into the former "確定" button.
-        self.row_rename_delete = QWidget(self.sec_image)
-        row_rename_delete_layout = QHBoxLayout(self.row_rename_delete)
-        row_rename_delete_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.btn_rename_layer = QPushButton("レイヤ名変更", self.row_rename_delete)
-        self.btn_rename_layer.clicked.connect(self._on_rename_layer_clicked)
-
-        self.btn_delete_layer = QPushButton("削除", self.row_rename_delete)
-        self.btn_delete_layer.clicked.connect(self._on_delete_layer_clicked)
-
-        row_rename_delete_layout.addWidget(self.btn_rename_layer, 1)
-        row_rename_delete_layout.addWidget(self.btn_delete_layer, 1)
-        img_layout.addWidget(self.row_rename_delete)
-        self.row_rename_delete.hide()
-
-        self.btn_confirm_image = QPushButton("基準点設置", self.sec_image)
-        UIStyleHelper.set_primary_button(self.btn_confirm_image)
-        self.btn_confirm_image.clicked.connect(self._on_confirm_image_clicked)
-        img_layout.addWidget(self.btn_confirm_image)
-
-        # 4. Reference Points Table
-        self.table_ref_points = QTableWidget(0, 4, self.sec_image)
-        self.table_ref_points.setHorizontalHeaderLabels(UILabels.REF_TABLE_HEADERS)
-        self.table_ref_points.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.table_ref_points.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.table_ref_points.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        self.table_ref_points.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
-        self.table_ref_points.setMinimumHeight(130)
-        self.table_ref_points.cellChanged.connect(self._on_ref_table_cell_changed)
-        img_layout.addWidget(self.table_ref_points)
-
+        image_panel.bind("browse_image", self._browse_image_file)
+        image_panel.bind("edit_layer_changed", self._on_edit_layer_changed)
+        image_panel.bind("rename_layer", self._on_rename_layer_clicked)
+        image_panel.bind("delete_layer", self._on_delete_layer_clicked)
+        image_panel.bind("confirm_image", self._on_confirm_image_clicked)
+        image_panel.bind("ref_table_cell_changed", self._on_ref_table_cell_changed)
         layout.addWidget(self.sec_image)
 
         # 5. Coordinate Transformation & Placement
-        self.sec_transform = QWidget(container)
-        trans_layout = QVBoxLayout(self.sec_transform)
-        trans_layout.setContentsMargins(0, 0, 0, 0)
-        trans_layout.setSpacing(6)
-
-        trans_btn_layout = QHBoxLayout()
-        self.btn_transform = QPushButton(UILabels.BTN_TRANSFORM, self.sec_transform)
-        UIStyleHelper.set_primary_button(self.btn_transform)
-        self.btn_transform.setEnabled(False)
-        self.btn_transform.clicked.connect(self._on_transform_clicked)
-
-        self.btn_export_layer = QPushButton(UILabels.BTN_EXPORT_LAYER, self.sec_transform)
-        UIStyleHelper.set_accent_button(self.btn_export_layer)
-        self.btn_export_layer.setEnabled(False)
-        self.btn_export_layer.clicked.connect(self._on_export_layer_clicked)
-
-        trans_btn_layout.addWidget(self.btn_transform, 1)
-        trans_btn_layout.addWidget(self.btn_export_layer, 1)
-        trans_layout.addLayout(trans_btn_layout)
-
+        transform_panel = CoreUIBuilder.build(TAB1_TRANSFORM_SECTION_SPEC, parent=container)
+        self.sec_transform = transform_panel.widget
+        self.btn_transform = transform_panel.get("transform")
+        self.btn_export_layer = transform_panel.get("export_layer")
+        transform_panel.bind("transform_clicked", self._on_transform_clicked)
+        transform_panel.bind("export_layer_clicked", self._on_export_layer_clicked)
         layout.addWidget(self.sec_transform)
 
         # T-0020: Information Panel is placed at the bottom of the 図面管理
@@ -288,7 +196,7 @@ class Tab1GeorefMixin:
         )
 
     def _on_edit_layer_changed(self) -> None:
-        layer_name = self.combo_edit_layer.currentText()
+        layer_name = self._tab1_image_panel.get_value("edit_layer")
         if not layer_name:
             self.edit_image_name.clear()
             self.ref_points_data.clear()
@@ -319,7 +227,7 @@ class Tab1GeorefMixin:
         self._refresh_ref_points_table_and_markers()
 
     def _on_delete_layer_clicked(self) -> None:
-        layer_name = self.combo_edit_layer.currentText()
+        layer_name = self._tab1_image_panel.get_value("edit_layer")
         if not layer_name:
             return
             
@@ -415,11 +323,11 @@ class Tab1GeorefMixin:
         ``os.rename()``), so this operation cannot raise a Windows
         ``[WinError 32]``-style file-locking error by construction.
         """
-        old_name = self.combo_edit_layer.currentText()
+        old_name = self._tab1_image_panel.get_value("edit_layer")
         if not old_name:
             return
 
-        new_name = self.edit_image_name.text().strip()
+        new_name = self._tab1_image_panel.get_value("image_name").strip()
 
         if not new_name:
             QMessageBox.warning(
@@ -541,7 +449,7 @@ class Tab1GeorefMixin:
             self._on_setup_ref_points_clicked()
             return
 
-        layer_name = self.edit_image_name.text().strip()
+        layer_name = self._tab1_image_panel.get_value("image_name").strip()
 
         if not layer_name:
             QMessageBox.warning(
@@ -575,7 +483,7 @@ class Tab1GeorefMixin:
             self.edit_image_name.setFocus()
             return
 
-        src_path = self.edit_image_path.text().strip()
+        src_path = self._tab1_image_panel.get_value("image_path").strip()
         if not src_path or not os.path.isfile(src_path):
             QMessageBox.warning(
                 self,
@@ -1026,7 +934,7 @@ class Tab1GeorefMixin:
             )
             return
 
-        layer_name = self.confirmed_layer_name or self.edit_image_name.text().strip()
+        layer_name = self.confirmed_layer_name or self._tab1_image_panel.get_value("image_name").strip()
 
         # T-0018: previously this block had a fallback that searched
         # session_image_dir for a file whose basename matched layer_name when
