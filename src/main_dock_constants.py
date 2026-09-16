@@ -194,7 +194,6 @@ class UILabels:
         AttributeType.C.value: "C:炭化物",
         AttributeType.SP.value: "SP",
     }
-    BTN_UPDATE_ATTRIBUTE = "属性変更"
     BTN_COLOR_PICKER = "カラー選択"
     GROUP_CSV = "CSV出力設定"
 
@@ -206,7 +205,6 @@ class UILabels:
     LBL_INFO_POINT_BRANCH = "点名/枝番:"
     LBL_INFO_COORDS = "XY座標:"
     BTN_CREATE_FEATURE = "作成"
-    BTN_RENAME_POINT = "点名変更"
     FEATURE_CREATE_DIALOG_TITLE = "遺構名作成"
     NEW_FEATURE_NAME = "新規遺構名:"
     # --- T-0032: 点情報パネル ステータス帯 文言 ---
@@ -287,17 +285,12 @@ class UIMessages:
     MSG_SELECT_FEATURE_NAME = "対象の遺構名をセレクタから選択してください。"
     MSG_COLOR_APPLIED_TITLE = "カラー適用"
     MSG_COLOR_APPLIED = "遺構 '{feature}' の全打刻点 ({count}件) にカラー {color} を適用しました。"
-    MSG_UPDATE_ATTRIBUTE_TITLE = "属性変更"
-    MSG_UPDATE_ATTRIBUTE_SUCCESS = "属性を変更しました。"
     MSG_RENAME_LAYER_SUCCESS = "レイヤ名を '{old}' から '{new}' に変更しました。"
     ERR_POINT_NAME_REQUIRED = "点名（点番号）を入力してください。"
     ERR_NEW_FEATURE_REQUIRED = "新規遺構名を入力してください。"
     MSG_DELETE_SUCCESS_TITLE = "ポイント削除"
     MSG_DELETE_SUCCESS = "ポイントを削除しました。"
     MSG_EXPORT_CSV_TITLE = "CSV出力完了"
-    # --- T-0027: 点名変更ダイアログ (旧「番号修正を確定」ボタンを置換) ---
-    MSG_RENAME_POINT_SUCCESS_TITLE = "点名変更"
-    MSG_RENAME_POINT_SUCCESS = "点名を変更しました。"
 
     # --- T-0025: undefined-literal cleanup (main_dock_dialogs.py) ---
     MSG_CONFIRM_DELETE_REF = "この基準点を削除しますか？"
