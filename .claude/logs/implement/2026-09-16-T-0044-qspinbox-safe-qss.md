@@ -155,3 +155,33 @@ QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {
 
 ### スコープ外変更の有無（押下フィードバック追加）
 なし。変更は`src/ui/style.py`の`get_style_sheet()`内、`QSpinBox::up-button:pressed, QSpinBox::down-button:pressed`ルールの追加のみ。
+
+## 押下フィードバックの角丸修正（2026-09-16）
+
+### 不具合内容
+上記「押下フィードバック追加」で導入した`QSpinBox::up-button:pressed, QSpinBox::down-button:pressed`の共通ルールが`background-color`のみを指定し角丸(`border-top-right-radius`/`border-bottom-right-radius`)を再宣言していなかったため、ユーザーがQGIS上で確認したところ、押下時の背景色がボタンの角丸を無視して四角形のまま描画され、入力ボックスのボーダーからはみ出して見える不具合が判明した。
+
+### 修正概要
+`src/ui/style.py`の`get_style_sheet()`内、`QSpinBox::up-button:pressed, QSpinBox::down-button:pressed`の共通セレクタを、`QSpinBox::up-button`/`QSpinBox::down-button`（非pressed）と同様に個別セレクタへ分離し、それぞれ対応する角丸を再宣言した。
+
+```css
+QSpinBox::up-button:pressed {
+    background-color: palette(midlight);
+    border-top-right-radius: 4px;
+}
+
+QSpinBox::down-button:pressed {
+    background-color: palette(midlight);
+    border-bottom-right-radius: 4px;
+}
+```
+
+角丸の値`4px`は、既存の`QSpinBox::up-button`/`QSpinBox::down-button`（非pressed）ルールで使用されている`border-top-right-radius: 4px;`/`border-bottom-right-radius: 4px;`と一致させた。
+
+`QSpinBox`本体・`QSpinBox:focus`・`up-button`/`down-button`（非pressed）・矢印画像参照(`image: url(...)`)には一切変更を加えていない。`create_spinbox()`のロジックも変更していない。
+
+### 自動テスト実行結果（押下フィードバックの角丸修正）
+自動テストなし。`python3 -m py_compile src/ui/style.py`を実行し、構文エラーがないことを確認した（成功、エラーなし）。
+
+### スコープ外変更の有無（押下フィードバックの角丸修正）
+なし。変更は`src/ui/style.py`の`get_style_sheet()`内、`QSpinBox::up-button:pressed`/`QSpinBox::down-button:pressed`ルールをそれぞれ個別セレクタに分離し角丸を再宣言した点のみ。

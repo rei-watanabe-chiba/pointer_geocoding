@@ -150,8 +150,14 @@ class UIStyleHelper:
            (rgba(128, 128, 128, 0.28) below), kept simpler here per the
            requested palette(midlight) approach since QSpinBox buttons
            have no separate hover rule to stay consistent with. */
-        QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {
+        QSpinBox::up-button:pressed {
             background-color: palette(midlight);
+            border-top-right-radius: 4px;
+        }
+
+        QSpinBox::down-button:pressed {
+            background-color: palette(midlight);
+            border-bottom-right-radius: 4px;
         }
 
         /* T-0044 3rd follow-up: the border-trick used previously (transparent
