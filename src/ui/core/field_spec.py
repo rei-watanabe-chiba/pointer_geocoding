@@ -16,10 +16,11 @@ from typing import List, Optional, Tuple
 class WidgetType(Enum):
     """Kinds of rows/fields CoreUIBuilder knows how to construct.
 
-    Only the kinds actually needed by tab1_image_schema.py are implemented
-    here; new kinds should be added only once a real screen needs them
-    (avoids speculative/unused surface area, per the CoreUI plan's "逃げ道"
-    principle for screen-specific exceptions).
+    Only the kinds actually needed by a real screen's schema are implemented
+    here (originally tab1_image.py's TAB1_* specs; RADIO_ROW was added for
+    start_dialog.py's T-0046 adoption); new kinds should be added only once
+    a real screen needs them (avoids speculative/unused surface area, per
+    the CoreUI plan's "逃げ道" principle for screen-specific exceptions).
     """
     LINEEDIT_ROW = "lineedit_row"
     COMBOBOX_ROW = "combobox_row"
@@ -28,6 +29,12 @@ class WidgetType(Enum):
     TABLE = "table"
     SEGMENTED_TOGGLE = "segmented_toggle"
     INFO_PANEL = "info_panel"
+    #: T-0046: a labeled row of mutually-exclusive QRadioButtons (e.g.
+    #: start_dialog.py's session-type / grid-mode selectors), distinct from
+    #: SEGMENTED_TOGGLE's iOS-style button group. Uses FieldSpec.options for
+    #: the radio labels and FieldSpec.default_index for the initially
+    #: checked option, same as SEGMENTED_TOGGLE.
+    RADIO_ROW = "radio_row"
 
 
 @dataclass
@@ -90,7 +97,8 @@ class FieldSpec:
     :param placeholder: Placeholder text (LINEEDIT_ROW).
     :param on_change: Event-hook name for value-changed signals
         (LINEEDIT_ROW -> textChanged, COMBOBOX_ROW -> currentIndexChanged,
-        TABLE -> cellChanged, SEGMENTED_TOGGLE -> "toggled to index").
+        TABLE -> cellChanged, SEGMENTED_TOGGLE/RADIO_ROW -> "toggled to
+        index").
     :param on_click: Event-hook name for BUTTON's ``clicked`` signal.
     :param style_variant: UIStyleHelper button style for BUTTON.
     :param enabled: Initial enabled state for BUTTON.
@@ -98,9 +106,9 @@ class FieldSpec:
         widget within a LINEEDIT_ROW (e.g. "参照..." next to the image path
         field).
     :param buttons: Button list for BUTTON_ROW.
-    :param options: Segment labels for SEGMENTED_TOGGLE.
-    :param default_index: Initially-checked segment index for
-        SEGMENTED_TOGGLE.
+    :param options: Segment/option labels for SEGMENTED_TOGGLE/RADIO_ROW.
+    :param default_index: Initially-checked segment/option index for
+        SEGMENTED_TOGGLE/RADIO_ROW.
     :param table_headers: Column header labels for TABLE.
     :param table_min_height: Minimum table height in px for TABLE.
     :param table_col_resize_modes: Per-column resize mode tokens for TABLE

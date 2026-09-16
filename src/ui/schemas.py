@@ -151,3 +151,79 @@ TAB1_TRANSFORM_SECTION_SPEC = PanelSpec(
         ),
     ],
 )
+
+# --- START DIALOG --------------------------------------------------------
+# Session start dialog (start_dialog.py's StartDialog._init_ui()). T-0046:
+# covers the "セッション設定" group (session type radio, folder path with a
+# trailing browse button, session name) and the leading part of the
+# "グリッド設定" group (grid CSV path with a trailing browse button, grid
+# mode radio). The origin/range/preview coordinate panel and its dynamic
+# warning status panel (ExcelColumnSpinBox, nested sub-labeled spinbox
+# pairs, and a confirm button embedded in a dynamically-restyled status
+# panel) remain bespoke code in start_dialog.py: none of those map onto an
+# existing CoreUI WidgetType, and inventing new kinds solely for this one
+# screen's stateful widgets would be speculative abstraction, per the CoreUI
+# plan's "画面固有の例外は素のPyQtコードとして残してよい" escape hatch
+# (see .claude/state/v2-coreui-plan.md).
+
+START_DIALOG_SESSION_SPEC = PanelSpec(
+    panel_id="start_dialog_session",
+    spacing=10,
+    fields=[
+        FieldSpec(
+            field_id="session_type",
+            widget_type=WidgetType.RADIO_ROW,
+            label="セッション種別:",
+            options=["新規セッション", "既存セッション"],
+            default_index=0,
+            on_change="session_type_changed",
+        ),
+        # Label/placeholder are re-set at runtime by
+        # StartDialog._on_session_type_changed() (親ディレクトリ/セッション
+        # フォルダ swap); the values below are only the initial "new session"
+        # state.
+        FieldSpec(
+            field_id="folder",
+            widget_type=WidgetType.LINEEDIT_ROW,
+            label="親ディレクトリ:",
+            placeholder="セッションフォルダを新規作成する親ディレクトリを選択してください",
+            trailing_button=ButtonDef(
+                field_id="browse_folder", text=UILabels.BTN_BROWSE, on_click="browse_folder"
+            ),
+        ),
+        FieldSpec(
+            field_id="session_name",
+            widget_type=WidgetType.LINEEDIT_ROW,
+            label="セッション名:",
+            placeholder="例: session_01 (半角英数推奨)",
+        ),
+    ],
+)
+
+START_DIALOG_GRID_CSV_SPEC = PanelSpec(
+    panel_id="start_dialog_grid_csv",
+    spacing=10,
+    fields=[
+        FieldSpec(
+            field_id="grid_csv",
+            widget_type=WidgetType.LINEEDIT_ROW,
+            label="グリッドCSV選択:",
+            placeholder=(
+                "既存のPointGeo_grid.csvを選択"
+                "（下のモードにより新規作成の初期値、または利用CSVとして扱われます）"
+            ),
+            trailing_button=ButtonDef(
+                field_id="browse_grid_csv", text=UILabels.BTN_BROWSE, on_click="browse_grid_csv"
+            ),
+            on_change="grid_csv_changed",
+        ),
+        FieldSpec(
+            field_id="grid_mode",
+            widget_type=WidgetType.RADIO_ROW,
+            label="グリッドモード:",
+            options=["新規作成・更新", "CSVファイル利用"],
+            default_index=0,
+            on_change="grid_mode_changed",
+        ),
+    ],
+)

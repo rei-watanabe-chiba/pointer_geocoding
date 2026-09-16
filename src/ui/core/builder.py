@@ -25,12 +25,14 @@ from typing import Any, Callable, Dict, List, Optional
 
 from qgis.gui import QgsFilterLineEdit
 from qgis.PyQt.QtWidgets import (
+    QButtonGroup,
     QComboBox,
     QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QPushButton,
+    QRadioButton,
     QTableWidget,
     QVBoxLayout,
     QWidget,
@@ -67,6 +69,7 @@ class BuiltPanel:
         WidgetType.LINEEDIT_ROW,
         WidgetType.COMBOBOX_ROW,
         WidgetType.SEGMENTED_TOGGLE,
+        WidgetType.RADIO_ROW,
     )
 
     def __init__(
@@ -123,7 +126,7 @@ class BuiltPanel:
             return self._field_widgets[field_id].text()
         if widget_type == WidgetType.COMBOBOX_ROW:
             return self._field_widgets[field_id].currentText()
-        if widget_type == WidgetType.SEGMENTED_TOGGLE:
+        if widget_type in (WidgetType.SEGMENTED_TOGGLE, WidgetType.RADIO_ROW):
             for idx, btn in enumerate(self._buttons_lists[field_id]):
                 if btn.isChecked():
                     return idx
@@ -149,7 +152,7 @@ class BuiltPanel:
             if index >= 0:
                 self._field_widgets[field_id].setCurrentIndex(index)
             return
-        if widget_type == WidgetType.SEGMENTED_TOGGLE:
+        if widget_type in (WidgetType.SEGMENTED_TOGGLE, WidgetType.RADIO_ROW):
             self._buttons_lists[field_id][value].setChecked(True)
             return
         raise NotImplementedError(
@@ -232,6 +235,13 @@ class CoreUIBuilder:
         if f.placeholder:
             edit.setPlaceholderText(f.placeholder)
         field_widgets[f.field_id] = edit
+        if label is not None:
+            # T-0046: expose the row label under f"{field_id}.label" so
+            # callers that need to swap its text at runtime (e.g.
+            # start_dialog.py's new/existing-session label swap) can fetch
+            # it via panel.get(f"{field_id}.label") instead of keeping a
+            # separately-constructed QLabel reference around.
+            field_widgets[f"{f.field_id}.label"] = label
         register_hook(f.on_change, lambda cb, edit=edit: edit.textChanged.connect(cb))
 
         content = [(edit, 6 if f.trailing_button else 1)]
@@ -299,6 +309,48 @@ class CoreUIBuilder:
         return table
 
     @classmethod
+    def _build_radio_row(cls, f, parent, field_widgets, buttons_lists, register_hook):
+        """Build a labeled row of mutually-exclusive QRadioButtons.
+
+        T-0046: mirrors _build_segmented_toggle's index-based get_value/
+        set_value/on_change contract, but renders plain QRadioButtons in a
+        build_flex_row (label + one radio per option + trailing stretch)
+        instead of an iOS-style segmented button group, matching
+        start_dialog.py's pre-existing "セッション種別"/"グリッドモード" look.
+        """
+        label = QLabel(f.label, parent) if f.label else None
+        group = QButtonGroup(parent)
+        buttons: List[QRadioButton] = []
+        content = []
+        for i, option in enumerate(f.options):
+            btn = QRadioButton(option, parent)
+            group.addButton(btn, i)
+            buttons.append(btn)
+            content.append((btn, 1))
+        content.append((None, 1))
+        if 0 <= f.default_index < len(buttons):
+            buttons[f.default_index].setChecked(True)
+        buttons_lists[f.field_id] = buttons
+
+        def connect_index_hook(cb, buttons=buttons):
+            for idx, btn in enumerate(buttons):
+                btn.toggled.connect(lambda checked, idx=idx, cb=cb: cb(idx) if checked else None)
+
+        register_hook(f.on_change, connect_index_hook)
+
+        row = UIStyleHelper.build_flex_row(
+            label,
+            content,
+            main_ratio=f.main_ratio or UIConfig.MAIN_RATIO,
+            row_height=f.row_height or UIConfig.ROW_HEIGHT,
+        )
+        # Keep the QButtonGroup alive for the row's lifetime (it is parented
+        # to `parent`, not `row`, so nothing else retains a reference to it).
+        row._button_group = group
+        field_widgets[f.field_id] = row
+        return row
+
+    @classmethod
     def _build_segmented_toggle(cls, f, parent, field_widgets, buttons_lists, register_hook):
         container, buttons = UIStyleHelper.build_segmented_toggle(
             f.options, default_index=f.default_index, parent=parent
@@ -362,4 +414,5 @@ CoreUIBuilder._BUILDERS = {
     WidgetType.TABLE: CoreUIBuilder._build_table,
     WidgetType.SEGMENTED_TOGGLE: CoreUIBuilder._build_segmented_toggle,
     WidgetType.INFO_PANEL: CoreUIBuilder._build_info_panel,
+    WidgetType.RADIO_ROW: CoreUIBuilder._build_radio_row,
 }

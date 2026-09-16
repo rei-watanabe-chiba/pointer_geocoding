@@ -18,7 +18,6 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QGridLayout,
-    QRadioButton,
     QLabel,
     QPushButton,
     QFileDialog,
@@ -26,7 +25,6 @@ from qgis.PyQt.QtWidgets import (
     QFrame,
     QLineEdit,
     QSpinBox,
-    QButtonGroup,
 )
 
 try:
@@ -41,6 +39,8 @@ except ImportError:
 from ..logic.core import from_excel_column, to_excel_column
 from .style import UIStyleHelper
 from .constants import UIConfig
+from .core import CoreUIBuilder
+from .schemas import START_DIALOG_SESSION_SPEC, START_DIALOG_GRID_CSV_SPEC
 
 # UI Configuration dictionary and layout ratios
 UI_CONFIG = {
@@ -50,17 +50,8 @@ UI_CONFIG = {
         "WINDOW_TITLE": "点群座標取得 - セッション選択",
         "GROUP_SESSION": "セッション設定",
         "GROUP_GRID": "グリッド設定",
-        "SESSION_TYPE": "セッション種別:",
-        "RADIO_NEW": "新規セッション",
-        "RADIO_EXISTING": "既存セッション",
         "FOLDER_PARENT": "親ディレクトリ:",
         "FOLDER_EXISTING": "セッションフォルダ:",
-        "BTN_BROWSE": "参照...",
-        "SESSION_NAME": "セッション名:",
-        "GRID_CSV": "グリッドCSV選択:",
-        "GRID_MODE": "グリッドモード:",
-        "RADIO_GRID_MODE_NEW": "新規作成・更新",
-        "RADIO_GRID_MODE_USE_CSV": "CSVファイル利用",
         "ORIGIN_GROUP": "原点 (1A-00):",
         "RANGE_X_GROUP": "X範囲:",
         "RANGE_Y_GROUP": "Y範囲:",
@@ -76,8 +67,6 @@ UI_CONFIG = {
     "PLACEHOLDERS": {
         "FOLDER_NEW": "セッションフォルダを新規作成する親ディレクトリを選択してください",
         "FOLDER_EXISTING": "既存のセッションフォルダ（.qgzが存在するフォルダ）を選択してください",
-        "SESSION_NAME": "例: session_01 (半角英数推奨)",
-        "GRID_CSV": "既存のPointGeo_grid.csvを選択（下のモードにより新規作成の初期値、または利用CSVとして扱われます）",
         "PREVIEW_Y": "A",
     },
     "DIALOG_TITLES": {
@@ -221,54 +210,29 @@ class StartDialog(QDialog):
         )
 
         # 1. Configuration Parameters Group (QgsCollapsibleGroupBox)
+        # T-0046: session type / folder path / session name are built
+        # declaratively via CoreUIBuilder against START_DIALOG_SESSION_SPEC
+        # (see schemas.py); this method wires the built widgets to the
+        # instance attributes used throughout this class and binds each
+        # field's event hooks to the actual handlers below.
         config_group = QgsCollapsibleGroupBox(UI_CONFIG["LABELS"]["GROUP_SESSION"], self)
         config_group.setCollapsed(False)
         config_layout = QVBoxLayout(config_group)
         config_layout.setSpacing(10)
 
-        # Row 0: Session Type Selection
-        self.lbl_type = QLabel(UI_CONFIG["LABELS"]["SESSION_TYPE"], config_group)
-        self.radio_new = QRadioButton(UI_CONFIG["LABELS"]["RADIO_NEW"], config_group)
-        self.radio_new.setChecked(True)
-        self.radio_existing = QRadioButton(UI_CONFIG["LABELS"]["RADIO_EXISTING"], config_group)
-        self.radio_new.toggled.connect(self._on_session_type_changed)
+        session_panel = CoreUIBuilder.build(START_DIALOG_SESSION_SPEC, parent=config_group)
+        self._session_panel = session_panel
+        self.radio_new, self.radio_existing = session_panel.get_buttons("session_type")
+        self.lbl_folder = session_panel.get("folder.label")
+        self.edit_folder = session_panel.get("folder")
+        self.btn_browse_folder = session_panel.get("browse_folder")
+        self.lbl_session_name = session_panel.get("session_name.label")
+        self.edit_session_name = session_panel.get("session_name")
 
-        row_session_type = UIStyleHelper.build_flex_row(
-            self.lbl_type,
-            [(self.radio_new, 1), (self.radio_existing, 1), (None, 1)],
-            main_ratio=MAIN_RATIO,
-            row_height=UI_CONFIG["ROW_HEIGHT"],
-        )
-        config_layout.addWidget(row_session_type)
+        session_panel.bind("session_type_changed", self._on_session_type_changed)
+        session_panel.bind("browse_folder", self._browse_folder)
 
-        # Row 1: Directory Path (Parent Directory for NEW, Session Folder for EXISTING)
-        self.lbl_folder = QLabel(UI_CONFIG["LABELS"]["FOLDER_PARENT"], config_group)
-        self.edit_folder = QgsFilterLineEdit(config_group)
-        self.edit_folder.setShowClearButton(True)
-        self.btn_browse_folder = QPushButton(UI_CONFIG["LABELS"]["BTN_BROWSE"], config_group)
-        self.btn_browse_folder.clicked.connect(self._browse_folder)
-
-        row_folder = UIStyleHelper.build_flex_row(
-            self.lbl_folder,
-            [(self.edit_folder, 1), (self.btn_browse_folder, 0)],
-            main_ratio=MAIN_RATIO,
-            row_height=UI_CONFIG["ROW_HEIGHT"],
-        )
-        config_layout.addWidget(row_folder)
-
-        # Row 2: Session Name (Enabled only for NEW session)
-        self.lbl_session_name = QLabel(UI_CONFIG["LABELS"]["SESSION_NAME"], config_group)
-        self.edit_session_name = QgsFilterLineEdit(config_group)
-        self.edit_session_name.setShowClearButton(True)
-        self.edit_session_name.setPlaceholderText(UI_CONFIG["PLACEHOLDERS"]["SESSION_NAME"])
-
-        row_session_name = UIStyleHelper.build_flex_row(
-            self.lbl_session_name,
-            [(self.edit_session_name, 1)],
-            main_ratio=MAIN_RATIO,
-            row_height=UI_CONFIG["ROW_HEIGHT"],
-        )
-        config_layout.addWidget(row_session_name)
+        config_layout.addWidget(session_panel.widget)
         config_layout.addStretch()
 
         main_layout.addWidget(config_group)
@@ -279,44 +243,22 @@ class StartDialog(QDialog):
         grid_group_layout = QVBoxLayout(self.grid_group)
         grid_group_layout.setSpacing(10)
 
-        # Row 0: Grid CSV Selection
-        self.lbl_grid_csv = QLabel(UI_CONFIG["LABELS"]["GRID_CSV"], self.grid_group)
-        self.edit_grid_csv = QgsFilterLineEdit(self.grid_group)
-        self.edit_grid_csv.setShowClearButton(True)
-        self.edit_grid_csv.setPlaceholderText(UI_CONFIG["PLACEHOLDERS"]["GRID_CSV"])
-        self.btn_browse_grid_csv = QPushButton(UI_CONFIG["LABELS"]["BTN_BROWSE"], self.grid_group)
-        self.btn_browse_grid_csv.clicked.connect(self._browse_grid_csv)
-        self.edit_grid_csv.textChanged.connect(self._on_grid_csv_changed)
+        # Row 0/0.5: Grid CSV Selection + Grid Mode Selection (New/Update vs.
+        # Use existing CSV as-is). T-0046: built declaratively via
+        # CoreUIBuilder against START_DIALOG_GRID_CSV_SPEC (see schemas.py).
+        grid_csv_panel = CoreUIBuilder.build(START_DIALOG_GRID_CSV_SPEC, parent=self.grid_group)
+        self._grid_csv_panel = grid_csv_panel
+        self.edit_grid_csv = grid_csv_panel.get("grid_csv")
+        self.btn_browse_grid_csv = grid_csv_panel.get("browse_grid_csv")
+        self.radio_grid_mode_new, self.radio_grid_mode_use_csv = grid_csv_panel.get_buttons(
+            "grid_mode"
+        )
 
-        row_grid_csv = UIStyleHelper.build_flex_row(
-            self.lbl_grid_csv,
-            [(self.edit_grid_csv, 1), (self.btn_browse_grid_csv, 0)],
-            main_ratio=MAIN_RATIO,
-            row_height=UI_CONFIG["ROW_HEIGHT"],
-        )
-        grid_group_layout.addWidget(row_grid_csv)
+        grid_csv_panel.bind("browse_grid_csv", self._browse_grid_csv)
+        grid_csv_panel.bind("grid_csv_changed", self._on_grid_csv_changed)
+        grid_csv_panel.bind("grid_mode_changed", self._on_grid_mode_changed)
 
-        # Row 0.5: Grid Mode Selection (New/Update vs. Use existing CSV as-is)
-        self.lbl_grid_mode = QLabel(UI_CONFIG["LABELS"]["GRID_MODE"], self.grid_group)
-        self.radio_grid_mode_new = QRadioButton(
-            UI_CONFIG["LABELS"]["RADIO_GRID_MODE_NEW"], self.grid_group
-        )
-        self.radio_grid_mode_new.setChecked(True)
-        self.radio_grid_mode_use_csv = QRadioButton(
-            UI_CONFIG["LABELS"]["RADIO_GRID_MODE_USE_CSV"], self.grid_group
-        )
-        self.grid_mode_group = QButtonGroup(self.grid_group)
-        self.grid_mode_group.addButton(self.radio_grid_mode_new)
-        self.grid_mode_group.addButton(self.radio_grid_mode_use_csv)
-        self.radio_grid_mode_new.toggled.connect(self._on_grid_mode_changed)
-
-        row_grid_mode = UIStyleHelper.build_flex_row(
-            self.lbl_grid_mode,
-            [(self.radio_grid_mode_new, 1), (self.radio_grid_mode_use_csv, 1), (None, 1)],
-            main_ratio=MAIN_RATIO,
-            row_height=UI_CONFIG["ROW_HEIGHT"],
-        )
-        grid_group_layout.addWidget(row_grid_mode)
+        grid_group_layout.addWidget(grid_csv_panel.widget)
 
         # Row 1: Flat Status Panel containing Origin and Grid Count Settings in 2 rows
         self.panel_grid_settings = QFrame(self.grid_group)
@@ -486,8 +428,15 @@ class StartDialog(QDialog):
 
         main_layout.addLayout(btn_layout)
 
-    def _on_session_type_changed(self) -> None:
-        """Handle interlock toggling between New and Existing session modes."""
+    def _on_session_type_changed(self, _index: int = 0) -> None:
+        """Handle interlock toggling between New and Existing session modes.
+
+        :param _index: Checked segment index passed by the RADIO_ROW
+            "session_type_changed" hook (see START_DIALOG_SESSION_SPEC in
+            schemas.py); unused, since the final state is always re-read
+            fresh from ``self.radio_new.isChecked()`` below.
+        :type _index: int
+        """
         match self.radio_new.isChecked():
             case True:
                 self.lbl_folder.setText(UI_CONFIG["LABELS"]["FOLDER_PARENT"])
@@ -663,8 +612,15 @@ class StartDialog(QDialog):
         """
         self._apply_grid_mode_state()
 
-    def _on_grid_mode_changed(self) -> None:
-        """Handle toggling between the 'new/update' and 'use existing CSV' grid modes."""
+    def _on_grid_mode_changed(self, _index: int = 0) -> None:
+        """Handle toggling between the 'new/update' and 'use existing CSV' grid modes.
+
+        :param _index: Checked segment index passed by the RADIO_ROW
+            "grid_mode_changed" hook (see START_DIALOG_GRID_CSV_SPEC in
+            schemas.py); unused, since :meth:`_apply_grid_mode_state`
+            re-reads the final state fresh from the radio button widgets.
+        :type _index: int
+        """
         self._apply_grid_mode_state()
 
     def _apply_grid_mode_state(self) -> None:
