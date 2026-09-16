@@ -29,7 +29,7 @@ is open (see MainDockWidget._update_main_map_tool_state).
 import re
 from typing import Optional, Dict, Any, List, Callable
 
-from qgis.core import QgsRasterLayer, QgsVectorLayer
+from qgis.core import QgsRasterLayer
 from qgis.gui import QgsMapCanvas
 from qgis.PyQt.QtCore import Qt, pyqtSlot, QRegExp
 from qgis.PyQt.QtGui import QRegExpValidator
@@ -45,23 +45,9 @@ from qgis.PyQt.QtWidgets import (
     QMessageBox,
 )
 
-# T-0027: SP属性専用の点名QLineEditで使用する入力バリデータ。PyQt5/PyQt6両対応
-# パターンは tab2_digitizing_mixin.py (T-0022導入分) を踏襲する。
-try:
-    from qgis.PyQt.QtGui import QRegularExpressionValidator
-    from qgis.PyQt.QtCore import QRegularExpression
-    HAS_QT_REGEX = True
-except ImportError:
-    HAS_QT_REGEX = False
-
 from .map_tool import ImageGeorefTool
 from .style_helper import UIStyleHelper
-from .core_logic import (
-    to_survey_coords,
-    check_duplicate_and_build_message,
-    ExcavationType,
-    AttributeType,
-)
+from .core_logic import to_survey_coords
 from .main_dock_constants import UILabels, UIMessages, UIPlaceholders, UIDialogSizes
 
 
@@ -616,167 +602,4 @@ class FeatureCreateDialog(QDialog):
             self.lbl_error.show()
             return
         self.result_text = text
-        self.accept()
-
-
-class PointRenameDialog(QDialog):
-    """T-0027: Modal dialog for renaming (point number + branch number) an
-    existing digitized point, replacing the former inline "番号修正を確定"
-    button (Tab2DigitizingMixin._on_correct_point_number, now removed).
-
-    Unlike new-point digitizing, no auto-numbering is applied here: the
-    point-name/branch-number inputs start pre-filled with the point's
-    current values, and OK only performs a duplicate check (via
-    core_logic.check_duplicate_and_build_message(), excluding the point
-    itself) before writing the updated attributes directly to the layer
-    and closing. On duplicate, an inline red error label is shown and the
-    dialog stays open (T-0027 requirement: no QMessageBox for this case).
-    """
-
-    def __init__(
-        self,
-        point_layer: QgsVectorLayer,
-        feature_id: int,
-        attribute_type: str,
-        excavation_type: str,
-        feature_name: str,
-        drawing_name: str,
-        point_name: str,
-        branch_no: str,
-        parent: Optional[QWidget] = None,
-    ) -> None:
-        """Initialize the point rename dialog.
-
-        :param point_layer: Vector layer containing the digitized point.
-        :type point_layer: QgsVectorLayer
-        :param feature_id: Feature id of the point being renamed (excluded from the duplicate check).
-        :type feature_id: int
-        :param attribute_type: Current attribute_type value ('S'/'P'/'C'/'SP'); determines
-            whether the point-name input is a QSpinBox (S/P/C) or a free-text QLineEdit (SP).
-        :type attribute_type: str
-        :param excavation_type: Current excavation_type value (immutable while renaming).
-        :type excavation_type: str
-        :param feature_name: Current feature_name value (immutable while renaming).
-        :type feature_name: str
-        :param drawing_name: Current drawing_name value (immutable while renaming).
-        :type drawing_name: str
-        :param point_name: Current point_name value to pre-fill.
-        :type point_name: str
-        :param branch_no: Current branch_no value to pre-fill.
-        :type branch_no: str
-        :param parent: Optional parent QWidget.
-        :type parent: Optional[QWidget]
-        """
-        super().__init__(parent)
-        self.point_layer = point_layer
-        self.feature_id = feature_id
-        self.attribute_type = attribute_type
-        self.excavation_type = excavation_type
-        self.feature_name = feature_name
-        self.drawing_name = drawing_name
-
-        self.setWindowTitle(UILabels.RENAME_POINT_DIALOG_TITLE)
-        self.setModal(True)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
-
-        is_sp = attribute_type == AttributeType.SP.value
-
-        layout.addWidget(QLabel(UILabels.POINT_NAME, self))
-        self.spin_point_name = UIStyleHelper.create_spinbox(1, 999999, 1, self)
-        self.spin_point_name.setVisible(not is_sp)
-
-        self.edit_point_name_sp = QLineEdit(self)
-        self.edit_point_name_sp.setPlaceholderText(UIPlaceholders.POINT_NAME_SP)
-        if HAS_QT_REGEX:
-            self.edit_point_name_sp.setValidator(
-                QRegularExpressionValidator(
-                    QRegularExpression(r"^[A-Za-z0-9_-]+$"), self.edit_point_name_sp
-                )
-            )
-        else:
-            self.edit_point_name_sp.setValidator(
-                QRegExpValidator(QRegExp(r"^[A-Za-z0-9_-]+$"), self.edit_point_name_sp)
-            )
-        self.edit_point_name_sp.setVisible(is_sp)
-
-        if is_sp:
-            self.edit_point_name_sp.setText(point_name)
-        else:
-            try:
-                self.spin_point_name.setValue(int(point_name or 1))
-            except ValueError:
-                self.spin_point_name.setValue(1)
-
-        layout.addWidget(self.spin_point_name)
-        layout.addWidget(self.edit_point_name_sp)
-
-        layout.addWidget(QLabel(UILabels.BRANCH_NO, self))
-        self.edit_branch_no = QLineEdit(self)
-        self.edit_branch_no.setPlaceholderText(UIPlaceholders.BRANCH_NO)
-        self.edit_branch_no.setText(branch_no)
-        layout.addWidget(self.edit_branch_no)
-
-        self.lbl_error = QLabel("", self)
-        self.lbl_error.setStyleSheet("color: #C62828;")
-        self.lbl_error.setWordWrap(True)
-        self.lbl_error.hide()
-        layout.addWidget(self.lbl_error)
-
-        self.btn_ok = QPushButton(UILabels.BTN_CONFIRM, self)
-        UIStyleHelper.set_primary_button(self.btn_ok)
-        self.btn_ok.clicked.connect(self._on_ok_clicked)
-
-        self.btn_cancel = QPushButton(UILabels.BTN_CANCEL, self)
-        self.btn_cancel.clicked.connect(self.reject)
-
-        layout.addLayout(UIStyleHelper.build_centered_button_row([self.btn_ok, self.btn_cancel]))
-
-    def _show_error(self, message: str) -> None:
-        """Display an inline red error message and keep the dialog open."""
-        self.lbl_error.setText(message)
-        self.lbl_error.show()
-
-    def _on_ok_clicked(self) -> None:
-        """Validate input, duplicate-check, write attributes, and close on success."""
-        is_sp = self.attribute_type == AttributeType.SP.value
-        point_name = (
-            self.edit_point_name_sp.text().strip()
-            if is_sp
-            else str(self.spin_point_name.value())
-        )
-        branch_no = self.edit_branch_no.text().strip()
-
-        if not point_name:
-            self._show_error(UIMessages.ERR_POINT_NAME_REQUIRED)
-            return
-
-        # T-0027: reuse the same duplicate-check + message-building logic as
-        # new-point digitizing (core_logic.check_duplicate_and_build_message),
-        # excluding this point itself.
-        ident = check_duplicate_and_build_message(
-            self.point_layer,
-            self.excavation_type,
-            self.feature_name,
-            point_name,
-            branch_no,
-            self.drawing_name,
-            exclude_feature_id=self.feature_id,
-        )
-        if ident:
-            self._show_error(UIMessages.MSG_DUPLICATE_POINT.format(ident=ident))
-            return
-
-        field_names = self.point_layer.fields().names()
-        pname_idx = field_names.index("point_name")
-        branch_idx = field_names.index("branch_no")
-
-        self.point_layer.startEditing()
-        self.point_layer.changeAttributeValue(self.feature_id, pname_idx, point_name)
-        self.point_layer.changeAttributeValue(self.feature_id, branch_idx, branch_no)
-        self.point_layer.commitChanges()
-        self.point_layer.triggerRepaint()
-
         self.accept()

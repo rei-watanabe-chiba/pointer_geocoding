@@ -372,7 +372,12 @@ class MainDockWidget(QDockWidget, Tab1GeorefMixin, Tab2DigitizingMixin, Tab3Sett
                 "drawing_name": self.combo_drawing_name.currentText().strip(),
                 "excavation_type": self.combo_excavation_type.currentText().strip(),
                 "feature_name": feat_name,
-                "attribute_type": self.combo_attribute.currentText().strip(),
+                # T-0032: combo_attribute now shows display-only labels (e.g.
+                # "S:石器") while storing the raw AttributeType value (S/P/C/SP)
+                # as itemData; currentData() must be used here instead of
+                # currentText() to keep this filter comparable to feature
+                # attribute_type values.
+                "attribute_type": (self.combo_attribute.currentData() or "").strip(),
             }
 
         expr = self.layer_manager.build_opacity_expression(is_focus_on, filters, slider_val)

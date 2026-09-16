@@ -157,6 +157,41 @@ class UIStyleHelper:
             font-weight: bold;
         }
 
+        /* T-0032: additional banner statuses used by Tab2's 点情報パネル
+           status band (新規点作成=info/既設点編集=editing/エラー=error). */
+        QLabel[banner="editing"] {
+            background-color: rgba(245, 180, 0, 0.20);
+            border: 1px solid rgba(245, 180, 0, 0.55);
+            border-radius: 4px;
+            padding: 6px 8px;
+            color: palette(window-text);
+            font-weight: bold;
+        }
+
+        QLabel[banner="error"] {
+            background-color: rgba(198, 40, 40, 0.20);
+            border: 1px solid rgba(198, 40, 40, 0.55);
+            border-radius: 4px;
+            padding: 6px 8px;
+            color: palette(window-text);
+            font-weight: bold;
+        }
+
+        /* T-0032: whole-panel background tint linked to the status band above
+           (点情報パネル: 新規点作成=青/既設点編集=黄/エラー=赤), applied to the
+           QGroupBox itself via UIStyleHelper.set_panel_status(). */
+        QGroupBox[panelStatus="info"] {
+            background-color: rgba(25, 118, 210, 0.08);
+        }
+
+        QGroupBox[panelStatus="editing"] {
+            background-color: rgba(245, 180, 0, 0.10);
+        }
+
+        QGroupBox[panelStatus="error"] {
+            background-color: rgba(198, 40, 40, 0.10);
+        }
+
         /* Status Panel (Flat design container with color-coded left border) */
         QFrame[statusPanel="true"] {
             background-color: rgba(128, 128, 128, 0.08);
@@ -383,7 +418,24 @@ class UIStyleHelper:
         :param status: Status string ('info', 'success', 'warning').
         """
         label.setProperty("banner", status)
+        label.style().unpolish(label)
         label.style().polish(label)
+
+    @staticmethod
+    def set_panel_status(widget: QWidget, status: str) -> None:
+        """Set the dynamic "panelStatus" property on a QGroupBox to tint its
+        whole background (T-0032: Tab2's 点情報パネル 新規点作成/既設点編集/
+        エラー state colors), mirroring set_banner_status()'s QLabel[banner=...]
+        pattern but targeting QGroupBox[panelStatus=...] instead.
+
+        :param widget: Target QGroupBox (or other QSS-stylable QWidget).
+        :type widget: QWidget
+        :param status: Status string ('info', 'editing', 'error').
+        :type status: str
+        """
+        widget.setProperty("panelStatus", status)
+        widget.style().unpolish(widget)
+        widget.style().polish(widget)
 
     @staticmethod
     def set_status_panel(frame: QWidget) -> None:

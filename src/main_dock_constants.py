@@ -127,18 +127,28 @@ class UILabels:
     BTN_DELETE_POINT = "削除"
     EXCAVATION_TYPE = "出土形態:"
     EXCAVATION_OPTIONS = [ExcavationType.GRID.value, ExcavationType.FEATURE.value]
-    FEATURE_SELECTOR = "遺構名セレクタ:"
+    FEATURE_SELECTOR = "遺構名:"
     FEATURE_NEW_OPTION = "新規作成"
     POINT_NAME = "点名 (半角数字):"
     BRANCH_NO = "枝番 (任意):"
-    ATTRIBUTE_CODE = "属性記号:"
+    ATTRIBUTE_CODE = "属性:"
     ATTRIBUTE_OPTIONS = [
         AttributeType.S.value,
         AttributeType.P.value,
         AttributeType.C.value,
         AttributeType.SP.value,
     ]
-    BTN_CONFIRM_ATTRIBUTE = "属性確定 (フォーカス有効化)"
+    # T-0032: display-only labels for combo_attribute; the underlying
+    # AttributeType values (S/P/C/SP) stored on features/used in comparisons
+    # are unchanged (see Tab2DigitizingMixin._get_attribute_value/_set_attribute_value).
+    ATTRIBUTE_DISPLAY_MAP = {
+        AttributeType.S.value: "S:石器",
+        AttributeType.P.value: "P:土器",
+        AttributeType.C.value: "C:炭化物",
+        AttributeType.SP.value: "SP",
+    }
+    BTN_UPDATE_OPACITY = "更新"
+    BTN_UPDATE_ATTRIBUTE = "属性変更"
     BTN_COLOR_PICKER = "カラー選択"
     GROUP_CSV = "CSV出力設定"
 
@@ -146,14 +156,18 @@ class UILabels:
     GROUP_POINT_INFO = "点情報"
     GROUP_ATTRIBUTE_PANEL = "属性パネル"
     GROUP_DRAWING_LIST = "図面選択リスト"
-    LBL_INFO_GROUP_OR_FEATURE = "グリッド/遺構名:"
-    LBL_INFO_ATTRIBUTE = "属性:"
+    LBL_INFO_GROUP_OR_FEATURE = "出土形態:"
+    LBL_INFO_POINT_BRANCH = "点名/枝番:"
     LBL_INFO_COORDS = "XY座標:"
     BTN_CREATE_FEATURE = "作成"
     BTN_RENAME_POINT = "点名変更"
     FEATURE_CREATE_DIALOG_TITLE = "遺構名作成"
     NEW_FEATURE_NAME = "新規遺構名:"
-    RENAME_POINT_DIALOG_TITLE = "点名変更"
+    # --- T-0032: 点情報パネル ステータス帯 文言 ---
+    STATUS_NEW_POINT = "新規点作成"
+    STATUS_EDIT_POINT = "既設点編集"
+    STATUS_ERR_FEATURE_REQUIRED = "遺構名未指定"
+    STATUS_ERR_DUPLICATE = "点名重複エラー"
     ENCODING = "文字コード:"
     RADIO_UTF8 = "UTF-8 (BOM付き)"
     RADIO_SJIS = "Shift-JIS"
@@ -220,8 +234,11 @@ class UIMessages:
     MSG_SELECT_FEATURE_NAME = "対象の遺構名をセレクタから選択してください。"
     MSG_COLOR_APPLIED_TITLE = "カラー適用"
     MSG_COLOR_APPLIED = "遺構 '{feature}' の全打刻点 ({count}件) にカラー {color} を適用しました。"
-    MSG_ATTR_CONFIRM_TITLE = "属性確定"
-    MSG_ATTR_CONFIRMED = "属性 '{attr}' を確定し、フォーカスモードを更新しました。"
+    # --- T-0032: フォーカスモードパネルの「更新」ボタン (旧 属性確定ボタンのロジックを移植) ---
+    MSG_ATTR_CONFIRM_TITLE = "透明度更新"
+    MSG_ATTR_CONFIRMED = "属性 '{attr}' の透明度表示を更新しました。"
+    MSG_UPDATE_ATTRIBUTE_TITLE = "属性変更"
+    MSG_UPDATE_ATTRIBUTE_SUCCESS = "属性を変更しました。"
     MSG_RENAME_LAYER_SUCCESS = "レイヤ名を '{old}' から '{new}' に変更しました。"
     ERR_POINT_NAME_REQUIRED = "点名（点番号）を入力してください。"
     ERR_NEW_FEATURE_REQUIRED = "新規遺構名を入力してください。"
