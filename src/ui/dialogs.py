@@ -30,7 +30,7 @@ is open (see MainDockWidget._update_main_map_tool_state).
 import re
 from typing import Optional, Dict, Any, List, Callable, Tuple
 
-from qgis.core import QgsRasterLayer
+from qgis.core import QgsRasterLayer, Qgis, QgsMessageLog  # DEBUG T-0047 temp import (remove with debug lines below)
 from qgis.gui import QgsMapCanvas
 from qgis.PyQt.QtCore import Qt, pyqtSlot, QRegExp
 from qgis.PyQt.QtGui import QRegExpValidator
@@ -653,6 +653,7 @@ class FeatureCreateDialog(QDialog):
         typing instead of only after clicking OK. btn_ok is disabled while
         the required check fails.
         """
+        QgsMessageLog.logMessage(f"DEBUG T-0047 FeatureCreateDialog._on_realtime_validate called args={args!r} text={self.edit_name.text()!r}", "pointer_geocoding", level=Qgis.MessageLevel.Info)  # DEBUG T-0047 temp line (remove after root cause confirmed)
         text = self.edit_name.text().strip()
         result = RequiredValidator(UIMessages.ERR_NEW_FEATURE_REQUIRED).validate(text)
         if not result.is_valid:
@@ -854,6 +855,7 @@ class PointNameEntryDialog(QDialog):
         re-enabled once the field is non-blank, though OK-click may still
         reject it via DuplicateValidator (see _on_ok_clicked).
         """
+        QgsMessageLog.logMessage(f"DEBUG T-0047 PointNameEntryDialog._on_realtime_validate called args={args!r} is_sp={self._is_sp_attribute!r} text={(self.edit_point_name_sp.text() if self._is_sp_attribute else None)!r}", "pointer_geocoding", level=Qgis.MessageLevel.Info)  # DEBUG T-0047 temp line (remove after root cause confirmed)
         if self._is_sp_attribute:
             point_name = self.edit_point_name_sp.text().strip()
             result = RequiredValidator(UIMessages.ERR_POINT_NAME_REQUIRED).validate(point_name)
