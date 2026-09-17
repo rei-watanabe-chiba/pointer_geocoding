@@ -50,6 +50,15 @@ from ..canvas.map_tool import ImageGeorefTool
 from .style import UIStyleHelper
 from ..logic.core import to_survey_coords, check_point_duplicate, build_point_ident
 from .constants import UIConfig, UILabels, UIMessages, UIPlaceholders, UIDialogSizes
+from .core import CoreUIBuilder
+from .core.validators import RequiredValidator, DuplicateValidator, show_validation_error
+from .schemas import (
+    GRID_INPUT_ACTIONS_SPEC,
+    FEATURE_CREATE_INPUT_SPEC,
+    FEATURE_CREATE_ACTIONS_SPEC,
+    POINT_NAME_ENTRY_SPEC,
+    POINT_NAME_ENTRY_ACTIONS_SPEC,
+)
 
 
 class ModelessSectionDialog(QDialog):
@@ -416,22 +425,18 @@ class GridInputDialog(QDialog):
         layout.addWidget(self.btn_delete_point)
 
         # -------------------------------------------------------------
-        # Tier 3: [確定] [キャンセル] ボタン (centered, equal width; see
-        # UIStyleHelper.build_centered_button_row / StartDialog's OK/Cancel
-        # row for the shared pattern)
+        # Tier 3: [確定] [キャンセル] ボタン (T-0047: CoreUI BUTTON_ROW with
+        # centered=True, replacing the former direct
+        # UIStyleHelper.build_centered_button_row() call; see
+        # GRID_INPUT_ACTIONS_SPEC in schemas.py).
         # -------------------------------------------------------------
-        self.btn_confirm = QPushButton(UILabels.BTN_CONFIRM, self)
-        UIStyleHelper.set_primary_button(self.btn_confirm)
-        self.btn_confirm.setEnabled(False)
-        self.btn_confirm.clicked.connect(self._on_confirm_clicked)
-
-        self.btn_cancel = QPushButton(UILabels.BTN_CANCEL, self)
-        self.btn_cancel.clicked.connect(self.reject)
-
-        btn_action_layout = UIStyleHelper.build_centered_button_row(
-            [self.btn_confirm, self.btn_cancel]
-        )
-        layout.addLayout(btn_action_layout)
+        actions_panel = CoreUIBuilder.build(GRID_INPUT_ACTIONS_SPEC, parent=self)
+        self._actions_panel = actions_panel
+        self.btn_confirm = actions_panel.get("confirm")
+        self.btn_cancel = actions_panel.get("cancel")
+        actions_panel.bind("confirm_clicked", self._on_confirm_clicked)
+        actions_panel.bind("cancel_clicked", self.reject)
+        layout.addWidget(actions_panel.widget)
 
         # -------------------------------------------------------------
         # Tier 4: ステータス・エラー表示パネル
@@ -595,33 +600,31 @@ class FeatureCreateDialog(QDialog):
         )
         layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
-        layout.addWidget(QLabel(UILabels.NEW_FEATURE_NAME, self))
+        # T-0047: 遺構名 input + OK/キャンセル row built declaratively via
+        # CoreUI (see FEATURE_CREATE_INPUT_SPEC / FEATURE_CREATE_ACTIONS_SPEC
+        # in schemas.py); the former inline red-text lbl_error is dropped in
+        # favor of the ui/core/validators.py Validator +
+        # show_validation_error() pattern already used by tab1_image.py
+        # (QMessageBox.warning() + setFocus()).
+        input_panel = CoreUIBuilder.build(FEATURE_CREATE_INPUT_SPEC, parent=self)
+        self._input_panel = input_panel
+        self.edit_name = input_panel.get("feature_name")
+        layout.addWidget(input_panel.widget)
 
-        self.edit_name = QLineEdit(self)
-        self.edit_name.setPlaceholderText(UIPlaceholders.NEW_FEATURE)
-        layout.addWidget(self.edit_name)
-
-        self.lbl_error = QLabel("", self)
-        self.lbl_error.setStyleSheet("color: #C62828;")
-        self.lbl_error.setWordWrap(True)
-        self.lbl_error.hide()
-        layout.addWidget(self.lbl_error)
-
-        self.btn_ok = QPushButton(UILabels.BTN_CONFIRM, self)
-        UIStyleHelper.set_primary_button(self.btn_ok)
-        self.btn_ok.clicked.connect(self._on_ok_clicked)
-
-        self.btn_cancel = QPushButton(UILabels.BTN_CANCEL, self)
-        self.btn_cancel.clicked.connect(self.reject)
-
-        layout.addLayout(UIStyleHelper.build_centered_button_row([self.btn_ok, self.btn_cancel]))
+        actions_panel = CoreUIBuilder.build(FEATURE_CREATE_ACTIONS_SPEC, parent=self)
+        self._actions_panel = actions_panel
+        self.btn_ok = actions_panel.get("ok")
+        self.btn_cancel = actions_panel.get("cancel")
+        actions_panel.bind("ok_clicked", self._on_ok_clicked)
+        actions_panel.bind("cancel_clicked", self.reject)
+        layout.addWidget(actions_panel.widget)
 
     def _on_ok_clicked(self) -> None:
         """Validate the entered feature name and accept the dialog if non-empty."""
         text = self.edit_name.text().strip()
-        if not text:
-            self.lbl_error.setText(UIMessages.ERR_NEW_FEATURE_REQUIRED)
-            self.lbl_error.show()
+        result = RequiredValidator(UIMessages.ERR_NEW_FEATURE_REQUIRED).validate(text)
+        if not result.is_valid:
+            show_validation_error(self, UIMessages.ERR_TITLE_INPUT, result, focus_widget=self.edit_name)
             return
         self.result_text = text
         self.accept()
@@ -711,47 +714,44 @@ class PointNameEntryDialog(QDialog):
         )
         layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
-        layout.addWidget(QLabel(UILabels.POINT_NAME, self))
-        self.spin_point_name: Optional[QSpinBox] = None
-        self.edit_point_name_sp: Optional[QLineEdit] = None
+        # T-0047: 点名 (numeric or SP free-text)/枝番 inputs + OK/キャンセル
+        # row built declaratively via CoreUI (see POINT_NAME_ENTRY_SPEC /
+        # POINT_NAME_ENTRY_ACTIONS_SPEC in schemas.py). Both the numeric
+        # "point_name" (SPINBOX_ROW) and free-text "point_name_sp"
+        # (LINEEDIT_ROW) fields are always built; only the one matching
+        # is_sp_attribute is shown, since CoreUI schemas stay static and this
+        # choice is fixed per dialog instance.
+        input_panel = CoreUIBuilder.build(POINT_NAME_ENTRY_SPEC, parent=self)
+        self._input_panel = input_panel
+        self.spin_point_name: QSpinBox = input_panel.get("point_name")
+        self.edit_point_name_sp: QLineEdit = input_panel.get("point_name_sp")
+        self.edit_branch_no: QLineEdit = input_panel.get("branch_no")
+
         if self._is_sp_attribute:
             # SP属性: edit_point_name_sp (tab2_digitizing_mixin.py) と同じ
             # 英数字・ハイフン・アンダースコアのみ許可のバリデータを踏襲する。
-            self.edit_point_name_sp = QLineEdit(self)
-            self.edit_point_name_sp.setPlaceholderText(UIPlaceholders.POINT_NAME_SP)
             self.edit_point_name_sp.setValidator(
                 QRegExpValidator(QRegExp(r"^[A-Za-z0-9_-]+$"), self.edit_point_name_sp)
             )
             if initial_point_name:
                 self.edit_point_name_sp.setText(initial_point_name)
-            layout.addWidget(self.edit_point_name_sp)
+            input_panel.get_row("point_name").hide()
         else:
-            self.spin_point_name = UIStyleHelper.create_spinbox(1, 999999, 1, self)
             if initial_point_name and initial_point_name.isdigit():
                 preset_value = int(initial_point_name)
                 if self.spin_point_name.minimum() <= preset_value <= self.spin_point_name.maximum():
                     self.spin_point_name.setValue(preset_value)
-            layout.addWidget(self.spin_point_name)
+            input_panel.get_row("point_name_sp").hide()
 
-        layout.addWidget(QLabel(UILabels.BRANCH_NO, self))
-        self.edit_branch_no = QLineEdit(self)
-        self.edit_branch_no.setPlaceholderText(UIPlaceholders.BRANCH_NO)
-        layout.addWidget(self.edit_branch_no)
+        layout.addWidget(input_panel.widget)
 
-        self.lbl_error = QLabel("", self)
-        self.lbl_error.setStyleSheet("color: #C62828;")
-        self.lbl_error.setWordWrap(True)
-        self.lbl_error.hide()
-        layout.addWidget(self.lbl_error)
-
-        self.btn_ok = QPushButton(UILabels.BTN_CONFIRM, self)
-        UIStyleHelper.set_primary_button(self.btn_ok)
-        self.btn_ok.clicked.connect(self._on_ok_clicked)
-
-        self.btn_cancel = QPushButton(UILabels.BTN_CANCEL, self)
-        self.btn_cancel.clicked.connect(self.reject)
-
-        layout.addLayout(UIStyleHelper.build_centered_button_row([self.btn_ok, self.btn_cancel]))
+        actions_panel = CoreUIBuilder.build(POINT_NAME_ENTRY_ACTIONS_SPEC, parent=self)
+        self._actions_panel = actions_panel
+        self.btn_ok = actions_panel.get("ok")
+        self.btn_cancel = actions_panel.get("cancel")
+        actions_panel.bind("ok_clicked", self._on_ok_clicked)
+        actions_panel.bind("cancel_clicked", self.reject)
+        layout.addWidget(actions_panel.widget)
 
     def _get_point_name_text(self) -> str:
         """Return the currently entered 点名 as a string, regardless of which
@@ -766,33 +766,46 @@ class PointNameEntryDialog(QDialog):
         return str(self.spin_point_name.value())
 
     def _on_ok_clicked(self) -> None:
-        """Validate (duplicate-check) the entered 点名/枝番 and accept if unique."""
+        """Validate (duplicate-check) the entered 点名/枝番 and accept if unique.
+
+        T-0047: judgment now runs through ui/core/validators.py's Validator
+        classes (RequiredValidator for the SP-required check,
+        DuplicateValidator wrapping logic.core.check_point_duplicate), with
+        show_validation_error() displaying the failure via QMessageBox.warning
+        (replacing the former inline lbl_error red-text panel), matching
+        tab1_image.py's existing adoption of the same pattern.
+        """
         point_name = self._get_point_name_text()
         branch_no = self.edit_branch_no.text().strip()
 
-        if self._is_sp_attribute and not point_name:
-            self.lbl_error.setText(UIMessages.ERR_POINT_NAME_REQUIRED)
-            self.lbl_error.show()
-            return
+        if self._is_sp_attribute:
+            result = RequiredValidator(UIMessages.ERR_POINT_NAME_REQUIRED).validate(point_name)
+            if not result.is_valid:
+                show_validation_error(
+                    self, UIMessages.ERR_TITLE_INPUT, result, focus_widget=self.edit_point_name_sp
+                )
+                return
 
-        is_dup = check_point_duplicate(
-            self._point_layer,
+        ident = build_point_ident(
             self._excavation_type,
             self._feature_name,
             point_name,
             branch_no,
             self._drawing_name,
         )
-        if is_dup:
-            ident = build_point_ident(
+        result = DuplicateValidator(
+            lambda v: check_point_duplicate(
+                self._point_layer,
                 self._excavation_type,
                 self._feature_name,
-                point_name,
+                v,
                 branch_no,
                 self._drawing_name,
-            )
-            self.lbl_error.setText(UIMessages.ERR_POINT_NAME_DUPLICATE.format(ident=ident))
-            self.lbl_error.show()
+            ),
+            message=UIMessages.ERR_POINT_NAME_DUPLICATE.format(ident=ident),
+        ).validate(point_name)
+        if not result.is_valid:
+            show_validation_error(self, UIMessages.ERR_TITLE_DUPLICATE, result)
             return
 
         self.result_point_name = point_name

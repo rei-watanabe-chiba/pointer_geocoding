@@ -35,6 +35,11 @@ class WidgetType(Enum):
     #: the radio labels and FieldSpec.default_index for the initially
     #: checked option, same as SEGMENTED_TOGGLE.
     RADIO_ROW = "radio_row"
+    #: T-0047: a labeled row wrapping a single UIStyleHelper.create_spinbox()
+    #: QSpinBox (e.g. dialogs.py's PointNameEntryDialog 点名 numeric input),
+    #: distinct from LINEEDIT_ROW since it carries an int range/default
+    #: instead of free text. Uses FieldSpec.spin_min/spin_max/spin_default.
+    SPINBOX_ROW = "spinbox_row"
 
 
 @dataclass
@@ -122,6 +127,16 @@ class FieldSpec:
     :param row_height: Override for UIStyleHelper.build_flex_row's
         row_height. Defaults to UIConfig.ROW_HEIGHT when None.
     :param visible: Initial visibility of the row container.
+    :param spin_min: Minimum value for SPINBOX_ROW (default 0).
+    :param spin_max: Maximum value for SPINBOX_ROW (default 999999).
+    :param spin_default: Initial value for SPINBOX_ROW (default 0).
+    :param centered: T-0047: for BUTTON_ROW only, wraps the buttons in a
+        leading/trailing stretch (mirrors UIStyleHelper.
+        build_centered_button_row's "stretch - buttons - stretch" pattern),
+        matching the OK/キャンセル row convention used by dialogs.py's modal
+        confirmation dialogs. False (the default) preserves BUTTON_ROW's
+        original left-anchored, edge-to-edge layout used by e.g. Tab1's
+        rename_delete/transform_actions rows.
     """
     field_id: str
     widget_type: WidgetType
@@ -142,6 +157,10 @@ class FieldSpec:
     main_ratio: Optional[Tuple[int, int]] = None
     row_height: Optional[int] = None
     visible: bool = True
+    spin_min: int = 0
+    spin_max: int = 999999
+    spin_default: int = 0
+    centered: bool = False
 
 
 @dataclass
