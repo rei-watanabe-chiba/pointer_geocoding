@@ -251,3 +251,41 @@ dialogs.py/tab3_settings.pyへの適用が新規タスクとして追加、logic
   再宣言）。
 - 新規開発時、`docs/integrated_master_design.md`は「現状のコードのみを正とする」という記述原則がある
   ため、CoreUI関連の設計判断が固まり次第、随時1.4節（モジュール構成）等に追記すること。
+
+## T-0048以降のタスク再構築（2026-09-17、T-0047完了後の棚卸し調査を踏まえた確定、旧T-0048〜T-0051を置き換え）
+
+T-0047（dialogs.py CoreUI適用）完了後、explorerによる棚卸し調査の結果を踏まえ、上記「T-0046以降の
+タスク再構築」表のうちT-0048〜T-0051を以下の通り再確定する。旧T-0049「logic棚卸し」は本調査で
+代替済みのため差し替え、旧T-0050→新T-0051、旧T-0051→新T-0052に繰り下げる。
+
+### 棚卸しで判明した事実（記録）
+- `tab2_plot.py`に重大な重複パターンあり: 画像レイヤの表示/非表示制御（`_get_drawing_layers`/
+  `_on_drawing_visibility_item_changed`/`_ensure_drawing_visible`）と、軽微修正-01で追加した
+  基準点レイヤの表示/非表示制御（`_find_ref_point_tree_layer`/`_sync_ref_point_visibility_radios`/
+  `_on_ref_point_visibility_radio_toggled`）が、ほぼ同じロジックをUI層に2重実装している（計6メソッド）。
+- `tab1_image.py`に未移管のQGIS直接操作が残存: `removeMapLayer`+`os.remove`（画像・ワールドファイル
+  削除、L269-297）、レイヤリネーム時の`layerTreeRoot().findLayers()`直接操作（L371-376）。
+- `LayerManager`（`src/layer/manager.py`、実測151行）は、SessionIOMixin/SettingsMetadataMixin/
+  SymbologyMixin/GpkgCacheMixin/GridCsvMixinの5 Mixin構成で、レイヤツリーの可視性管理APIは一切ない。
+- `logic/core.py`（685行）・`logic/transform.py`（491行）は既に充実しており、打刻のFeature構築・
+  採番・重複判定・座標変換等は既にlogic層にある。tab2のCoreUI化自体の障害にはならない
+  （旧T-0049「logic棚卸し」で確認すべき内容は本調査で判明済み）。
+- `map_tool.py`にdock逆参照が4箇所（`getattr(self.dock_widget, "tab2_current_mode", "new")`×2:
+  L509,573、`getattr(self.dock_widget, "layer_manager", None)`×2: L402,524）。
+
+### 対象外とする判断（理由とともに記録）
+- `start_dialog.py`/`dock.py`の`os.path`系操作（フォルダ/CSV自動検出、アイコンパス構築）は、
+  QGIS APIではなく単純なファイル存在チェックであり、外部化の実利が薄いため対象外とする
+  （過剰リファクタリング回避）。
+
+### 新タスク一覧（いずれも状態は「承認待ち」）
+
+| タスクID | スコープ | 方針 | 旧番号との対応 |
+|---|---|---|---|
+| T-0048 | tab3_settings.py（367行）へCoreUI適用 | 既存計画通り、変更なし | 旧T-0048のまま |
+| T-0049 | tab1_image.pyの残存QGIS直接操作をLayerManagerへ移管 | 画像削除（removeMapLayer+os.remove）を`LayerManager.delete_image_layer(...)`に、レイヤリネームのfindLayers直接操作を既存の`rename_drawing_name`と統合した高レベルAPIに集約 | 新規タスク |
+| T-0050 | レイヤツリー可視性管理をLayerManagerの汎用APIへ集約 | tab2_plot.py内の画像用・基準点用に重複した6メソッドを、`LayerManager.set_layer_visibility(group, layer_id, visible)`/`get_layer_visibility(...)`等の汎用APIに統合。UI側はコールバックのみにする | 旧T-0049「logic棚卸し」を本調査で代替、内容差し替え |
+| T-0051 | tab2_plot.py（1905行）へCoreUI適用 | T-0050でレイヤ操作を先に外出しした後に着手。UI側がより薄い状態でCoreUI化できる | 旧T-0050 |
+| T-0052 | map_tool.pyのdock逆参照排除 | tab2_current_modeのPush通知化に加え、layer_manager参照もコンストラクタ注入等への変更を検討 | 旧T-0051 |
+
+「⑤tab2改修への申し送り事項」節（旧T-0046/T-0050向け）は現T-0051着手時に引き続き参照すること。

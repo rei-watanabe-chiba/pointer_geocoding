@@ -25,19 +25,21 @@ v2開発はタスクIDをT-0043から連番継続する。
 
 ## 進行中
 
-**巨大ファイル対応の計画（T-0045〜T-0051）**: 詳細計画は`.claude/state/v2-coreui-plan.md`を参照。
-T-0045/T-0045-b完了。`docs/fromGemini/`の2改定案を検討した結果、T-0046以降を以下の通り再構築
-（2026-09-16確定）。採用方針（UI→Logic→Layer→QGIS/Diskの単方向依存・薄いコントローラー化）、
-却下項目（core/2ファイル再編・SymbologyMixin剥離）の詳細は同ファイル「T-0046以降の方針確定」節
-を参照。tab2改修（T-0050）時の申し送り事項は同ファイルの「⑤tab2改修（旧T-0046、現T-0050）への
-申し送り事項」節を参照。
+**巨大ファイル対応の計画（T-0045〜T-0052）**: 詳細計画は`.claude/state/v2-coreui-plan.md`を参照。
+T-0045/T-0045-b/T-0047完了。T-0047完了後の棚卸し調査（explorer実施、2026-09-17）を踏まえ、
+T-0048以降を以下の通り再構築（旧T-0049「logic棚卸し」は本調査で代替済みのため差し替え、
+旧T-0050→新T-0051、旧T-0051→新T-0052に繰り下げ）。詳細（棚卸しで判明した事実、対象外とする
+判断の理由）は同ファイル「T-0048以降のタスク再構築（2026-09-17、T-0047完了後の棚卸し調査を
+踏まえた確定、旧T-0048〜T-0051を置き換え）」節を参照。tab2改修（T-0051）時の申し送り事項は
+同ファイルの「⑤tab2改修（旧T-0046、現T-0050）への申し送り事項」節を参照。
 
 | タスクID | 概要 | 状態 |
 |---|---|---|
 | T-0048 | tab3_settings.py（実測367行）へCoreUI適用（最小規模から着手） | 承認待ち |
-| T-0049 | src/logic/分離状況の棚卸し（調査のみ、実装なし） | 承認待ち |
-| T-0050 | tab2_plot.py（実測1905行）へCoreUI適用＋T-0049結果に基づくlogic移管 | 承認待ち |
-| T-0051 | map_tool.pyのdock逆参照排除（getattr(self.dock_widget, "tab2_current_mode", "new")をPush通知化） | 承認待ち |
+| T-0049 | tab1_image.pyの残存QGIS直接操作（画像削除・レイヤリネーム）をLayerManagerへ移管 | 承認待ち |
+| T-0050 | tab2_plot.pyの画像/基準点レイヤ可視性制御の重複6メソッドをLayerManagerの汎用APIへ集約 | 承認待ち |
+| T-0051 | tab2_plot.py（実測1905行）へCoreUI適用（T-0050でレイヤ操作を先に外出し後に着手） | 承認待ち |
+| T-0052 | map_tool.pyのdock逆参照排除（tab2_current_mode/layer_managerのgetattr参照をPush通知/コンストラクタ注入等へ） | 承認待ち |
 | 軽微修正-01 | tab2_plot.py 図面選択リストパネルに基準点レイヤ表示/非表示ラジオボタン追加（余白調整含む）。人手確認完了。詳細は`.claude/logs/implement/2026-09-17-軽微修正-01-ref-point-visibility-toggle.md`、訂正ログ`.claude/logs/implement/2026-09-17-軽微修正-01-correction.md`、チェックリスト`.claude/logs/implement/2026-09-17-軽微修正-01-ref-point-visibility-toggle-checklist.md` | 完了 |
 
 ## 使い方
