@@ -30,7 +30,7 @@ is open (see MainDockWidget._update_main_map_tool_state).
 import re
 from typing import Optional, Dict, Any, List, Callable, Tuple
 
-from qgis.core import QgsRasterLayer, Qgis, QgsMessageLog  # DEBUG T-0047 temp import (remove with debug lines below)
+from qgis.core import QgsRasterLayer
 from qgis.gui import QgsMapCanvas
 from qgis.PyQt.QtCore import Qt, pyqtSlot, QRegExp
 from qgis.PyQt.QtGui import QRegExpValidator
@@ -653,7 +653,6 @@ class FeatureCreateDialog(QDialog):
         typing instead of only after clicking OK. btn_ok is disabled while
         the required check fails.
         """
-        QgsMessageLog.logMessage(f"DEBUG T-0047 FeatureCreateDialog._on_realtime_validate called args={args!r} text={self.edit_name.text()!r}", "pointer_geocoding", level=Qgis.MessageLevel.Info)  # DEBUG T-0047 temp line (remove after root cause confirmed)
         text = self.edit_name.text().strip()
         result = RequiredValidator(UIMessages.ERR_NEW_FEATURE_REQUIRED).validate(text)
         if not result.is_valid:
@@ -705,14 +704,18 @@ class PointNameEntryDialog(QDialog):
     create_status_panel/update_status_panel, matching GridInputDialog's
     Tier4 ステータス・エラー表示パネル), replacing the former OK-time
     QMessageBox.warning() prompts. The SP-required check
-    (RequiredValidator) runs live as the user types
-    (_on_realtime_validate), also gating ``btn_ok``'s enabled state; the
-    duplicate check (DuplicateValidator wrapping
-    core_logic.check_point_duplicate) still runs once at OK-click time
-    only (_on_ok_clicked), since it queries ``self._point_layer`` and is
-    intentionally not repeated on every keystroke. On success,
-    ``result_point_name``/``result_branch_no`` hold the validated values
-    for the caller to build the digitized feature with.
+    (RequiredValidator) runs live as the user types (_on_realtime_validate).
+
+    T-0047 followup2 fix: the duplicate check (DuplicateValidator wrapping
+    core_logic.check_point_duplicate, via _check_duplicate) also now runs
+    live from _on_realtime_validate, for both SP and non-SP 属性 -- 点名
+    (spin_point_name.valueChanged / edit_point_name_sp.textChanged) and 枝番
+    (edit_branch_no.textChanged) changes all trigger it. A prior revision
+    left this OK-click-only for perceived per-keystroke layer-query overhead
+    reasons; actual QGIS usage showed non-SP 属性 (S/P/C) never wired up
+    live validation at all (実装スコープの見落とし), so that constraint is
+    withdrawn. On success, ``result_point_name``/``result_branch_no`` hold
+    the validated values for the caller to build the digitized feature with.
     """
 
     def __init__(
@@ -826,45 +829,88 @@ class PointNameEntryDialog(QDialog):
         actions_panel.bind("cancel_clicked", self.reject)
         layout.addWidget(actions_panel.widget)
 
-        # T-0047 fix: real-time RequiredValidator feedback as the user types
-        # (SP only -- the non-SP QSpinBox can never hold an empty/invalid
-        # value, so there is nothing to validate live for it). Duplicate
-        # checking (DuplicateValidator) intentionally stays OK-click-only
-        # (see _on_ok_clicked): it queries point_layer, so running it on
-        # every keystroke would add avoidable overhead for no real-time
-        # benefit while the user is still typing a partial name.
-        # T-0047 second followup fix: same textChanged-only-not-firing-live
-        # symptom reported for FeatureCreateDialog was also reported here for
-        # edit_point_name_sp (also a QgsFilterLineEdit built via
-        # CoreUIBuilder's LINEEDIT_ROW); textEdited is connected in addition
-        # to textChanged as a defensive measure (see FeatureCreateDialog's
-        # __init__ comment above for the full rationale).
+        # T-0047 followup2 fix: real-time feedback now covers both the
+        # SP-required check AND the point_name+branch_no duplicate check
+        # (DuplicateValidator), for both SP and non-SP 属性. A prior revision
+        # left the duplicate check OK-click-only under the assumption that
+        # running it live would add avoidable per-keystroke overhead; actual
+        # QGIS usage confirmed non-SP 属性 (S/P/C) never got ANY live
+        # feedback at all (the QSpinBox/枝番 inputs were never wired to
+        # _on_realtime_validate), so that assumption is withdrawn in favor of
+        # matching the user-visible behavior already working correctly for
+        # SP 属性. See _check_duplicate()/_on_realtime_validate() below.
         if self._is_sp_attribute:
             self.edit_point_name_sp.textChanged.connect(self._on_realtime_validate)
             self.edit_point_name_sp.textEdited.connect(self._on_realtime_validate)
+        else:
+            self.spin_point_name.valueChanged.connect(self._on_realtime_validate)
+        self.edit_branch_no.textChanged.connect(self._on_realtime_validate)
         self._on_realtime_validate()
 
-    def _on_realtime_validate(self, *args: Any) -> None:
-        """Run RequiredValidator live and reflect the result in panel_status.
+    def _check_duplicate(self, point_name: str, branch_no: str):
+        """Build the point identity and run DuplicateValidator against it.
 
-        T-0047 fix: replaces the former confirm-time-only QMessageBox
-        validation flow for the "required" check specifically, so the user
-        sees the error inline while typing instead of only after clicking
-        OK. The OK button is disabled while the required check fails, so
-        an obviously-invalid (SP, blank) entry cannot be confirmed; it is
-        re-enabled once the field is non-blank, though OK-click may still
-        reject it via DuplicateValidator (see _on_ok_clicked).
+        T-0047 followup2 fix: factored out of _on_ok_clicked so the same
+        duplicate-check logic can also run live from _on_realtime_validate.
+
+        :param point_name: Candidate 点名 (already stripped by the caller).
+        :type point_name: str
+        :param branch_no: Candidate 枝番 (already stripped by the caller).
+        :type branch_no: str
+        :return: The DuplicateValidator's ValidationResult.
         """
-        QgsMessageLog.logMessage(f"DEBUG T-0047 PointNameEntryDialog._on_realtime_validate called args={args!r} is_sp={self._is_sp_attribute!r} text={(self.edit_point_name_sp.text() if self._is_sp_attribute else None)!r}", "pointer_geocoding", level=Qgis.MessageLevel.Info)  # DEBUG T-0047 temp line (remove after root cause confirmed)
+        ident = build_point_ident(
+            self._excavation_type,
+            self._feature_name,
+            point_name,
+            branch_no,
+            self._drawing_name,
+        )
+        return DuplicateValidator(
+            lambda v: check_point_duplicate(
+                self._point_layer,
+                self._excavation_type,
+                self._feature_name,
+                v,
+                branch_no,
+                self._drawing_name,
+            ),
+            message=UIMessages.ERR_POINT_NAME_DUPLICATE.format(ident=ident),
+        ).validate(point_name)
+
+    def _on_realtime_validate(self, *args: Any) -> None:
+        """Run the required/duplicate checks live and reflect them in panel_status.
+
+        T-0047 followup2 fix: previously this only ran the SP-required check
+        (RequiredValidator) and only when ``self._is_sp_attribute`` was True,
+        leaving non-SP 属性 (S/P/C) with no live feedback at all for either
+        点名 (QSpinBox) or 枝番 changes. It now also runs the duplicate check
+        (DuplicateValidator, via _check_duplicate) live for both SP and
+        non-SP 属性, connected from both 点名 and 枝番 inputs in __init__.
+        The OK button is disabled while either check fails.
+        """
+        point_name = self._get_point_name_text()
+        branch_no = self.edit_branch_no.text().strip()
+
         if self._is_sp_attribute:
-            point_name = self.edit_point_name_sp.text().strip()
-            result = RequiredValidator(UIMessages.ERR_POINT_NAME_REQUIRED).validate(point_name)
-            if not result.is_valid:
+            required_result = RequiredValidator(UIMessages.ERR_POINT_NAME_REQUIRED).validate(
+                point_name
+            )
+            if not required_result.is_valid:
                 UIStyleHelper.update_status_panel(
-                    self.panel_status, self.lbl_status, result.message, status_type="error"
+                    self.panel_status, self.lbl_status, required_result.message, status_type="error"
                 )
                 self.btn_ok.setEnabled(False)
                 return
+
+        dup_result = self._check_duplicate(point_name, branch_no)
+        if not dup_result.is_valid:
+            UIStyleHelper.update_status_panel(
+                self.panel_status, self.lbl_status, dup_result.message, status_type="error"
+            )
+            self.btn_ok.setEnabled(False)
+            return
+
         UIStyleHelper.update_status_panel(
             self.panel_status, self.lbl_status, "", status_type="info"
         )
@@ -883,18 +929,15 @@ class PointNameEntryDialog(QDialog):
         return str(self.spin_point_name.value())
 
     def _on_ok_clicked(self) -> None:
-        """Validate (duplicate-check) the entered 点名/枝番 and accept if unique.
+        """Validate (required + duplicate) the entered 点名/枝番 and accept if unique.
 
-        T-0047 fix: the confirm-time QMessageBox flow is removed entirely.
-        The RequiredValidator (SP-required) check now runs live via
-        _on_realtime_validate as the user types and already keeps btn_ok
-        disabled while it fails, so it is re-checked here only defensively
-        (should not normally be reachable in a failing state). The
-        DuplicateValidator check still runs here at OK-click time only (see
-        _on_realtime_validate's docstring for why it is not live); its
-        failure is now shown inline in panel_status/lbl_status instead of a
-        blocking QMessageBox, matching GridInputDialog's ステータス・エラー
-        表示パネル pattern.
+        T-0047 followup2 fix: both the SP-required check and the duplicate
+        check now run live via _on_realtime_validate as the user types and
+        already keep btn_ok disabled while either fails, so both are
+        re-checked here only defensively (should not normally be reachable
+        in a failing state). Failures are shown inline in
+        panel_status/lbl_status, matching GridInputDialog's ステータス・
+        エラー表示パネル pattern.
         """
         point_name = self._get_point_name_text()
         branch_no = self.edit_branch_no.text().strip()
@@ -913,27 +956,10 @@ class PointNameEntryDialog(QDialog):
                 self.btn_ok.setEnabled(False)
                 return
 
-        ident = build_point_ident(
-            self._excavation_type,
-            self._feature_name,
-            point_name,
-            branch_no,
-            self._drawing_name,
-        )
-        result = DuplicateValidator(
-            lambda v: check_point_duplicate(
-                self._point_layer,
-                self._excavation_type,
-                self._feature_name,
-                v,
-                branch_no,
-                self._drawing_name,
-            ),
-            message=UIMessages.ERR_POINT_NAME_DUPLICATE.format(ident=ident),
-        ).validate(point_name)
-        if not result.is_valid:
+        dup_result = self._check_duplicate(point_name, branch_no)
+        if not dup_result.is_valid:
             UIStyleHelper.update_status_panel(
-                self.panel_status, self.lbl_status, result.message, status_type="error"
+                self.panel_status, self.lbl_status, dup_result.message, status_type="error"
             )
             return
 
