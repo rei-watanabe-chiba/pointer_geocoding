@@ -52,3 +52,69 @@ CLAUDE.mdのGit運用ルールでは`test`/`main`ブランチ上で直接コミ�
 ## スコープ外変更の有無
 なし。`sync_local_edits.bat`の新規作成と`.claude/state/tasks.md`への1行追加のみ。
 `src/`配下・既存の`sync_test.bat`/`sync_main.bat`には一切手を加えていない。
+
+---
+
+## 追記（2026-09-17 軽微修正-02改修: コミットメッセージへの変更ファイル一覧追記）
+
+### タスクID
+軽微修正-02（sync_local_edits.bat改修: コミットメッセージへ変更ファイル一覧を動的追記）
+
+### 変更ファイル一覧
+- `sync_local_edits.bat`（既存ファイルを修正。新規作成・削除なし）
+
+### 変更概要
+従来は固定文言+日時のみの1行コミットメッセージ（`git commit -m "..."`）だったため、
+後から「ローカル編集をコミットした」という報告のみを受けたClaude Codeセッションが、
+どのファイルが変更されたかをコミットメッセージから特定できなかった。これを解消するため、
+`git add -A`実行後・コミット前に以下の処理を追加した。
+
+1. `git diff --cached --name-only`の出力を`%TEMP%\sync_local_edits_files_%RANDOM%.txt`
+   （ユニークなランダムファイル名）へリダイレクトし、ステージ済み変更ファイル一覧を取得する。
+2. `%TEMP%\sync_local_edits_msg_%RANDOM%.txt`にコミットメッセージ本文を組み立てる。
+   - 1行目: 従来と同じ見出し行`Local edits synced via sync_local_edits.bat (%date% %time%)`
+   - 空行
+   - `Changed files:`
+   - `for /f "usebackq delims=" %%F in ("%TEMP_FILES%") do (...)`ループで、ファイル一覧の各行を
+     `- <path>`形式で追記（`delims=`指定によりファイル名中のスペースを含む行もそのまま1トークンと
+     して扱われる）。
+   - 変更ファイルが0件だった場合のガードとして、ループ内で立てるフラグ`HASFILES`が0のままなら
+     `- (no files detected)`を1行追記する。
+3. `git commit -m "..."`を`git commit -F "%TEMP_MSG%"`に置き換え、複数行メッセージに対応した。
+4. コミット失敗時（`errorlevel`が0以外）は、既存の`:commiterror`ラベルへ分岐する前に一時ファイル
+   2つを`del ... >nul 2>&1`で削除してから遷移するようにした（エラー時に一時ファイルが残置されない
+   ようにするため）。
+5. コミット成功時も処理完了後に一時ファイル2つを削除する。
+
+`git add -A`より後・`git commit`より前に`git diff --cached --name-only`を実行する順序としたため、
+実際にステージされた変更ファイルのみが一覧に反映される。
+
+### 既存コードとの整合性確認
+- 一時ファイル名は`%TEMP%\sync_local_edits_files_%RANDOM%.txt` / `%TEMP%\sync_local_edits_msg_%RANDOM%.txt`
+  とし、`%RANDOM%`によって他のバッチ実行・複数回実行との衝突を避けている。
+- `echo`による状況表示（`Building commit message with changed file list...` /
+  `Committing changes...`）は既存の`echo`パターンを踏襲。
+- `if not %errorlevel%==0 goto commiterror`という既存の失敗時分岐パターンは維持しつつ、
+  一時ファイル削除処理を追加するため、この箇所のみ`if not %errorlevel%==0 ( ... )`ブロック形式に
+  変更した（他の`goto`分岐箇所の形式には手を加えていない）。
+- ASCII文字のみ・CRLF改行を維持（下記自動テスト実行結果参照）。
+
+### コミットメッセージの実際の出力例（イメージ）
+```
+Local edits synced via sync_local_edits.bat (Thu 09/17/2026 21:30:00.00)
+
+Changed files:
+- sync_local_edits.bat
+```
+
+### 自動テスト実行結果
+自動テストなし（本プロジェクトには自動テストコマンドが設定されていない）。
+本バッチファイルはWindows専用スクリプトであり、Linux環境の本セッションでは実行による動作確認は
+できない。以下の静的確認のみ実施した。
+- `file sync_local_edits.bat` → `DOS batch file, ASCII text, with CRLF line terminators`
+- Python簡易スクリプトによるバイト単位確認: 非ASCIIバイト0件、全行がCRLFで終端（最終行除く）
+  であることを確認。
+
+### スコープ外変更の有無
+なし。`sync_local_edits.bat`のみを修正。`src/`配下・`docs/`・他のバッチファイル
+（`sync_test.bat`/`sync_main.bat`）には一切手を加えていない。

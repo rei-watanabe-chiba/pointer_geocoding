@@ -47,10 +47,39 @@ git stash pop
 if not %errorlevel%==0 goto stashpoperror
 
 echo.
-echo Staging and committing changes...
+echo Staging changes...
 git add -A
-git commit -m "Local edits synced via sync_local_edits.bat (%date% %time%)"
-if not %errorlevel%==0 goto commiterror
+
+echo.
+echo Building commit message with changed file list...
+set TEMP_FILES=%TEMP%\sync_local_edits_files_%RANDOM%.txt
+set TEMP_MSG=%TEMP%\sync_local_edits_msg_%RANDOM%.txt
+
+git diff --cached --name-only > "%TEMP_FILES%"
+
+echo Local edits synced via sync_local_edits.bat (%date% %time%)>"%TEMP_MSG%"
+echo.>>"%TEMP_MSG%"
+echo Changed files:>>"%TEMP_MSG%"
+
+set HASFILES=0
+for /f "usebackq delims=" %%F in ("%TEMP_FILES%") do (
+    set HASFILES=1
+    echo - %%F>>"%TEMP_MSG%"
+)
+
+if "%HASFILES%"=="0" echo - (no files detected)>>"%TEMP_MSG%"
+
+echo.
+echo Committing changes...
+git commit -F "%TEMP_MSG%"
+if not %errorlevel%==0 (
+    del "%TEMP_FILES%" >nul 2>&1
+    del "%TEMP_MSG%" >nul 2>&1
+    goto commiterror
+)
+
+del "%TEMP_FILES%" >nul 2>&1
+del "%TEMP_MSG%" >nul 2>&1
 
 echo.
 echo Pushing "%BRANCH_NAME%" to origin (force)...
