@@ -630,7 +630,19 @@ class FeatureCreateDialog(QDialog):
 
         # T-0047 followup fix: real-time RequiredValidator feedback as the
         # user types, mirroring PointNameEntryDialog._on_realtime_validate.
+        # T-0047 second followup fix: human confirmation after the previous
+        # textChanged-only wiring still showed the error only updating at
+        # OK-click time (self.edit_name is a QgsFilterLineEdit built via
+        # CoreUIBuilder's LINEEDIT_ROW, unlike GridInputDialog's plain
+        # QLineEdit edit_y). No definitive logic bug was found by static
+        # review of the textChanged wiring itself; as a defensive measure,
+        # textEdited (guaranteed by Qt to fire on every user keystroke,
+        # independent of any internal textChanged suppression a QLineEdit
+        # subclass such as QgsFilterLineEdit might perform, e.g. while
+        # syncing its clear-button/null-value display state) is now also
+        # connected to the same handler.
         self.edit_name.textChanged.connect(self._on_realtime_validate)
+        self.edit_name.textEdited.connect(self._on_realtime_validate)
         self._on_realtime_validate()
 
     def _on_realtime_validate(self, *args: Any) -> None:
@@ -820,8 +832,15 @@ class PointNameEntryDialog(QDialog):
         # (see _on_ok_clicked): it queries point_layer, so running it on
         # every keystroke would add avoidable overhead for no real-time
         # benefit while the user is still typing a partial name.
+        # T-0047 second followup fix: same textChanged-only-not-firing-live
+        # symptom reported for FeatureCreateDialog was also reported here for
+        # edit_point_name_sp (also a QgsFilterLineEdit built via
+        # CoreUIBuilder's LINEEDIT_ROW); textEdited is connected in addition
+        # to textChanged as a defensive measure (see FeatureCreateDialog's
+        # __init__ comment above for the full rationale).
         if self._is_sp_attribute:
             self.edit_point_name_sp.textChanged.connect(self._on_realtime_validate)
+            self.edit_point_name_sp.textEdited.connect(self._on_realtime_validate)
         self._on_realtime_validate()
 
     def _on_realtime_validate(self, *args: Any) -> None:
