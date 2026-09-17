@@ -38,6 +38,7 @@ T-0045/T-0045-b完了。`docs/fromGemini/`の2改定案を検討した結果、T
 | T-0049 | src/logic/分離状況の棚卸し（調査のみ、実装なし） | 承認待ち |
 | T-0050 | tab2_plot.py（実測1905行）へCoreUI適用＋T-0049結果に基づくlogic移管 | 承認待ち |
 | T-0051 | map_tool.pyのdock逆参照排除（getattr(self.dock_widget, "tab2_current_mode", "new")をPush通知化） | 承認待ち |
+| 軽微修正-01 | tab2_plot.py 図面選択リストパネルに基準点レイヤ表示/非表示ラジオボタン追加（余白調整含む）。人手確認完了。詳細は`.claude/logs/implement/2026-09-17-軽微修正-01-ref-point-visibility-toggle.md`、訂正ログ`.claude/logs/implement/2026-09-17-軽微修正-01-correction.md`、チェックリスト`.claude/logs/implement/2026-09-17-軽微修正-01-ref-point-visibility-toggle-checklist.md` | 完了 |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する

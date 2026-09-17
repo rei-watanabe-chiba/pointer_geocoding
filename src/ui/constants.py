@@ -201,6 +201,10 @@ class UILabels:
     GROUP_POINT_INFO = "点情報"
     GROUP_ATTRIBUTE_PANEL = "属性パネル"
     GROUP_DRAWING_LIST = "図面選択リスト"
+    # --- 軽微修正: 図面選択リストパネルへの基準点レイヤ表示/非表示トグル追加 ---
+    LBL_REF_POINT_VISIBILITY = "基準点: "
+    RADIO_VISIBLE = "表示"
+    RADIO_HIDDEN = "非表示"
     LBL_INFO_GROUP_OR_FEATURE = "出土形態:"
     LBL_INFO_POINT_BRANCH = "点名/枝番:"
     LBL_INFO_COORDS = "XY座標:"

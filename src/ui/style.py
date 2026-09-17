@@ -92,6 +92,18 @@ class UIStyleHelper:
             padding-top: 6px;
         }
 
+        /* 軽微修正-01訂正: 図面選択リストパネル(group_drawing_list)専用。
+           タイトル文字列(「図面選択リスト」)は維持したまま、タイトル領域
+           と直下のコンテンツ(list_drawing_visibility)との間の余白のみを
+           詰める。base QGroupBox ルールの padding-top(14px)より小さい値
+           にすることで、他のQGroupBox(点情報/属性/フォーカスモード等、
+           いずれも titleless か compactTitle 未設定)の見た目には影響しな
+           い。margin-top はタイトル文字自体の表示に必要なため維持する。
+           Widgets opt in via setProperty("compactTitle", True). */
+        QGroupBox[compactTitle="true"] {
+            padding-top: 4px;
+        }
+
         /* Input Controls - Rounded, padded, base-palette responsive */
         QLineEdit, QgsFilterLineEdit, QComboBox {
             background-color: palette(base);
