@@ -22,10 +22,30 @@ class UIConfig:
     LABEL_SIZE_REF = 10
     SYMBOL_SIZE_REF = 4.0
     SYMBOL_SIZE_POINT = 3.0
+    # --- T-0048 (人手確認フィードバック対応): fixed pixel width for
+    # tab3_settings.py's compact form-row labels (サイズ/線幅/線色/間隔), so
+    # every DOUBLE_SPINBOX_ROW/COLOR_BUTTON_ROW/SPINBOX_ROW input widget in a
+    # given ROW_GROUP starts at the same x-offset regardless of its label's
+    # character count. Sized for the widest of the four labels, "サイズ" (3
+    # full-width chars) at the UI's 9pt base font (style.py's PANEL_STYLE):
+    # a full-width glyph renders roughly at the font's em-box width (~14px
+    # at 9pt/96dpi), so 3 chars need ~42px; 44px keeps a couple of px of
+    # breathing room without being noticeably wider than the text. Not
+    # applied to the 表示縮尺 section's 大グリッド:/小グリッド: labels (out
+    # of scope per user feedback).
+    TAB3_ROW_LABEL_WIDTH = 44
     # --- T-0025: fixed width of the right dock (root_widget passed to
     # QDockWidget.setWidget in main_dock.py), so the dock no longer relies
-    # on QGIS's default auto-sizing. ---
-    DOCK_WIDTH = 300
+    # on QGIS's default auto-sizing. T-0048 (人手確認フィードバック対応):
+    # widened 300 -> 320 so tab3's now fixed-width row labels
+    # (TAB3_ROW_LABEL_WIDTH) don't crowd out the DOUBLE_SPINBOX_ROW/
+    # COLOR_BUTTON_ROW input widgets beside them. This constant is shared by
+    # the whole dock (tab1/tab2/tab3/tab4 all sit in the same root_widget),
+    # so the +20px also applies to tab1/tab2/tab4; their rows are built with
+    # stretch-ratio layouts (build_flex_row's MAIN_RATIO), so the extra
+    # width simply grows their content area proportionally and does not
+    # change any fixed-width element on those tabs. ---
+    DOCK_WIDTH = 320
     # --- T-0027: fixed height (~6 rows) of the 図面選択リスト panel's
     # QListWidget, so it does not grow unbounded with many drawings and
     # instead scrolls internally. ---

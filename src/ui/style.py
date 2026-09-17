@@ -648,7 +648,12 @@ class UIStyleHelper:
         return container
 
     @staticmethod
-    def build_form_row(label_text: str, widget: QWidget, spacing: int = 4) -> QWidget:
+    def build_form_row(
+        label_text: str,
+        widget: QWidget,
+        spacing: int = 4,
+        label_width: Optional[int] = None,
+    ) -> QWidget:
         """Build a labeled form row pairing a plain-text label with a single input widget.
 
         Higher-level convenience wrapper around build_child_container() that also
@@ -662,6 +667,13 @@ class UIStyleHelper:
         :type widget: QWidget
         :param spacing: Horizontal spacing between label and widget. Default is 4.
         :type spacing: int
+        :param label_width: T-0048 (人手確認フィードバック対応): optional
+            fixed pixel width for the generated QLabel, so labels of
+            differing character count (e.g. tab3_settings.py's
+            サイズ/線幅/線色/間隔) line up their input widgets at the same
+            x-offset across rows. None (the default) keeps the label at its
+            natural width, unchanged from prior behavior.
+        :type label_width: Optional[int]
         :return: Composite QWidget containing the label + widget row.
         :rtype: QWidget
         """
@@ -670,7 +682,10 @@ class UIStyleHelper:
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(spacing)
         if label_text:
-            layout.addWidget(QLabel(label_text))
+            label = QLabel(label_text)
+            if label_width is not None:
+                label.setFixedWidth(label_width)
+            layout.addWidget(label)
         layout.addWidget(widget, 1)
         return container
 

@@ -15,7 +15,7 @@ This file only declares widget kinds/labels/hook names; all business logic
 tab1_image.py's Tab1GeorefMixin), bound via BuiltPanel.bind(hook_name,
 callback) after building.
 """
-from .constants import UILabels, UIPlaceholders
+from .constants import UIConfig, UILabels, UIPlaceholders
 
 from .core import ButtonDef, FieldSpec, InfoLine, PanelSpec, WidgetType
 
@@ -342,6 +342,176 @@ POINT_NAME_ENTRY_ACTIONS_SPEC = PanelSpec(
                     field_id="ok", text=UILabels.BTN_CONFIRM, style_variant="primary", on_click="ok_clicked"
                 ),
                 ButtonDef(field_id="cancel", text=UILabels.BTN_CANCEL, on_click="cancel_clicked"),
+            ],
+        ),
+    ],
+)
+
+# --- TAB3 (tab3_settings.py) -----------------------------------------------
+# T-0048: Tab 3 (Display & Symbol Settings). A single PanelSpec covering the
+# whole scrollable settings form (section headers + all input rows); the
+# 適用 button stays a separate bespoke QPushButton in tab3_settings.py since
+# its on_click handler (_on_settings_apply_clicked) needs to read the whole
+# panel's collect_values() output, which is naturally sequenced *after*
+# CoreUIBuilder.build() returns.
+#
+# Two new WidgetTypes needed only by this screen were added to
+# core/field_spec.py + core/builder.py: SECTION_HEADER (bold group-separator
+# label, no value) and DOUBLE_SPINBOX_ROW (label+QDoubleSpinBox row built via
+# UIStyleHelper.build_form_row(), matching this screen's pre-existing dense
+# form look rather than the wider build_flex_row used elsewhere). A third,
+# COLOR_BUTTON_ROW (label+color-swatch button), and a fourth, ROW_GROUP
+# (lays a list of sub-FieldSpecs out side by side in one row, e.g. this
+# screen's paired size+線幅 spinboxes), were also added: both are reusable
+# beyond tab3 and were the minimal way to keep this screen's paired-row
+# layout without inventing a one-off widget kind.
+#
+# The 常時/指定 grid-scale radio <-> threshold-spinbox enable/disable link
+# (previously ``radio_always.toggled.connect(lambda chk: spin.setEnabled(not
+# chk))``) stays screen-specific glue, wired in tab3_settings.py via
+# panel.bind("major_scale_mode_changed", ...)/("minor_scale_mode_changed",
+# ...) after CoreUIBuilder.build(), per the "画面固有の例外は素のPyQtコードと
+# して残してよい" escape hatch (see .claude/state/v2-coreui-plan.md).
+TAB3_SETTINGS_SPEC = PanelSpec(
+    panel_id="tab3_settings",
+    spacing=6,
+    fields=[
+        # ── 基準点 ──────────────────────────────────────────────────────
+        FieldSpec(field_id="ref_section", widget_type=WidgetType.SECTION_HEADER, label=UILabels.TAB3_SECTION_REF_SYMBOL),
+        FieldSpec(
+            field_id="ref_row1",
+            widget_type=WidgetType.ROW_GROUP,
+            sub_fields=[
+                FieldSpec(
+                    field_id="ref_sym_size", widget_type=WidgetType.DOUBLE_SPINBOX_ROW,
+                    label=UILabels.TAB3_LBL_SIZE, dspin_min=0.5, dspin_max=20.0, dspin_step=0.5, dspin_default=4.0,
+                    label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
+                ),
+                FieldSpec(
+                    field_id="ref_sym_linewidth", widget_type=WidgetType.DOUBLE_SPINBOX_ROW,
+                    label=UILabels.TAB3_LBL_LINEWIDTH, dspin_min=0.1, dspin_max=5.0, dspin_step=0.1, dspin_default=1.2,
+                    label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
+                ),
+            ],
+        ),
+        FieldSpec(
+            # T-0048 (人手確認フィードバック対応): wrapped in a ROW_GROUP with
+            # a trailing SPACER (both stretch=1, matching ref_row1's 1:1
+            # サイズ/線幅 split) so the 線色 button occupies only the left
+            # half of the row instead of stretching edge-to-edge, lining up
+            # its left edge with the サイズ spinbox above it.
+            field_id="ref_row2",
+            widget_type=WidgetType.ROW_GROUP,
+            sub_fields=[
+                FieldSpec(
+                    field_id="ref_line_color", widget_type=WidgetType.COLOR_BUTTON_ROW,
+                    label=UILabels.TAB3_LBL_LINECOLOR, color_default="#D32F2F",
+                    on_click="ref_line_color_clicked", label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
+                    stretch=1,
+                ),
+                FieldSpec(field_id="ref_row2_spacer", widget_type=WidgetType.SPACER, stretch=1),
+            ],
+        ),
+
+        # ── 遺物点 ──────────────────────────────────────────────────────
+        FieldSpec(field_id="point_section", widget_type=WidgetType.SECTION_HEADER, label=UILabels.TAB3_SECTION_POINT_SYMBOL),
+        FieldSpec(
+            field_id="point_row1",
+            widget_type=WidgetType.ROW_GROUP,
+            sub_fields=[
+                FieldSpec(
+                    field_id="point_sym_size", widget_type=WidgetType.DOUBLE_SPINBOX_ROW,
+                    label=UILabels.TAB3_LBL_SIZE, dspin_min=0.5, dspin_max=20.0, dspin_step=0.5, dspin_default=6.0,
+                    label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
+                ),
+                FieldSpec(
+                    field_id="point_sym_linewidth", widget_type=WidgetType.DOUBLE_SPINBOX_ROW,
+                    label=UILabels.TAB3_LBL_LINEWIDTH, dspin_min=0.1, dspin_max=5.0, dspin_step=0.1, dspin_default=0.9,
+                    label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
+                ),
+            ],
+        ),
+        FieldSpec(
+            field_id="point_row2",
+            widget_type=WidgetType.ROW_GROUP,
+            sub_fields=[
+                FieldSpec(
+                    field_id="point_line_color", widget_type=WidgetType.COLOR_BUTTON_ROW,
+                    label=UILabels.TAB3_LBL_LINECOLOR, color_default="#E53935",
+                    on_click="point_line_color_clicked", label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
+                    stretch=1,
+                ),
+                FieldSpec(
+                    field_id="point_fill_toggle", widget_type=WidgetType.RADIO_ROW,
+                    options=[UILabels.TAB3_POINT_FILL_ON, UILabels.TAB3_POINT_FILL_OFF],
+                    default_index=1, stretch=2,
+                ),
+            ],
+        ),
+
+        # ── ラベル ──────────────────────────────────────────────────────
+        FieldSpec(field_id="label_section", widget_type=WidgetType.SECTION_HEADER, label=UILabels.TAB3_SECTION_LABEL_SYMBOL),
+        FieldSpec(
+            field_id="lbl_row1",
+            widget_type=WidgetType.ROW_GROUP,
+            sub_fields=[
+                FieldSpec(
+                    field_id="lbl_size", widget_type=WidgetType.SPINBOX_ROW,
+                    label=UILabels.TAB3_LBL_SIZE, spin_min=6, spin_max=36, spin_default=UIConfig.LABEL_SIZE_REF,
+                    label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
+                ),
+                FieldSpec(
+                    field_id="lbl_offset", widget_type=WidgetType.DOUBLE_SPINBOX_ROW,
+                    label=UILabels.TAB3_LABEL_OFFSET, dspin_min=0.0, dspin_max=20.0, dspin_step=0.5, dspin_default=1.0,
+                    label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
+                ),
+            ],
+        ),
+        FieldSpec(
+            field_id="lbl_row2",
+            widget_type=WidgetType.ROW_GROUP,
+            sub_fields=[
+                FieldSpec(
+                    field_id="halo_toggle", widget_type=WidgetType.RADIO_ROW,
+                    options=[UILabels.TAB3_LABEL_HALO_ON, UILabels.TAB3_LABEL_HALO_OFF], default_index=0,
+                    stretch=1,
+                ),
+                FieldSpec(field_id="lbl_row2_spacer", widget_type=WidgetType.SPACER, stretch=1),
+            ],
+        ),
+
+        # ── 表示縮尺 ─────────────────────────────────────────────────────
+        FieldSpec(field_id="scale_section", widget_type=WidgetType.SECTION_HEADER, label=UILabels.TAB3_SECTION_SCALE),
+        FieldSpec(
+            field_id="scale_major_row",
+            widget_type=WidgetType.ROW_GROUP,
+            sub_fields=[
+                FieldSpec(
+                    field_id="major_scale_mode", widget_type=WidgetType.RADIO_ROW,
+                    label=UILabels.TAB3_SCALE_MAJOR,
+                    options=[UILabels.TAB3_SCALE_ALWAYS, UILabels.TAB3_SCALE_SPECIFY],
+                    default_index=0, on_change="major_scale_mode_changed", stretch=2,
+                ),
+                FieldSpec(
+                    field_id="major_scale_value", widget_type=WidgetType.SPINBOX_ROW,
+                    spin_min=1, spin_max=99999, spin_default=500, enabled=False, stretch=1,
+                ),
+            ],
+        ),
+        FieldSpec(
+            field_id="scale_minor_row",
+            widget_type=WidgetType.ROW_GROUP,
+            sub_fields=[
+                FieldSpec(
+                    field_id="minor_scale_mode", widget_type=WidgetType.RADIO_ROW,
+                    label=UILabels.TAB3_SCALE_MINOR,
+                    options=[UILabels.TAB3_SCALE_ALWAYS, UILabels.TAB3_SCALE_SPECIFY],
+                    default_index=1, on_change="minor_scale_mode_changed", stretch=2,
+                ),
+                FieldSpec(
+                    field_id="minor_scale_value", widget_type=WidgetType.SPINBOX_ROW,
+                    spin_min=1, spin_max=99999, spin_default=UIConfig.SCALE_THRESHOLD, enabled=True, stretch=1,
+                ),
             ],
         ),
     ],

@@ -6,27 +6,31 @@
 Stage B split (mechanical, logic-preserving): extracted from main_dock.py.
 Provides Tab3SettingsMixin, mixed into MainDockWidget, containing UI
 construction and event handlers for Tab 3 (display & symbol settings).
+
+T-0048: widget construction is delegated to CoreUIBuilder against the
+declarative TAB3_SETTINGS_SPEC panel (schemas.py); this mixin wires the
+built panel's on_click/on_change hooks to the actual business-logic
+handlers below, and reads/writes settings.json values through
+BuiltPanel.collect_values()/set_values() instead of per-widget
+.value()/.setValue()/.isChecked() calls.
 """
 
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any
 
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import (
     QWidget,
     QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
     QPushButton,
-    QRadioButton,
     QScrollArea,
     QFrame,
-    QSpinBox,
-    QDoubleSpinBox,
     QColorDialog,
 )
 
 from .style import UIStyleHelper
 from .constants import UIConfig, UILabels
+from .core import CoreUIBuilder
+from .schemas import TAB3_SETTINGS_SPEC
 
 
 class Tab3SettingsMixin:
@@ -37,7 +41,15 @@ class Tab3SettingsMixin:
     # ───────────────────────────────────────────────────────────────────────────
 
     def _create_tab3_ui(self) -> QWidget:
-        """Construct Tab 3: Display & Symbol Settings."""
+        """Construct Tab 3: Display & Symbol Settings.
+
+        T-0048: widget construction is delegated to CoreUIBuilder against
+        TAB3_SETTINGS_SPEC; this method binds the built panel's hooks to
+        the handlers below. The 適用 button stays bespoke code here (not
+        part of the schema) since its handler needs to read the whole
+        panel's collect_values() output, which is naturally sequenced after
+        CoreUIBuilder.build() returns.
+        """
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -52,155 +64,13 @@ class Tab3SettingsMixin:
         )
         layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
-        def _create_color_button(color_hex: str, handler) -> QPushButton:
-            btn = QPushButton("")
-            btn.setStyleSheet(f"background-color: {color_hex}; color: white; border-radius: 4px;")
-            btn.clicked.connect(handler)
-            return btn
-
-        # ── Section: 基準点 ─────────────────────────────────────────────
-        layout.addWidget(UIStyleHelper.build_section_header(UILabels.TAB3_SECTION_REF_SYMBOL))
-
-        self.spin_ref_sym_size = QDoubleSpinBox()
-        self.spin_ref_sym_size.setRange(0.5, 20.0)
-        self.spin_ref_sym_size.setSingleStep(0.5)
-        self.spin_ref_sym_size.setValue(4.0)
-
-        self.spin_ref_sym_linewidth = QDoubleSpinBox()
-        self.spin_ref_sym_linewidth.setRange(0.1, 5.0)
-        self.spin_ref_sym_linewidth.setSingleStep(0.1)
-        self.spin_ref_sym_linewidth.setValue(1.2)
-
-        ref_row1 = QHBoxLayout()
-        ref_row1.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_SIZE, self.spin_ref_sym_size), 1)
-        ref_row1.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_LINEWIDTH, self.spin_ref_sym_linewidth), 1)
-        ref_row1.addStretch(1)
-        layout.addLayout(ref_row1)
-
-        self._settings_ref_line_color = "#D32F2F"
-        self.btn_ref_line_color = _create_color_button(
-            self._settings_ref_line_color,
-            lambda: self._on_color_pick("ref_line")
-        )
-
-        ref_row2 = QHBoxLayout()
-        ref_row2.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_LINECOLOR, self.btn_ref_line_color), 1)
-        ref_row2.addStretch(2)
-        layout.addLayout(ref_row2)
-
-        # ── Section: 遺物点 ─────────────────────────────────────────────
-        layout.addWidget(UIStyleHelper.build_section_header(UILabels.TAB3_SECTION_POINT_SYMBOL))
-
-        self.spin_point_sym_size = QDoubleSpinBox()
-        self.spin_point_sym_size.setRange(0.5, 20.0)
-        self.spin_point_sym_size.setSingleStep(0.5)
-        self.spin_point_sym_size.setValue(6.0)
-
-        self.spin_point_sym_linewidth = QDoubleSpinBox()
-        self.spin_point_sym_linewidth.setRange(0.1, 5.0)
-        self.spin_point_sym_linewidth.setSingleStep(0.1)
-        self.spin_point_sym_linewidth.setValue(0.9)
-
-        point_row1 = QHBoxLayout()
-        point_row1.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_SIZE, self.spin_point_sym_size), 1)
-        point_row1.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_LINEWIDTH, self.spin_point_sym_linewidth), 1)
-        point_row1.addStretch(1)
-        layout.addLayout(point_row1)
-
-        self._settings_point_line_color = "#E53935"
-        self.btn_point_line_color = _create_color_button(
-            self._settings_point_line_color,
-            lambda: self._on_color_pick("point_line")
-        )
-
-        point_fill_widget = QWidget()
-        point_fill_layout = QHBoxLayout(point_fill_widget)
-        point_fill_layout.setContentsMargins(0, 0, 0, 0)
-        self.radio_point_fill_on  = QRadioButton(UILabels.TAB3_POINT_FILL_ON)
-        self.radio_point_fill_off = QRadioButton(UILabels.TAB3_POINT_FILL_OFF)
-        self.radio_point_fill_off.setChecked(True)
-        point_fill_layout.addWidget(self.radio_point_fill_on)
-        point_fill_layout.addWidget(self.radio_point_fill_off)
-
-        point_row2 = QHBoxLayout()
-        point_row2.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_LINECOLOR, self.btn_point_line_color), 1)
-        point_row2.addWidget(point_fill_widget, 2)
-        layout.addLayout(point_row2)
-
-        # ── Section: ラベル ──────────────────────────────────────────────
-        layout.addWidget(UIStyleHelper.build_section_header(UILabels.TAB3_SECTION_LABEL_SYMBOL))
-
-        self.spin_lbl_size = QSpinBox()
-        self.spin_lbl_size.setRange(6, 36)
-        self.spin_lbl_size.setValue(UIConfig.LABEL_SIZE_REF)
-
-        self.spin_lbl_offset = QDoubleSpinBox()
-        self.spin_lbl_offset.setRange(0.0, 20.0)
-        self.spin_lbl_offset.setSingleStep(0.5)
-        self.spin_lbl_offset.setValue(1.0)
-
-        lbl_row1 = QHBoxLayout()
-        lbl_row1.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LBL_SIZE, self.spin_lbl_size), 1)
-        lbl_row1.addWidget(UIStyleHelper.build_form_row(UILabels.TAB3_LABEL_OFFSET, self.spin_lbl_offset), 1)
-        lbl_row1.addStretch(1)
-        layout.addLayout(lbl_row1)
-
-        halo_widget = QWidget()
-        halo_layout = QHBoxLayout(halo_widget)
-        halo_layout.setContentsMargins(0, 0, 0, 0)
-        self.radio_halo_on  = QRadioButton(UILabels.TAB3_LABEL_HALO_ON)
-        self.radio_halo_off = QRadioButton(UILabels.TAB3_LABEL_HALO_OFF)
-        self.radio_halo_on.setChecked(True)
-        halo_layout.addWidget(self.radio_halo_on)
-        halo_layout.addWidget(self.radio_halo_off)
-
-        lbl_row2 = QHBoxLayout()
-        lbl_row2.addWidget(halo_widget, 2)
-        lbl_row2.addStretch(1)
-        layout.addLayout(lbl_row2)
-
-        # ── Section: 表示縮尺 ────────────────────────────────────────────
-        layout.addWidget(UIStyleHelper.build_section_header(UILabels.TAB3_SECTION_SCALE))
-
-        def _make_scale_controls(
-            label_text: str, default_always: bool, default_scale: int
-        ) -> Tuple[QWidget, QRadioButton, QRadioButton, QSpinBox]:
-            """Build radio buttons widget and spinbox for grid scale settings."""
-            radio_always  = QRadioButton(UILabels.TAB3_SCALE_ALWAYS)
-            radio_specify = QRadioButton(UILabels.TAB3_SCALE_SPECIFY)
-            spin = QSpinBox()
-            spin.setRange(1, 99999)
-            spin.setValue(default_scale)
-            spin.setEnabled(not default_always)
-            radio_always.setChecked(default_always)
-            radio_specify.setChecked(not default_always)
-            radio_always.toggled.connect(lambda chk: spin.setEnabled(not chk))
-
-            radio_widget = QWidget()
-            radio_layout = QHBoxLayout(radio_widget)
-            radio_layout.setContentsMargins(0, 0, 0, 0)
-            lbl = QLabel(label_text)
-            radio_layout.addWidget(lbl)
-            radio_layout.addWidget(radio_always)
-            radio_layout.addWidget(radio_specify)
-
-            return radio_widget, radio_always, radio_specify, spin
-
-        major_radio_w, self.radio_major_always, self.radio_major_specify, self.spin_major_scale = (
-            _make_scale_controls(UILabels.TAB3_SCALE_MAJOR, True, 500)
-        )
-        scale_row1 = QHBoxLayout()
-        scale_row1.addWidget(major_radio_w, 2)
-        scale_row1.addWidget(self.spin_major_scale, 1)
-        layout.addLayout(scale_row1)
-
-        minor_radio_w, self.radio_minor_always, self.radio_minor_specify, self.spin_minor_scale = (
-            _make_scale_controls(UILabels.TAB3_SCALE_MINOR, False, UIConfig.SCALE_THRESHOLD)
-        )
-        scale_row2 = QHBoxLayout()
-        scale_row2.addWidget(minor_radio_w, 2)
-        scale_row2.addWidget(self.spin_minor_scale, 1)
-        layout.addLayout(scale_row2)
+        panel = CoreUIBuilder.build(TAB3_SETTINGS_SPEC, parent=container)
+        self._tab3_panel = panel
+        panel.bind("ref_line_color_clicked", lambda: self._on_color_pick("ref_line_color"))
+        panel.bind("point_line_color_clicked", lambda: self._on_color_pick("point_line_color"))
+        panel.bind("major_scale_mode_changed", self._on_major_scale_mode_changed)
+        panel.bind("minor_scale_mode_changed", self._on_minor_scale_mode_changed)
+        layout.addWidget(panel.widget)
 
         # ── Apply button ─────────────────────────────────────────────────
         self.btn_settings_apply = QPushButton(UILabels.TAB3_BTN_APPLY, container)
@@ -213,31 +83,32 @@ class Tab3SettingsMixin:
 
         return scroll
 
-    def _on_color_pick(self, target: str) -> None:
-        """Unified color picker handler."""
-        current_color_hex = ""
-        btn_ref = None
+    def _on_color_pick(self, field_id: str) -> None:
+        """Unified color picker handler for a COLOR_BUTTON_ROW field.
 
-        if target == "ref_line":
-            current_color_hex = self._settings_ref_line_color
-            btn_ref = self.btn_ref_line_color
-        elif target == "point_line":
-            current_color_hex = self._settings_point_line_color
-            btn_ref = self.btn_point_line_color
-
-        if not current_color_hex or current_color_hex == "transparent":
+        :param field_id: TAB3_SETTINGS_SPEC field_id of the color swatch
+            button that was clicked (e.g. "ref_line_color").
+        """
+        current_color_hex = self._tab3_panel.get_value(field_id) or "#FFFFFF"
+        if current_color_hex == "transparent":
             current_color_hex = "#FFFFFF"
 
         color = QColorDialog.getColor(QColor(current_color_hex), self, UILabels.TAB3_BTN_COLOR)
         if color.isValid():
-            new_color = color.name()
-            if target == "ref_line":
-                self._settings_ref_line_color = new_color
-            elif target == "point_line":
-                self._settings_point_line_color = new_color
+            self._tab3_panel.set_value(field_id, color.name())
 
-            if btn_ref:
-                btn_ref.setStyleSheet(f"background-color: {new_color}; color: white; border-radius: 4px;")
+    def _on_major_scale_mode_changed(self, idx: int) -> None:
+        """Enable the 大グリッド threshold spinbox only in "指定" mode
+        (idx == 1), mirroring the pre-CoreUI ``radio_always.toggled``
+        connection. Screen-specific glue kept out of schemas.py.
+        """
+        self._tab3_panel.get("major_scale_value").setEnabled(idx == 1)
+
+    def _on_minor_scale_mode_changed(self, idx: int) -> None:
+        """Enable the 小グリッド threshold spinbox only in "指定" mode
+        (idx == 1); see ``_on_major_scale_mode_changed``.
+        """
+        self._tab3_panel.get("minor_scale_value").setEnabled(idx == 1)
 
     def update_settings_ui_from_dict(self, settings: Optional[Dict[str, Any]] = None) -> None:
         """Update Tab 3 setting widgets from loaded settings dictionary."""
@@ -247,62 +118,43 @@ class Tab3SettingsMixin:
             else:
                 return
 
-        ref_size = float(settings.get("ref_symbol_size", 4.0))
-        ref_lw   = float(settings.get("ref_symbol_line_width", 1.2))
-        ref_line = str(settings.get("ref_symbol_line_color", settings.get("ref_symbol_color", "#D32F2F")))
+        if not hasattr(self, "_tab3_panel"):
+            return
 
-        pt_size  = float(settings.get("point_symbol_size", 6.0))
-        pt_lw    = float(settings.get("point_symbol_line_width", 0.9))
-        pt_fill_enabled = bool(settings.get("point_symbol_fill_enabled", False))
-        pt_line  = str(settings.get("point_symbol_line_color", settings.get("point_symbol_color", "#E53935")))
+        sc_maj = int(settings.get("scale_major_grid", -1))
+        sc_min = int(settings.get("scale_minor_grid", UIConfig.SCALE_THRESHOLD))
 
-        lbl_sz   = int(settings.get("label_size", UIConfig.LABEL_SIZE_REF))
-        lbl_halo = bool(settings.get("label_halo", True))
-        lbl_off  = float(settings.get("label_offset", 1.0))
+        values = {
+            "ref_sym_size": float(settings.get("ref_symbol_size", 4.0)),
+            "ref_sym_linewidth": float(settings.get("ref_symbol_line_width", 1.2)),
+            "ref_line_color": str(
+                settings.get("ref_symbol_line_color", settings.get("ref_symbol_color", "#D32F2F"))
+            ),
+            "point_sym_size": float(settings.get("point_symbol_size", 6.0)),
+            "point_sym_linewidth": float(settings.get("point_symbol_line_width", 0.9)),
+            "point_line_color": str(
+                settings.get("point_symbol_line_color", settings.get("point_symbol_color", "#E53935"))
+            ),
+            # RADIO_ROW fields carry an index; index 0 is the "ON" option
+            # for both TAB3_POINT_FILL_ON/OFF and TAB3_LABEL_HALO_ON/OFF.
+            "point_fill_toggle": 0 if bool(settings.get("point_symbol_fill_enabled", False)) else 1,
+            "lbl_size": int(settings.get("label_size", UIConfig.LABEL_SIZE_REF)),
+            "halo_toggle": 0 if bool(settings.get("label_halo", True)) else 1,
+            "lbl_offset": float(settings.get("label_offset", 1.0)),
+            # index 0 = "常時" (TAB3_SCALE_ALWAYS), index 1 = "指定"
+            # (TAB3_SCALE_SPECIFY); the threshold spinbox's own value is
+            # only overwritten when a specific value was actually saved
+            # (sc_maj/sc_min > 0), matching the pre-CoreUI hasattr-guarded
+            # conditional .setValue() calls this replaces.
+            "major_scale_mode": 0 if sc_maj <= 0 else 1,
+            "minor_scale_mode": 0 if sc_min <= 0 else 1,
+        }
+        if sc_maj > 0:
+            values["major_scale_value"] = sc_maj
+        if sc_min > 0:
+            values["minor_scale_value"] = sc_min
 
-        sc_maj   = int(settings.get("scale_major_grid", -1))
-        sc_min   = int(settings.get("scale_minor_grid", UIConfig.SCALE_THRESHOLD))
-
-        if hasattr(self, "spin_ref_sym_size"):
-            self.spin_ref_sym_size.setValue(ref_size)
-        if hasattr(self, "spin_ref_sym_linewidth"):
-            self.spin_ref_sym_linewidth.setValue(ref_lw)
-        if hasattr(self, "btn_ref_line_color"):
-            self._settings_ref_line_color = ref_line
-            self.btn_ref_line_color.setStyleSheet(f"background-color: {ref_line}; color: white; border-radius: 4px;")
-
-        if hasattr(self, "spin_point_sym_size"):
-            self.spin_point_sym_size.setValue(pt_size)
-        if hasattr(self, "spin_point_sym_linewidth"):
-            self.spin_point_sym_linewidth.setValue(pt_lw)
-        if hasattr(self, "btn_point_line_color"):
-            self._settings_point_line_color = pt_line
-            self.btn_point_line_color.setStyleSheet(f"background-color: {pt_line}; color: white; border-radius: 4px;")
-        if hasattr(self, "radio_point_fill_on") and hasattr(self, "radio_point_fill_off"):
-            self.radio_point_fill_on.setChecked(pt_fill_enabled)
-            self.radio_point_fill_off.setChecked(not pt_fill_enabled)
-
-        if hasattr(self, "spin_lbl_size"):
-            self.spin_lbl_size.setValue(lbl_sz)
-        if hasattr(self, "radio_halo_on") and hasattr(self, "radio_halo_off"):
-            self.radio_halo_on.setChecked(lbl_halo)
-            self.radio_halo_off.setChecked(not lbl_halo)
-        if hasattr(self, "spin_lbl_offset"):
-            self.spin_lbl_offset.setValue(lbl_off)
-
-        if hasattr(self, "radio_major_always") and hasattr(self, "radio_major_specify"):
-            if sc_maj <= 0:
-                self.radio_major_always.setChecked(True)
-            else:
-                self.radio_major_specify.setChecked(True)
-                self.spin_major_scale.setValue(sc_maj)
-
-        if hasattr(self, "radio_minor_always") and hasattr(self, "radio_minor_specify"):
-            if sc_min <= 0:
-                self.radio_minor_always.setChecked(True)
-            else:
-                self.radio_minor_specify.setChecked(True)
-                self.spin_minor_scale.setValue(sc_min)
+        self._tab3_panel.set_values(values)
 
     def _on_settings_apply_clicked(self) -> None:
         """Collect UI values and persist them to settings.json.
@@ -315,21 +167,22 @@ class Tab3SettingsMixin:
         if not self.layer_manager or not self.layer_manager.session_dir:
             return
 
-        # Gather values from UI
-        scale_major = -1 if self.radio_major_always.isChecked() else self.spin_major_scale.value()
-        scale_minor = -1 if self.radio_minor_always.isChecked() else self.spin_minor_scale.value()
+        values = self._tab3_panel.collect_values()
+
+        scale_major = -1 if values["major_scale_mode"] == 0 else values["major_scale_value"]
+        scale_minor = -1 if values["minor_scale_mode"] == 0 else values["minor_scale_value"]
 
         new_settings = {
-            "ref_symbol_size":           self.spin_ref_sym_size.value(),
-            "ref_symbol_line_width":     self.spin_ref_sym_linewidth.value(),
-            "ref_symbol_line_color":     self._settings_ref_line_color,
-            "point_symbol_size":         self.spin_point_sym_size.value(),
-            "point_symbol_line_width":   self.spin_point_sym_linewidth.value(),
-            "point_symbol_fill_enabled": self.radio_point_fill_on.isChecked(),
-            "point_symbol_line_color":   self._settings_point_line_color,
-            "label_size":                self.spin_lbl_size.value(),
-            "label_halo":                self.radio_halo_on.isChecked(),
-            "label_offset":              self.spin_lbl_offset.value(),
+            "ref_symbol_size":           values["ref_sym_size"],
+            "ref_symbol_line_width":     values["ref_sym_linewidth"],
+            "ref_symbol_line_color":     values["ref_line_color"],
+            "point_symbol_size":         values["point_sym_size"],
+            "point_symbol_line_width":   values["point_sym_linewidth"],
+            "point_symbol_fill_enabled": values["point_fill_toggle"] == 0,
+            "point_symbol_line_color":   values["point_line_color"],
+            "label_size":                values["lbl_size"],
+            "label_halo":                values["halo_toggle"] == 0,
+            "label_offset":              values["lbl_offset"],
             "scale_major_grid":          scale_major,
             "scale_minor_grid":          scale_minor,
         }
@@ -364,4 +217,3 @@ class Tab3SettingsMixin:
         # Refresh canvas
         if hasattr(self, "canvas") and self.canvas:
             self.canvas.refresh()
-

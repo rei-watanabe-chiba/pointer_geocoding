@@ -40,6 +40,37 @@ class WidgetType(Enum):
     #: distinct from LINEEDIT_ROW since it carries an int range/default
     #: instead of free text. Uses FieldSpec.spin_min/spin_max/spin_default.
     SPINBOX_ROW = "spinbox_row"
+    #: T-0048: a non-interactive bold header label (e.g. tab3_settings.py's
+    #: "基準点"/"遺物点"/"ラベル"/"表示縮尺" group separators). Wraps
+    #: UIStyleHelper.build_section_header(). Uses FieldSpec.label only; no
+    #: value/hook.
+    SECTION_HEADER = "section_header"
+    #: T-0048: a compact label+QDoubleSpinBox row built via
+    #: UIStyleHelper.build_form_row() (label beside widget, not a full-width
+    #: build_flex_row), matching tab3_settings.py's pre-existing dense
+    #: settings-form look. Uses FieldSpec.dspin_min/dspin_max/dspin_step/
+    #: dspin_default.
+    DOUBLE_SPINBOX_ROW = "double_spinbox_row"
+    #: T-0048: a compact label+color-swatch QPushButton row (also via
+    #: build_form_row), e.g. tab3_settings.py's 線色 pickers. Clicking fires
+    #: FieldSpec.on_click; the resulting color is read/written as a hex
+    #: string via BuiltPanel.get_value()/set_value(). Uses
+    #: FieldSpec.color_default.
+    COLOR_BUTTON_ROW = "color_button_row"
+    #: T-0048: lays a list of FieldSpec.sub_fields out side by side in one
+    #: QHBoxLayout row (each sub-field built via its own normal builder),
+    #: for tab3_settings.py's paired rows (size+線幅 spinboxes, 線色+塗り
+    #: toggle, グリッド常時/指定 radio + threshold spinbox) that were
+    #: previously hand-built HBoxLayouts. Uses FieldSpec.sub_fields; each
+    #: sub-field's own FieldSpec.stretch controls its relative width.
+    ROW_GROUP = "row_group"
+    #: T-0048 (人手確認フィードバック対応): an empty QWidget placeholder used
+    #: purely as a stretch spacer within a ROW_GROUP's sub_fields (e.g.
+    #: tab3_settings.py's ref_row2, which pairs the 線色 COLOR_BUTTON_ROW
+    #: with a same-width SPACER so the color button's row lines up with the
+    #: サイズ+線幅 row above it instead of stretching edge-to-edge). Carries
+    #: no value; excluded from CoreUIBuilder._VALUE_WIDGET_TYPES.
+    SPACER = "spacer"
 
 
 @dataclass
@@ -137,6 +168,20 @@ class FieldSpec:
         confirmation dialogs. False (the default) preserves BUTTON_ROW's
         original left-anchored, edge-to-edge layout used by e.g. Tab1's
         rename_delete/transform_actions rows.
+    :param dspin_min: Minimum value for DOUBLE_SPINBOX_ROW (default 0.0).
+    :param dspin_max: Maximum value for DOUBLE_SPINBOX_ROW (default 999.0).
+    :param dspin_step: Single-step increment for DOUBLE_SPINBOX_ROW
+        (default 1.0).
+    :param dspin_default: Initial value for DOUBLE_SPINBOX_ROW (default 0.0).
+    :param color_default: Initial "#RRGGBB" color for COLOR_BUTTON_ROW
+        (default "#FFFFFF").
+    :param sub_fields: Ordered FieldSpec list laid out side by side for
+        ROW_GROUP; each sub-field is built via its own normal WidgetType
+        builder and registered under its own field_id (as if declared at
+        the top level), so ``panel.get()``/``get_value()``/``set_value()``
+        address sub-fields directly by their own field_id.
+    :param stretch: Relative width weight for this FieldSpec when used as a
+        ROW_GROUP sub-field (ignored for top-level fields; default 1).
     """
     field_id: str
     widget_type: WidgetType
@@ -161,6 +206,21 @@ class FieldSpec:
     spin_max: int = 999999
     spin_default: int = 0
     centered: bool = False
+    dspin_min: float = 0.0
+    dspin_max: float = 999.0
+    dspin_step: float = 1.0
+    dspin_default: float = 0.0
+    color_default: str = "#FFFFFF"
+    sub_fields: List["FieldSpec"] = field(default_factory=list)
+    stretch: int = 1
+    #: T-0048 (人手確認フィードバック対応): optional fixed pixel width for
+    #: DOUBLE_SPINBOX_ROW/COLOR_BUTTON_ROW/SPINBOX_ROW's leading label
+    #: (build_form_row's QLabel), so labels of differing character count
+    #: (サイズ/線幅/線色/間隔) within the same panel start their input
+    #: widgets at the same x-offset. None (the default) preserves each
+    #: builder's prior natural-width label behavior, so screens that never
+    #: set this (e.g. dialogs.py's SPINBOX_ROW usage) are unaffected.
+    label_width: Optional[int] = None
 
 
 @dataclass
