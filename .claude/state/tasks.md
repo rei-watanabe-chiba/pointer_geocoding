@@ -41,7 +41,7 @@ T-0048以降を以下の通り再構築（旧T-0049「logic棚卸し」は本調
 | T-0051 | tab2_plot.py（実測1905行）へCoreUI適用（T-0050でレイヤ操作を先に外出し後に着手） | 承認待ち |
 | T-0052 | map_tool.pyのdock逆参照排除（tab2_current_mode/layer_managerのgetattr参照をPush通知/コンストラクタ注入等へ） | 承認待ち |
 | 軽微修正-01 | tab2_plot.py 図面選択リストパネルに基準点レイヤ表示/非表示ラジオボタン追加（余白調整含む）。人手確認完了。詳細は`.claude/logs/implement/2026-09-17-軽微修正-01-ref-point-visibility-toggle.md`、訂正ログ`.claude/logs/implement/2026-09-17-軽微修正-01-correction.md`、チェックリスト`.claude/logs/implement/2026-09-17-軽微修正-01-ref-point-visibility-toggle-checklist.md` | 完了 |
-| 軽微修正-02 | リポジトリ直下に`sync_local_edits.bat`新規作成。testブランチ上の未コミット変更をlocal-editsブランチへstash退避→コミット→force push→testへ復帰させる運用スクリプト。既存sync_test.bat/sync_main.batのスタイル（ASCII/CRLF/echo/pause）を踏襲。src配下の変更なし。詳細は`.claude/logs/implement/2026-09-17-sync-local-edits.md` | 静的検証中 |
+| 軽微修正-02 | リポジトリ直下に`sync_local_edits.bat`新規作成。testブランチ上の未コミット変更をlocal-editsブランチへstash退避→コミット→force push→testへ復帰させる運用スクリプト。既存sync_test.bat/sync_main.batのスタイル（ASCII/CRLF/echo/pause）を踏襲。src配下の変更なし。verifier静的検証: 問題なし（実行環境（Windows実機）での確認が必要）。詳細は`.claude/logs/implement/2026-09-17-sync-local-edits.md` | 人手確認待ち |
 
 ## 使い方
 - 新しいタスクを開始する際は、この表に1行追加し「承認待ち」から開始する
