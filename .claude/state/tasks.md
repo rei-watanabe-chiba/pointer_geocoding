@@ -35,7 +35,7 @@ T-0048以降を以下の通り再構築（旧T-0049「logic棚卸し」は本調
 
 | タスクID | 概要 | 状態 |
 |---|---|---|
-| T-0048 | tab3_settings.py（実測367→219行）へCoreUI適用。schemas.pyにTAB3_SETTINGS_SPEC追加、field_spec.py/builder.pyにSECTION_HEADER/DOUBLE_SPINBOX_ROW/COLOR_BUTTON_ROW/ROW_GROUPを追加。実装完了、静的検証待ち。詳細は`.claude/logs/implement/2026-09-17-T-0048-tab3-coreui.md` | 静的検証中 |
+| T-0048 | tab3_settings.py（実測367→219行）へCoreUI適用。schemas.pyにTAB3_SETTINGS_SPEC追加、field_spec.py/builder.pyにSECTION_HEADER/DOUBLE_SPINBOX_ROW/COLOR_BUTTON_ROW/ROW_GROUPを追加。静的検証完了（問題なし。実行環境での確認が必要）。詳細は`.claude/logs/implement/2026-09-17-T-0048-tab3-coreui.md` | 人手確認待ち |
 | T-0049 | tab1_image.pyの残存QGIS直接操作（画像削除・レイヤリネーム）をLayerManagerへ移管 | 承認待ち |
 | T-0050 | tab2_plot.pyの画像/基準点レイヤ可視性制御の重複6メソッドをLayerManagerの汎用APIへ集約 | 承認待ち |
 | T-0051 | tab2_plot.py（実測1905行）へCoreUI適用（T-0050でレイヤ操作を先に外出し後に着手） | 承認待ち |
