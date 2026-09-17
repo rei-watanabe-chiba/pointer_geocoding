@@ -461,31 +461,17 @@ class Tab2DigitizingMixin:
         layout.addWidget(self.group_focus)
 
         # =============================================================
-        # Panel 4: 図面選択リスト (図面表示マルチセレクタ, fixed height)
+        # 基準点レイヤ(プロジェクト共通・図面ごとではない)の表示/非表示を
+        # 切り替えるラジオボタン行。訂正: この行は図面選択リストパネル
+        # (group_drawing_list) の"外側・直前"に独立した行として配置する
+        # (list_drawing_visibility とは別レイヤ種別のため、グループ内部
+        # ではなくパネルの上に置く)。他の行と同じ UIStyleHelper.
+        # build_flex_row() パターンで統一する。
         # =============================================================
-        self.group_drawing_list = QGroupBox(UILabels.GROUP_DRAWING_LIST, container)
-        drawing_list_layout = QVBoxLayout(self.group_drawing_list)
-        # 軽微修正: このグループ内には list_drawing_visibility と
-        # row_ref_point_visibility の2要素しかないため、setSpacing() は
-        # 事実上この2者の間隔のみを決める。他パネルの余白感(PANEL_MARGIN)
-        # には影響しないことを確認した上で、両者の間だけを詰めるために
-        # 半分の値を使う(0にすると窮屈すぎるため)。
-        drawing_list_layout.setSpacing(UIConfig.PANEL_MARGIN // 2)
-
-        self.list_drawing_visibility = QListWidget(self.group_drawing_list)
-        self.list_drawing_visibility.setFixedHeight(UIConfig.DRAWING_LIST_HEIGHT)
-        self.list_drawing_visibility.itemChanged.connect(self._on_drawing_visibility_item_changed)
-        drawing_list_layout.addWidget(self.list_drawing_visibility)
-
-        # 軽微修正: 基準点レイヤ(プロジェクト共通・図面ごとではない)の表示/
-        # 非表示を切り替えるラジオボタン行。list_drawing_visibility (図面
-        # ごとのチェックリスト) とは別レイヤ種別のため、専用のUIStyleHelper.
-        # build_flex_row() 行として追加する (T-0050のCoreUI化までは他の行
-        # と同じ素のPyQt実装で統一感を保つ)。
-        self.lbl_ref_point_visibility = QLabel(UILabels.LBL_REF_POINT_VISIBILITY, self.group_drawing_list)
-        self.radio_ref_point_visible = QRadioButton(UILabels.RADIO_VISIBLE, self.group_drawing_list)
-        self.radio_ref_point_hidden = QRadioButton(UILabels.RADIO_HIDDEN, self.group_drawing_list)
-        self.ref_point_visibility_group = QButtonGroup(self.group_drawing_list)
+        self.lbl_ref_point_visibility = QLabel(UILabels.LBL_REF_POINT_VISIBILITY, container)
+        self.radio_ref_point_visible = QRadioButton(UILabels.RADIO_VISIBLE, container)
+        self.radio_ref_point_hidden = QRadioButton(UILabels.RADIO_HIDDEN, container)
+        self.ref_point_visibility_group = QButtonGroup(container)
         self.ref_point_visibility_group.addButton(self.radio_ref_point_visible)
         self.ref_point_visibility_group.addButton(self.radio_ref_point_hidden)
         self._sync_ref_point_visibility_radios()
@@ -496,7 +482,25 @@ class Tab2DigitizingMixin:
             main_ratio=MAIN_RATIO,
             row_height=UIConfig.ROW_HEIGHT,
         )
-        drawing_list_layout.addWidget(row_ref_point_visibility)
+        layout.addWidget(row_ref_point_visibility)
+
+        # =============================================================
+        # Panel 4: 図面選択リスト (図面表示マルチセレクタ, fixed height)
+        # =============================================================
+        self.group_drawing_list = QGroupBox(UILabels.GROUP_DRAWING_LIST, container)
+        # 軽微修正-01訂正: このグループボックスのタイトルと直下のBOX
+        # (list_drawing_visibility) との間の余白を、他のQGroupBoxに影響
+        # させずに詰めるため、専用の動的プロパティ "compactTitle" を付与
+        # する (対応するQSSは style.py 参照)。
+        self.group_drawing_list.setProperty("compactTitle", True)
+        self.group_drawing_list.style().polish(self.group_drawing_list)
+        drawing_list_layout = QVBoxLayout(self.group_drawing_list)
+        drawing_list_layout.setSpacing(UIConfig.PANEL_MARGIN)
+
+        self.list_drawing_visibility = QListWidget(self.group_drawing_list)
+        self.list_drawing_visibility.setFixedHeight(UIConfig.DRAWING_LIST_HEIGHT)
+        self.list_drawing_visibility.itemChanged.connect(self._on_drawing_visibility_item_changed)
+        drawing_list_layout.addWidget(self.list_drawing_visibility)
 
         layout.addWidget(self.group_drawing_list)
         layout.addStretch()
