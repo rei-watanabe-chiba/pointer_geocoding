@@ -51,7 +51,7 @@ from .style import UIStyleHelper
 from ..logic.core import to_survey_coords, check_point_duplicate, build_point_ident
 from .constants import UIConfig, UILabels, UIMessages, UIPlaceholders, UIDialogSizes
 from .core import CoreUIBuilder
-from .core.validators import RequiredValidator, DuplicateValidator, show_validation_error
+from .core.validators import RequiredValidator, DuplicateValidator
 from .schemas import (
     GRID_INPUT_ACTIONS_SPEC,
     FEATURE_CREATE_INPUT_SPEC,
@@ -600,16 +600,25 @@ class FeatureCreateDialog(QDialog):
         )
         layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
-        # T-0047: 遺構名 input + OK/キャンセル row built declaratively via
-        # CoreUI (see FEATURE_CREATE_INPUT_SPEC / FEATURE_CREATE_ACTIONS_SPEC
-        # in schemas.py); the former inline red-text lbl_error is dropped in
-        # favor of the ui/core/validators.py Validator +
-        # show_validation_error() pattern already used by tab1_image.py
-        # (QMessageBox.warning() + setFocus()).
+        # T-0047 followup fix: 遺構名 input + OK/キャンセル row built
+        # declaratively via CoreUI (see FEATURE_CREATE_INPUT_SPEC /
+        # FEATURE_CREATE_ACTIONS_SPEC in schemas.py). T-0047 had replaced the
+        # pre-existing inline red-text lbl_error with a confirm-time
+        # QMessageBox.warning() (show_validation_error()); this is reverted
+        # back to an inline error display, matching PointNameEntryDialog's
+        # T-0047 followup fix (commit 40205e6). Since this dialog has only a
+        # single required text field, a plain UIStyleHelper.create_status_panel
+        # label (rather than a full multi-row status panel) is used, updated
+        # live via edit_name.textChanged instead of only at OK-click time.
         input_panel = CoreUIBuilder.build(FEATURE_CREATE_INPUT_SPEC, parent=self)
         self._input_panel = input_panel
         self.edit_name = input_panel.get("feature_name")
         layout.addWidget(input_panel.widget)
+
+        self.panel_status, self.lbl_status = UIStyleHelper.create_status_panel(
+            "", status_type="info", parent=self
+        )
+        layout.addWidget(self.panel_status)
 
         actions_panel = CoreUIBuilder.build(FEATURE_CREATE_ACTIONS_SPEC, parent=self)
         self._actions_panel = actions_panel
@@ -619,12 +628,47 @@ class FeatureCreateDialog(QDialog):
         actions_panel.bind("cancel_clicked", self.reject)
         layout.addWidget(actions_panel.widget)
 
-    def _on_ok_clicked(self) -> None:
-        """Validate the entered feature name and accept the dialog if non-empty."""
+        # T-0047 followup fix: real-time RequiredValidator feedback as the
+        # user types, mirroring PointNameEntryDialog._on_realtime_validate.
+        self.edit_name.textChanged.connect(self._on_realtime_validate)
+        self._on_realtime_validate()
+
+    def _on_realtime_validate(self, *args: Any) -> None:
+        """Run RequiredValidator live and reflect the result in panel_status.
+
+        T-0047 followup fix: replaces the former confirm-time-only
+        QMessageBox validation flow, so the user sees the error inline while
+        typing instead of only after clicking OK. btn_ok is disabled while
+        the required check fails.
+        """
         text = self.edit_name.text().strip()
         result = RequiredValidator(UIMessages.ERR_NEW_FEATURE_REQUIRED).validate(text)
         if not result.is_valid:
-            show_validation_error(self, UIMessages.ERR_TITLE_INPUT, result, focus_widget=self.edit_name)
+            UIStyleHelper.update_status_panel(
+                self.panel_status, self.lbl_status, result.message, status_type="error"
+            )
+            self.btn_ok.setEnabled(False)
+            return
+        UIStyleHelper.update_status_panel(
+            self.panel_status, self.lbl_status, "", status_type="info"
+        )
+        self.btn_ok.setEnabled(True)
+
+    def _on_ok_clicked(self) -> None:
+        """Validate the entered feature name and accept the dialog if non-empty.
+
+        T-0047 followup fix: the RequiredValidator check now runs live via
+        _on_realtime_validate as the user types and already keeps btn_ok
+        disabled while it fails, so it is re-checked here only defensively
+        (should not normally be reachable in a failing state).
+        """
+        text = self.edit_name.text().strip()
+        result = RequiredValidator(UIMessages.ERR_NEW_FEATURE_REQUIRED).validate(text)
+        if not result.is_valid:
+            UIStyleHelper.update_status_panel(
+                self.panel_status, self.lbl_status, result.message, status_type="error"
+            )
+            self.btn_ok.setEnabled(False)
             return
         self.result_text = text
         self.accept()
