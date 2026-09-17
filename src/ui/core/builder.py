@@ -27,6 +27,7 @@ from qgis.gui import QgsFilterLineEdit
 from qgis.PyQt.QtWidgets import (
     QButtonGroup,
     QComboBox,
+    QDoubleSpinBox,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -71,6 +72,8 @@ class BuiltPanel:
         WidgetType.SEGMENTED_TOGGLE,
         WidgetType.RADIO_ROW,
         WidgetType.SPINBOX_ROW,
+        WidgetType.DOUBLE_SPINBOX_ROW,
+        WidgetType.COLOR_BUTTON_ROW,
     )
 
     def __init__(
@@ -132,8 +135,10 @@ class BuiltPanel:
                 if btn.isChecked():
                     return idx
             return -1
-        if widget_type == WidgetType.SPINBOX_ROW:
+        if widget_type in (WidgetType.SPINBOX_ROW, WidgetType.DOUBLE_SPINBOX_ROW):
             return self._field_widgets[field_id].value()
+        if widget_type == WidgetType.COLOR_BUTTON_ROW:
+            return self._field_widgets[field_id]._color_hex
         raise NotImplementedError(
             f"get_value() is not supported for field '{field_id}' (widget_type={widget_type})"
         )
@@ -158,22 +163,45 @@ class BuiltPanel:
         if widget_type in (WidgetType.SEGMENTED_TOGGLE, WidgetType.RADIO_ROW):
             self._buttons_lists[field_id][value].setChecked(True)
             return
-        if widget_type == WidgetType.SPINBOX_ROW:
+        if widget_type in (WidgetType.SPINBOX_ROW, WidgetType.DOUBLE_SPINBOX_ROW):
             self._field_widgets[field_id].setValue(value)
+            return
+        if widget_type == WidgetType.COLOR_BUTTON_ROW:
+            self._set_color_button(self._field_widgets[field_id], value)
             return
         raise NotImplementedError(
             f"set_value() is not supported for field '{field_id}' (widget_type={widget_type})"
         )
 
+    @staticmethod
+    def _set_color_button(btn: QPushButton, color_hex: str) -> None:
+        """Shared helper for COLOR_BUTTON_ROW's initial style and set_value()."""
+        btn._color_hex = color_hex
+        btn.setStyleSheet(f"background-color: {color_hex}; color: white; border-radius: 4px;")
+
     def collect_values(self) -> Dict[str, Any]:
         """Return ``{field_id: get_value(field_id)}`` for every registered
-        value-bearing field (LINEEDIT_ROW/COMBOBOX_ROW/SEGMENTED_TOGGLE).
+        value-bearing field (see ``_VALUE_WIDGET_TYPES``).
         """
         return {
             field_id: self.get_value(field_id)
             for field_id, widget_type in self._field_types.items()
             if widget_type in self._VALUE_WIDGET_TYPES
         }
+
+    def set_values(self, values: Dict[str, Any]) -> None:
+        """T-0048: symmetric bulk counterpart to ``collect_values()``. Calls
+        ``set_value(field_id, value)`` for each entry in ``values`` whose
+        ``field_id`` is a registered value-bearing field; unknown field_ids
+        (e.g. a settings-dict key with no corresponding panel field) are
+        silently ignored, so callers can pass a superset dict without
+        filtering it first (e.g. tab3_settings.py's mode-conditional scale
+        values).
+        """
+        for field_id, value in values.items():
+            widget_type = self._field_types.get(field_id)
+            if widget_type in self._VALUE_WIDGET_TYPES:
+                self.set_value(field_id, value)
 
 
 class CoreUIBuilder:
@@ -205,6 +233,13 @@ class CoreUIBuilder:
             )
             row_widgets[f.field_id] = row_widget
             field_types[f.field_id] = f.widget_type
+            if f.widget_type == WidgetType.ROW_GROUP:
+                # T-0048: also expose each ROW_GROUP sub-field's own
+                # field_id/widget_type so panel.get()/get_value()/
+                # set_value()/collect_values() can address it directly, as
+                # if it had been declared at the top level.
+                for sub in f.sub_fields:
+                    field_types[sub.field_id] = sub.widget_type
             layout.addWidget(row_widget)
             if not f.visible:
                 row_widget.hide()
@@ -394,6 +429,7 @@ class CoreUIBuilder:
         """
         label = QLabel(f.label, parent) if f.label else None
         spin = UIStyleHelper.create_spinbox(f.spin_min, f.spin_max, f.spin_default, parent)
+        spin.setEnabled(f.enabled)
         field_widgets[f.field_id] = spin
         register_hook(f.on_change, lambda cb, spin=spin: spin.valueChanged.connect(cb))
         return UIStyleHelper.build_flex_row(
@@ -402,6 +438,64 @@ class CoreUIBuilder:
             main_ratio=f.main_ratio or UIConfig.MAIN_RATIO,
             row_height=f.row_height or UIConfig.ROW_HEIGHT,
         )
+
+    @classmethod
+    def _build_section_header(cls, f, parent, field_widgets, buttons_lists, register_hook):
+        """Build a non-interactive bold section-header label (T-0048; e.g.
+        tab3_settings.py's "基準点"/"遺物点"/"ラベル"/"表示縮尺" separators).
+        """
+        header = UIStyleHelper.build_section_header(f.label or "")
+        field_widgets[f.field_id] = header
+        return header
+
+    @classmethod
+    def _build_double_spinbox_row(cls, f, parent, field_widgets, buttons_lists, register_hook):
+        """Build a compact label+QDoubleSpinBox row via
+        UIStyleHelper.build_form_row() (T-0048; e.g. tab3_settings.py's
+        サイズ/線幅/間隔 numeric inputs), analogous to _build_spinbox_row but
+        for float values and the denser build_form_row layout tab3 already
+        used prior to CoreUI adoption.
+        """
+        spin = QDoubleSpinBox(parent)
+        spin.setRange(f.dspin_min, f.dspin_max)
+        spin.setSingleStep(f.dspin_step)
+        spin.setValue(f.dspin_default)
+        spin.setEnabled(f.enabled)
+        field_widgets[f.field_id] = spin
+        register_hook(f.on_change, lambda cb, spin=spin: spin.valueChanged.connect(cb))
+        return UIStyleHelper.build_form_row(f.label or "", spin)
+
+    @classmethod
+    def _build_color_button_row(cls, f, parent, field_widgets, buttons_lists, register_hook):
+        """Build a compact label+color-swatch QPushButton row via
+        UIStyleHelper.build_form_row() (T-0048; e.g. tab3_settings.py's 線色
+        pickers). The button only opens the picker (on_click); the resulting
+        color is tracked on the button itself (``btn._color_hex``) and read/
+        written via BuiltPanel.get_value()/set_value().
+        """
+        btn = QPushButton("", parent)
+        BuiltPanel._set_color_button(btn, f.color_default)
+        field_widgets[f.field_id] = btn
+        register_hook(f.on_click, lambda cb, btn=btn: btn.clicked.connect(cb))
+        return UIStyleHelper.build_form_row(f.label or "", btn)
+
+    @classmethod
+    def _build_row_group(cls, f, parent, field_widgets, buttons_lists, register_hook):
+        """Lay ``f.sub_fields`` out side by side in one QHBoxLayout row
+        (T-0048; e.g. tab3_settings.py's paired サイズ+線幅 spinboxes, 線色+
+        塗り toggle, and グリッド常時/指定 radio + threshold spinbox rows).
+        Each sub-field is built via its own normal WidgetType builder and
+        registered under its own field_id, exactly as if it were declared
+        at the top level of the PanelSpec.
+        """
+        row = QWidget(parent)
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        for sub in f.sub_fields:
+            sub_builder = cls._BUILDERS[sub.widget_type]
+            sub_widget = sub_builder(sub, row, field_widgets, buttons_lists, register_hook)
+            row_layout.addWidget(sub_widget, sub.stretch)
+        return row
 
     @classmethod
     def _build_info_panel(cls, f, parent, field_widgets, buttons_lists, register_hook):
@@ -448,4 +542,8 @@ CoreUIBuilder._BUILDERS = {
     WidgetType.INFO_PANEL: CoreUIBuilder._build_info_panel,
     WidgetType.RADIO_ROW: CoreUIBuilder._build_radio_row,
     WidgetType.SPINBOX_ROW: CoreUIBuilder._build_spinbox_row,
+    WidgetType.SECTION_HEADER: CoreUIBuilder._build_section_header,
+    WidgetType.DOUBLE_SPINBOX_ROW: CoreUIBuilder._build_double_spinbox_row,
+    WidgetType.COLOR_BUTTON_ROW: CoreUIBuilder._build_color_button_row,
+    WidgetType.ROW_GROUP: CoreUIBuilder._build_row_group,
 }
