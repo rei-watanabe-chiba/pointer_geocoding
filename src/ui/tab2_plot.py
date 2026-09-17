@@ -61,6 +61,7 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QRadioButton,
+    QButtonGroup,
     QLabel,
     QPushButton,
     QComboBox,
@@ -464,12 +465,38 @@ class Tab2DigitizingMixin:
         # =============================================================
         self.group_drawing_list = QGroupBox(UILabels.GROUP_DRAWING_LIST, container)
         drawing_list_layout = QVBoxLayout(self.group_drawing_list)
-        drawing_list_layout.setSpacing(UIConfig.PANEL_MARGIN)
+        # 軽微修正: このグループ内には list_drawing_visibility と
+        # row_ref_point_visibility の2要素しかないため、setSpacing() は
+        # 事実上この2者の間隔のみを決める。他パネルの余白感(PANEL_MARGIN)
+        # には影響しないことを確認した上で、両者の間だけを詰めるために
+        # 半分の値を使う(0にすると窮屈すぎるため)。
+        drawing_list_layout.setSpacing(UIConfig.PANEL_MARGIN // 2)
 
         self.list_drawing_visibility = QListWidget(self.group_drawing_list)
         self.list_drawing_visibility.setFixedHeight(UIConfig.DRAWING_LIST_HEIGHT)
         self.list_drawing_visibility.itemChanged.connect(self._on_drawing_visibility_item_changed)
         drawing_list_layout.addWidget(self.list_drawing_visibility)
+
+        # 軽微修正: 基準点レイヤ(プロジェクト共通・図面ごとではない)の表示/
+        # 非表示を切り替えるラジオボタン行。list_drawing_visibility (図面
+        # ごとのチェックリスト) とは別レイヤ種別のため、専用のUIStyleHelper.
+        # build_flex_row() 行として追加する (T-0050のCoreUI化までは他の行
+        # と同じ素のPyQt実装で統一感を保つ)。
+        self.lbl_ref_point_visibility = QLabel(UILabels.LBL_REF_POINT_VISIBILITY, self.group_drawing_list)
+        self.radio_ref_point_visible = QRadioButton(UILabels.RADIO_VISIBLE, self.group_drawing_list)
+        self.radio_ref_point_hidden = QRadioButton(UILabels.RADIO_HIDDEN, self.group_drawing_list)
+        self.ref_point_visibility_group = QButtonGroup(self.group_drawing_list)
+        self.ref_point_visibility_group.addButton(self.radio_ref_point_visible)
+        self.ref_point_visibility_group.addButton(self.radio_ref_point_hidden)
+        self._sync_ref_point_visibility_radios()
+        self.radio_ref_point_visible.toggled.connect(self._on_ref_point_visibility_radio_toggled)
+        row_ref_point_visibility = UIStyleHelper.build_flex_row(
+            self.lbl_ref_point_visibility,
+            [(self.radio_ref_point_visible, 1), (self.radio_ref_point_hidden, 1), (None, 1)],
+            main_ratio=MAIN_RATIO,
+            row_height=UIConfig.ROW_HEIGHT,
+        )
+        drawing_list_layout.addWidget(row_ref_point_visibility)
 
         layout.addWidget(self.group_drawing_list)
         layout.addStretch()
@@ -595,6 +622,12 @@ class Tab2DigitizingMixin:
             entries = [(name, layer_id, is_vis) for name, layer_id, is_vis in layers_info]
             UIStyleHelper.repopulate_checkable_list(self.list_drawing_visibility, entries)
 
+        # 3. Refresh 基準点 visibility radios (the ref point layer may not have
+        # existed yet when _create_tab2_ui() first ran; this signal handler is
+        # also invoked on every project layersAdded/layersRemoved, see dock.py).
+        if hasattr(self, "radio_ref_point_visible") and self.radio_ref_point_visible is not None:
+            self._sync_ref_point_visibility_radios()
+
     def _on_drawing_visibility_item_changed(self, item: QListWidgetItem) -> None:
         """Toggle canvas visibility for the corresponding layer in '画像ファイル' group.
 
@@ -610,6 +643,67 @@ class Tab2DigitizingMixin:
                 if tree_layer:
                     tree_layer.setItemVisibilityChecked(is_checked)
                     self.canvas.refresh()
+
+    def _find_ref_point_tree_layer(self) -> Optional[Any]:
+        """Locate the QgsLayerTreeLayer node for the shared 基準点レイヤ (ref_point_layer).
+
+        The ref point layer is project-wide (not per-drawing); it lives inside
+        the "基準点データ" group if present (see layer/grid_csv.py), otherwise
+        directly under the root, mirroring _get_drawing_layers()'s lookup
+        pattern for the "画像ファイル" group.
+
+        :return: The matching QgsLayerTreeLayer, or None if unavailable.
+        :rtype: Optional[Any]
+        """
+        ref_layer = getattr(self.layer_manager, "ref_point_layer", None) if self.layer_manager else None
+        if ref_layer is None:
+            return None
+        root = QgsProject.instance().layerTreeRoot()
+        if not root:
+            return None
+        ref_group = root.findGroup("基準点データ")
+        search_root = ref_group if ref_group else root
+        return search_root.findLayer(ref_layer.id())
+
+    def _sync_ref_point_visibility_radios(self) -> None:
+        """Initialize/refresh 基準点 visibility radio buttons from the actual layer tree state.
+
+        If the ref point layer is not yet loaded (self.layer_manager.ref_point_layer
+        is None, e.g. before a session/grid CSV has been set up), both radios are
+        disabled and 表示 is kept selected by default so the UI is ready to reflect
+        the layer's true state as soon as it becomes available (see callers:
+        _create_tab2_ui() at construction time, and _update_drawing_combo() on
+        every project layersAdded/layersRemoved signal).
+        """
+        tree_layer = self._find_ref_point_tree_layer()
+        enabled = tree_layer is not None
+        self.radio_ref_point_visible.setEnabled(enabled)
+        self.radio_ref_point_hidden.setEnabled(enabled)
+
+        is_visible = tree_layer.itemVisibilityChecked() if tree_layer else True
+        # Avoid re-entrant canvas refresh/tree writes while programmatically
+        # syncing the radio state from the actual layer tree.
+        self.radio_ref_point_visible.blockSignals(True)
+        self.radio_ref_point_hidden.blockSignals(True)
+        self.radio_ref_point_visible.setChecked(is_visible)
+        self.radio_ref_point_hidden.setChecked(not is_visible)
+        self.radio_ref_point_visible.blockSignals(False)
+        self.radio_ref_point_hidden.blockSignals(False)
+
+    def _on_ref_point_visibility_radio_toggled(self, checked: bool) -> None:
+        """Toggle canvas visibility for the shared 基準点レイヤ.
+
+        Connected only to radio_ref_point_visible.toggled; since the two
+        radios share a QButtonGroup (mutually exclusive), checked==True means
+        表示 was just selected and checked==False means 非表示 was selected.
+
+        :param checked: Whether radio_ref_point_visible is now checked.
+        :type checked: bool
+        """
+        tree_layer = self._find_ref_point_tree_layer()
+        if tree_layer:
+            tree_layer.setItemVisibilityChecked(checked)
+            self.canvas.refresh()
 
     def _ensure_drawing_visible(self, drawing_name: str) -> None:
         """Ensure the specified drawing is checked ON in multi-selector and visible on canvas.
