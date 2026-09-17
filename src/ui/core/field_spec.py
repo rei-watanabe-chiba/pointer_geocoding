@@ -64,6 +64,13 @@ class WidgetType(Enum):
     #: previously hand-built HBoxLayouts. Uses FieldSpec.sub_fields; each
     #: sub-field's own FieldSpec.stretch controls its relative width.
     ROW_GROUP = "row_group"
+    #: T-0048 (人手確認フィードバック対応): an empty QWidget placeholder used
+    #: purely as a stretch spacer within a ROW_GROUP's sub_fields (e.g.
+    #: tab3_settings.py's ref_row2, which pairs the 線色 COLOR_BUTTON_ROW
+    #: with a same-width SPACER so the color button's row lines up with the
+    #: サイズ+線幅 row above it instead of stretching edge-to-edge). Carries
+    #: no value; excluded from CoreUIBuilder._VALUE_WIDGET_TYPES.
+    SPACER = "spacer"
 
 
 @dataclass
@@ -206,6 +213,14 @@ class FieldSpec:
     color_default: str = "#FFFFFF"
     sub_fields: List["FieldSpec"] = field(default_factory=list)
     stretch: int = 1
+    #: T-0048 (人手確認フィードバック対応): optional fixed pixel width for
+    #: DOUBLE_SPINBOX_ROW/COLOR_BUTTON_ROW/SPINBOX_ROW's leading label
+    #: (build_form_row's QLabel), so labels of differing character count
+    #: (サイズ/線幅/線色/間隔) within the same panel start their input
+    #: widgets at the same x-offset. None (the default) preserves each
+    #: builder's prior natural-width label behavior, so screens that never
+    #: set this (e.g. dialogs.py's SPINBOX_ROW usage) are unaffected.
+    label_width: Optional[int] = None
 
 
 @dataclass

@@ -385,16 +385,32 @@ TAB3_SETTINGS_SPEC = PanelSpec(
                 FieldSpec(
                     field_id="ref_sym_size", widget_type=WidgetType.DOUBLE_SPINBOX_ROW,
                     label=UILabels.TAB3_LBL_SIZE, dspin_min=0.5, dspin_max=20.0, dspin_step=0.5, dspin_default=4.0,
+                    label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
                 ),
                 FieldSpec(
                     field_id="ref_sym_linewidth", widget_type=WidgetType.DOUBLE_SPINBOX_ROW,
                     label=UILabels.TAB3_LBL_LINEWIDTH, dspin_min=0.1, dspin_max=5.0, dspin_step=0.1, dspin_default=1.2,
+                    label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
                 ),
             ],
         ),
         FieldSpec(
-            field_id="ref_line_color", widget_type=WidgetType.COLOR_BUTTON_ROW,
-            label=UILabels.TAB3_LBL_LINECOLOR, color_default="#D32F2F", on_click="ref_line_color_clicked",
+            # T-0048 (人手確認フィードバック対応): wrapped in a ROW_GROUP with
+            # a trailing SPACER (both stretch=1, matching ref_row1's 1:1
+            # サイズ/線幅 split) so the 線色 button occupies only the left
+            # half of the row instead of stretching edge-to-edge, lining up
+            # its left edge with the サイズ spinbox above it.
+            field_id="ref_row2",
+            widget_type=WidgetType.ROW_GROUP,
+            sub_fields=[
+                FieldSpec(
+                    field_id="ref_line_color", widget_type=WidgetType.COLOR_BUTTON_ROW,
+                    label=UILabels.TAB3_LBL_LINECOLOR, color_default="#D32F2F",
+                    on_click="ref_line_color_clicked", label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
+                    stretch=1,
+                ),
+                FieldSpec(field_id="ref_row2_spacer", widget_type=WidgetType.SPACER, stretch=1),
+            ],
         ),
 
         # ── 遺物点 ──────────────────────────────────────────────────────
@@ -406,10 +422,12 @@ TAB3_SETTINGS_SPEC = PanelSpec(
                 FieldSpec(
                     field_id="point_sym_size", widget_type=WidgetType.DOUBLE_SPINBOX_ROW,
                     label=UILabels.TAB3_LBL_SIZE, dspin_min=0.5, dspin_max=20.0, dspin_step=0.5, dspin_default=6.0,
+                    label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
                 ),
                 FieldSpec(
                     field_id="point_sym_linewidth", widget_type=WidgetType.DOUBLE_SPINBOX_ROW,
                     label=UILabels.TAB3_LBL_LINEWIDTH, dspin_min=0.1, dspin_max=5.0, dspin_step=0.1, dspin_default=0.9,
+                    label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
                 ),
             ],
         ),
@@ -420,7 +438,8 @@ TAB3_SETTINGS_SPEC = PanelSpec(
                 FieldSpec(
                     field_id="point_line_color", widget_type=WidgetType.COLOR_BUTTON_ROW,
                     label=UILabels.TAB3_LBL_LINECOLOR, color_default="#E53935",
-                    on_click="point_line_color_clicked", stretch=1,
+                    on_click="point_line_color_clicked", label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
+                    stretch=1,
                 ),
                 FieldSpec(
                     field_id="point_fill_toggle", widget_type=WidgetType.RADIO_ROW,
@@ -439,10 +458,12 @@ TAB3_SETTINGS_SPEC = PanelSpec(
                 FieldSpec(
                     field_id="lbl_size", widget_type=WidgetType.SPINBOX_ROW,
                     label=UILabels.TAB3_LBL_SIZE, spin_min=6, spin_max=36, spin_default=UIConfig.LABEL_SIZE_REF,
+                    label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
                 ),
                 FieldSpec(
                     field_id="lbl_offset", widget_type=WidgetType.DOUBLE_SPINBOX_ROW,
                     label=UILabels.TAB3_LABEL_OFFSET, dspin_min=0.0, dspin_max=20.0, dspin_step=0.5, dspin_default=1.0,
+                    label_width=UIConfig.TAB3_ROW_LABEL_WIDTH,
                 ),
             ],
         ),

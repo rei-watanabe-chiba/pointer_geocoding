@@ -390,7 +390,14 @@ class CoreUIBuilder:
         row = UIStyleHelper.build_flex_row(
             label,
             content,
-            main_ratio=f.main_ratio or UIConfig.MAIN_RATIO,
+            # T-0048 fix: mirror _build_segmented_toggle's labelless
+            # main_ratio=(0, 10) so a RADIO_ROW declared without a label
+            # (e.g. tab3_settings.py's point_fill_toggle/halo_toggle) does
+            # not reserve an empty leading stretch sized as if a label were
+            # present. Labeled RADIO_ROWs (start_dialog.py's session_type/
+            # grid_mode, tab3's major_scale_mode/minor_scale_mode) keep the
+            # previous UIConfig.MAIN_RATIO behavior unchanged.
+            main_ratio=f.main_ratio or (UIConfig.MAIN_RATIO if f.label else (0, 10)),
             row_height=f.row_height or UIConfig.ROW_HEIGHT,
         )
         # Keep the QButtonGroup alive for the row's lifetime (it is parented
@@ -427,11 +434,20 @@ class CoreUIBuilder:
         input), analogous to _build_lineedit_row but for an int-ranged value
         instead of free text.
         """
-        label = QLabel(f.label, parent) if f.label else None
         spin = UIStyleHelper.create_spinbox(f.spin_min, f.spin_max, f.spin_default, parent)
         spin.setEnabled(f.enabled)
         field_widgets[f.field_id] = spin
         register_hook(f.on_change, lambda cb, spin=spin: spin.valueChanged.connect(cb))
+        if f.label_width is not None:
+            # T-0048 (人手確認フィードバック対応): tab3_settings.py's lbl_size
+            # needs to line up with the DOUBLE_SPINBOX_ROW lbl_offset beside
+            # it in the same ROW_GROUP, so a fixed label_width switches this
+            # to the same build_form_row() layout DOUBLE_SPINBOX_ROW/
+            # COLOR_BUTTON_ROW use, instead of build_flex_row's stretch-ratio
+            # layout. Screens that never set label_width (e.g. dialogs.py's
+            # PointNameEntryDialog) keep the original build_flex_row look.
+            return UIStyleHelper.build_form_row(f.label or "", spin, label_width=f.label_width)
+        label = QLabel(f.label, parent) if f.label else None
         return UIStyleHelper.build_flex_row(
             label,
             [(spin, 1)],
@@ -463,7 +479,7 @@ class CoreUIBuilder:
         spin.setEnabled(f.enabled)
         field_widgets[f.field_id] = spin
         register_hook(f.on_change, lambda cb, spin=spin: spin.valueChanged.connect(cb))
-        return UIStyleHelper.build_form_row(f.label or "", spin)
+        return UIStyleHelper.build_form_row(f.label or "", spin, label_width=f.label_width)
 
     @classmethod
     def _build_color_button_row(cls, f, parent, field_widgets, buttons_lists, register_hook):
@@ -477,7 +493,7 @@ class CoreUIBuilder:
         BuiltPanel._set_color_button(btn, f.color_default)
         field_widgets[f.field_id] = btn
         register_hook(f.on_click, lambda cb, btn=btn: btn.clicked.connect(cb))
-        return UIStyleHelper.build_form_row(f.label or "", btn)
+        return UIStyleHelper.build_form_row(f.label or "", btn, label_width=f.label_width)
 
     @classmethod
     def _build_row_group(cls, f, parent, field_widgets, buttons_lists, register_hook):
@@ -496,6 +512,19 @@ class CoreUIBuilder:
             sub_widget = sub_builder(sub, row, field_widgets, buttons_lists, register_hook)
             row_layout.addWidget(sub_widget, sub.stretch)
         return row
+
+    @classmethod
+    def _build_spacer(cls, f, parent, field_widgets, buttons_lists, register_hook):
+        """Build an empty, value-less QWidget placeholder used as a stretch
+        spacer within a ROW_GROUP's sub_fields (T-0048 人手確認フィードバック
+        対応; e.g. tab3_settings.py's ref_row2, pairing a 線色 COLOR_BUTTON_ROW
+        with a same-width SPACER so the row's used half lines up with the
+        サイズ+線幅 row above it). Registered in field_widgets like any other
+        field, but intentionally excluded from _VALUE_WIDGET_TYPES.
+        """
+        spacer = QWidget(parent)
+        field_widgets[f.field_id] = spacer
+        return spacer
 
     @classmethod
     def _build_info_panel(cls, f, parent, field_widgets, buttons_lists, register_hook):
@@ -546,4 +575,5 @@ CoreUIBuilder._BUILDERS = {
     WidgetType.DOUBLE_SPINBOX_ROW: CoreUIBuilder._build_double_spinbox_row,
     WidgetType.COLOR_BUTTON_ROW: CoreUIBuilder._build_color_button_row,
     WidgetType.ROW_GROUP: CoreUIBuilder._build_row_group,
+    WidgetType.SPACER: CoreUIBuilder._build_spacer,
 }
