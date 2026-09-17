@@ -34,7 +34,7 @@ T-0045/T-0045-b完了。`docs/fromGemini/`の2改定案を検討した結果、T
 | タスクID | 概要 | 状態 |
 |---|---|---|
 | T-0046 | start_dialog.py（実測1101行）へCoreUI適用。実装ログ: `.claude/logs/implement/2026-09-16-T-0046-coreui-start-dialog.md` | 完了 |
-| T-0047 | dialogs.py（実測808行）へCoreUI適用（GridInputDialog/FeatureCreateDialog/PointNameEntryDialog）。verifier静的検証: 問題なし・実行環境での確認が必要。実装ログ: `.claude/logs/implement/2026-09-17-T-0047-coreui-dialogs.md`、チェックリスト: `.claude/logs/implement/2026-09-17-T-0047-coreui-dialogs-checklist.md` | 人手確認待ち |
+| T-0047 | dialogs.py（実測808行）へCoreUI適用（GridInputDialog/FeatureCreateDialog/PointNameEntryDialog）。verifier静的検証: 問題なし。人手確認中に2件の動作修正要望を検出し追加対応: ①属性がSPから別属性へ切替時に自動連番モードへ自動復帰（tab2_plot.py `_update_autonum_toggle_for_sp`）②PointNameEntryDialogの確定時QMessageBoxバリデーションをリアルタイムインライン表示（dialogs.py、UIStyleHelper.create_status_panel/update_status_panel使用）に変更。実装ログ: `.claude/logs/implement/2026-09-17-T-0047-coreui-dialogs.md`、追加修正ログ: `.claude/logs/implement/2026-09-17-T-0047-fix-autonum-and-inline-validation.md`、チェックリスト: `.claude/logs/implement/2026-09-17-T-0047-coreui-dialogs-checklist.md`、`.claude/logs/implement/2026-09-17-T-0047-fix-autonum-and-inline-validation-checklist.md` | 静的検証中 |
 | T-0048 | tab3_settings.py（実測367行）へCoreUI適用（最小規模から着手） | 承認待ち |
 | T-0049 | src/logic/分離状況の棚卸し（調査のみ、実装なし） | 承認待ち |
 | T-0050 | tab2_plot.py（実測1905行）へCoreUI適用＋T-0049結果に基づくlogic移管 | 承認待ち |

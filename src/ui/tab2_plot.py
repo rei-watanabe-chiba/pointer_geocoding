@@ -1008,15 +1008,28 @@ class Tab2DigitizingMixin:
         edit_point_name_sp, a free-text field awaiting manual entry per
         T-0022/_apply_next_point_number), so the 自動連番/解除 toggle would be
         meaningless while SP is active. T-0036: automatically select 解除
-        (index 1) and disable both buttons in that case; re-enable them (and
-        leave whichever side the user last had selected) once a non-SP
-        attribute is selected again.
+        (index 1) and disable both buttons in that case; re-enable them once
+        a non-SP attribute is selected again.
+
+        T-0047 fix: when the attribute switches away from SP back to a
+        non-SP attribute (S/P/C), the 自動連番/解除 toggle -- which SP had
+        forced to 解除+disabled -- is automatically restored to 自動連番
+        (index 0), re-triggering _on_tab2_autonum_mode_changed(0) so a point
+        number is (re-)numbered immediately. This only applies to the
+        SP->非SP transition (detected via was_forced_by_sp, i.e. the toggle
+        was still disabled just before this call); switching between two
+        non-SP attributes (e.g. S -> P) never forces the toggle here, so a
+        deliberate 解除 selection made while already on a non-SP attribute is
+        left untouched. The restore is further skipped while an existing
+        point is selected for editing (selected_edit_point_id is not None)
+        so it never clobbers that point's already-entered point_name.
 
         :param is_sp: Whether the currently selected attribute is SP.
         :type is_sp: bool
         """
         if not hasattr(self, "tab2_autonum_buttons"):
             return
+        was_forced_by_sp = not self.tab2_autonum_buttons[0].isEnabled()
         if is_sp:
             if not self.tab2_autonum_buttons[1].isChecked():
                 self.tab2_autonum_buttons[1].setChecked(True)
@@ -1025,6 +1038,13 @@ class Tab2DigitizingMixin:
         else:
             self.tab2_autonum_buttons[0].setEnabled(True)
             self.tab2_autonum_buttons[1].setEnabled(True)
+            is_editing_existing = getattr(self, "selected_edit_point_id", None) is not None
+            if (
+                was_forced_by_sp
+                and not is_editing_existing
+                and not self.tab2_autonum_buttons[0].isChecked()
+            ):
+                self.tab2_autonum_buttons[0].setChecked(True)
 
     def _on_tab2_autonum_mode_changed(self, index: int) -> None:
         """Handle 自動連番(0)/解除(1) toggle changes in the 新規モード button area.

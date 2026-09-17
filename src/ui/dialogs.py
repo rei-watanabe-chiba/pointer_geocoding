@@ -641,15 +641,21 @@ class PointNameEntryDialog(QDialog):
     neither panel widget reliably holds the value the user actually wants
     at the moment of a canvas click. This dialog pops up at click time
     (positioned near the click via Tab2DigitizingMixin._on_canvas_clicked)
-    to collect 点名/枝番 explicitly, following the same
-    OK/キャンセル + red-text-above-buttons error pattern as
-    FeatureCreateDialog. On OK, a duplicate check
-    (core_logic.check_point_duplicate) is run against the panel's current
-    出土形態/遺構名/対象図面 (passed in by the caller, unchanged by this
-    dialog); a duplicate blocks acceptance and shows
-    core_logic.build_point_ident()'s message in ``self.lbl_error`` instead.
-    On success, ``result_point_name``/``result_branch_no`` hold the
-    validated values for the caller to build the digitized feature with.
+    to collect 点名/枝番 explicitly.
+
+    T-0047 fix: validation feedback is now shown inline in
+    ``self.panel_status``/``self.lbl_status`` (UIStyleHelper's
+    create_status_panel/update_status_panel, matching GridInputDialog's
+    Tier4 ステータス・エラー表示パネル), replacing the former OK-time
+    QMessageBox.warning() prompts. The SP-required check
+    (RequiredValidator) runs live as the user types
+    (_on_realtime_validate), also gating ``btn_ok``'s enabled state; the
+    duplicate check (DuplicateValidator wrapping
+    core_logic.check_point_duplicate) still runs once at OK-click time
+    only (_on_ok_clicked), since it queries ``self._point_layer`` and is
+    intentionally not repeated on every keystroke. On success,
+    ``result_point_name``/``result_branch_no`` hold the validated values
+    for the caller to build the digitized feature with.
     """
 
     def __init__(
@@ -745,6 +751,16 @@ class PointNameEntryDialog(QDialog):
 
         layout.addWidget(input_panel.widget)
 
+        # T-0047 fix: inline status panel replacing the former OK-time
+        # QMessageBox error dialog (see _on_realtime_validate /
+        # _on_ok_clicked below). Placed directly under the 点名/枝番 inputs,
+        # mirroring GridInputDialog's Tier4 ステータス・エラー表示パネル
+        # pattern (UIStyleHelper.create_status_panel/update_status_panel).
+        self.panel_status, self.lbl_status = UIStyleHelper.create_status_panel(
+            "", status_type="info", parent=self
+        )
+        layout.addWidget(self.panel_status)
+
         actions_panel = CoreUIBuilder.build(POINT_NAME_ENTRY_ACTIONS_SPEC, parent=self)
         self._actions_panel = actions_panel
         self.btn_ok = actions_panel.get("ok")
@@ -752,6 +768,42 @@ class PointNameEntryDialog(QDialog):
         actions_panel.bind("ok_clicked", self._on_ok_clicked)
         actions_panel.bind("cancel_clicked", self.reject)
         layout.addWidget(actions_panel.widget)
+
+        # T-0047 fix: real-time RequiredValidator feedback as the user types
+        # (SP only -- the non-SP QSpinBox can never hold an empty/invalid
+        # value, so there is nothing to validate live for it). Duplicate
+        # checking (DuplicateValidator) intentionally stays OK-click-only
+        # (see _on_ok_clicked): it queries point_layer, so running it on
+        # every keystroke would add avoidable overhead for no real-time
+        # benefit while the user is still typing a partial name.
+        if self._is_sp_attribute:
+            self.edit_point_name_sp.textChanged.connect(self._on_realtime_validate)
+        self._on_realtime_validate()
+
+    def _on_realtime_validate(self, *args: Any) -> None:
+        """Run RequiredValidator live and reflect the result in panel_status.
+
+        T-0047 fix: replaces the former confirm-time-only QMessageBox
+        validation flow for the "required" check specifically, so the user
+        sees the error inline while typing instead of only after clicking
+        OK. The OK button is disabled while the required check fails, so
+        an obviously-invalid (SP, blank) entry cannot be confirmed; it is
+        re-enabled once the field is non-blank, though OK-click may still
+        reject it via DuplicateValidator (see _on_ok_clicked).
+        """
+        if self._is_sp_attribute:
+            point_name = self.edit_point_name_sp.text().strip()
+            result = RequiredValidator(UIMessages.ERR_POINT_NAME_REQUIRED).validate(point_name)
+            if not result.is_valid:
+                UIStyleHelper.update_status_panel(
+                    self.panel_status, self.lbl_status, result.message, status_type="error"
+                )
+                self.btn_ok.setEnabled(False)
+                return
+        UIStyleHelper.update_status_panel(
+            self.panel_status, self.lbl_status, "", status_type="info"
+        )
+        self.btn_ok.setEnabled(True)
 
     def _get_point_name_text(self) -> str:
         """Return the currently entered 点名 as a string, regardless of which
@@ -768,22 +820,32 @@ class PointNameEntryDialog(QDialog):
     def _on_ok_clicked(self) -> None:
         """Validate (duplicate-check) the entered 点名/枝番 and accept if unique.
 
-        T-0047: judgment now runs through ui/core/validators.py's Validator
-        classes (RequiredValidator for the SP-required check,
-        DuplicateValidator wrapping logic.core.check_point_duplicate), with
-        show_validation_error() displaying the failure via QMessageBox.warning
-        (replacing the former inline lbl_error red-text panel), matching
-        tab1_image.py's existing adoption of the same pattern.
+        T-0047 fix: the confirm-time QMessageBox flow is removed entirely.
+        The RequiredValidator (SP-required) check now runs live via
+        _on_realtime_validate as the user types and already keeps btn_ok
+        disabled while it fails, so it is re-checked here only defensively
+        (should not normally be reachable in a failing state). The
+        DuplicateValidator check still runs here at OK-click time only (see
+        _on_realtime_validate's docstring for why it is not live); its
+        failure is now shown inline in panel_status/lbl_status instead of a
+        blocking QMessageBox, matching GridInputDialog's ステータス・エラー
+        表示パネル pattern.
         """
         point_name = self._get_point_name_text()
         branch_no = self.edit_branch_no.text().strip()
 
         if self._is_sp_attribute:
-            result = RequiredValidator(UIMessages.ERR_POINT_NAME_REQUIRED).validate(point_name)
-            if not result.is_valid:
-                show_validation_error(
-                    self, UIMessages.ERR_TITLE_INPUT, result, focus_widget=self.edit_point_name_sp
+            required_result = RequiredValidator(UIMessages.ERR_POINT_NAME_REQUIRED).validate(
+                point_name
+            )
+            if not required_result.is_valid:
+                UIStyleHelper.update_status_panel(
+                    self.panel_status,
+                    self.lbl_status,
+                    required_result.message,
+                    status_type="error",
                 )
+                self.btn_ok.setEnabled(False)
                 return
 
         ident = build_point_ident(
@@ -805,7 +867,9 @@ class PointNameEntryDialog(QDialog):
             message=UIMessages.ERR_POINT_NAME_DUPLICATE.format(ident=ident),
         ).validate(point_name)
         if not result.is_valid:
-            show_validation_error(self, UIMessages.ERR_TITLE_DUPLICATE, result)
+            UIStyleHelper.update_status_panel(
+                self.panel_status, self.lbl_status, result.message, status_type="error"
+            )
             return
 
         self.result_point_name = point_name
