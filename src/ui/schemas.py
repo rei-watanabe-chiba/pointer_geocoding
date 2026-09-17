@@ -468,8 +468,16 @@ TAB3_SETTINGS_SPEC = PanelSpec(
             ],
         ),
         FieldSpec(
-            field_id="halo_toggle", widget_type=WidgetType.RADIO_ROW,
-            options=[UILabels.TAB3_LABEL_HALO_ON, UILabels.TAB3_LABEL_HALO_OFF], default_index=0,
+            field_id="lbl_row2",
+            widget_type=WidgetType.ROW_GROUP,
+            sub_fields=[
+                FieldSpec(
+                    field_id="halo_toggle", widget_type=WidgetType.RADIO_ROW,
+                    options=[UILabels.TAB3_LABEL_HALO_ON, UILabels.TAB3_LABEL_HALO_OFF], default_index=0,
+                    stretch=1,
+                ),
+                FieldSpec(field_id="lbl_row2_spacer", widget_type=WidgetType.SPACER, stretch=1),
+            ],
         ),
 
         # ── 表示縮尺 ─────────────────────────────────────────────────────
