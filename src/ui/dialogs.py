@@ -50,6 +50,15 @@ from ..canvas.map_tool import ImageGeorefTool
 from .style import UIStyleHelper
 from ..logic.core import to_survey_coords, check_point_duplicate, build_point_ident
 from .constants import UIConfig, UILabels, UIMessages, UIPlaceholders, UIDialogSizes
+from .core import CoreUIBuilder
+from .core.validators import RequiredValidator, DuplicateValidator
+from .schemas import (
+    GRID_INPUT_ACTIONS_SPEC,
+    FEATURE_CREATE_INPUT_SPEC,
+    FEATURE_CREATE_ACTIONS_SPEC,
+    POINT_NAME_ENTRY_SPEC,
+    POINT_NAME_ENTRY_ACTIONS_SPEC,
+)
 
 
 class ModelessSectionDialog(QDialog):
@@ -416,22 +425,18 @@ class GridInputDialog(QDialog):
         layout.addWidget(self.btn_delete_point)
 
         # -------------------------------------------------------------
-        # Tier 3: [確定] [キャンセル] ボタン (centered, equal width; see
-        # UIStyleHelper.build_centered_button_row / StartDialog's OK/Cancel
-        # row for the shared pattern)
+        # Tier 3: [確定] [キャンセル] ボタン (T-0047: CoreUI BUTTON_ROW with
+        # centered=True, replacing the former direct
+        # UIStyleHelper.build_centered_button_row() call; see
+        # GRID_INPUT_ACTIONS_SPEC in schemas.py).
         # -------------------------------------------------------------
-        self.btn_confirm = QPushButton(UILabels.BTN_CONFIRM, self)
-        UIStyleHelper.set_primary_button(self.btn_confirm)
-        self.btn_confirm.setEnabled(False)
-        self.btn_confirm.clicked.connect(self._on_confirm_clicked)
-
-        self.btn_cancel = QPushButton(UILabels.BTN_CANCEL, self)
-        self.btn_cancel.clicked.connect(self.reject)
-
-        btn_action_layout = UIStyleHelper.build_centered_button_row(
-            [self.btn_confirm, self.btn_cancel]
-        )
-        layout.addLayout(btn_action_layout)
+        actions_panel = CoreUIBuilder.build(GRID_INPUT_ACTIONS_SPEC, parent=self)
+        self._actions_panel = actions_panel
+        self.btn_confirm = actions_panel.get("confirm")
+        self.btn_cancel = actions_panel.get("cancel")
+        actions_panel.bind("confirm_clicked", self._on_confirm_clicked)
+        actions_panel.bind("cancel_clicked", self.reject)
+        layout.addWidget(actions_panel.widget)
 
         # -------------------------------------------------------------
         # Tier 4: ステータス・エラー表示パネル
@@ -595,33 +600,87 @@ class FeatureCreateDialog(QDialog):
         )
         layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
-        layout.addWidget(QLabel(UILabels.NEW_FEATURE_NAME, self))
+        # T-0047 followup fix: 遺構名 input + OK/キャンセル row built
+        # declaratively via CoreUI (see FEATURE_CREATE_INPUT_SPEC /
+        # FEATURE_CREATE_ACTIONS_SPEC in schemas.py). T-0047 had replaced the
+        # pre-existing inline red-text lbl_error with a confirm-time
+        # QMessageBox.warning() (show_validation_error()); this is reverted
+        # back to an inline error display, matching PointNameEntryDialog's
+        # T-0047 followup fix (commit 40205e6). Since this dialog has only a
+        # single required text field, a plain UIStyleHelper.create_status_panel
+        # label (rather than a full multi-row status panel) is used, updated
+        # live via edit_name.textChanged instead of only at OK-click time.
+        input_panel = CoreUIBuilder.build(FEATURE_CREATE_INPUT_SPEC, parent=self)
+        self._input_panel = input_panel
+        self.edit_name = input_panel.get("feature_name")
+        layout.addWidget(input_panel.widget)
 
-        self.edit_name = QLineEdit(self)
-        self.edit_name.setPlaceholderText(UIPlaceholders.NEW_FEATURE)
-        layout.addWidget(self.edit_name)
+        self.panel_status, self.lbl_status = UIStyleHelper.create_status_panel(
+            "", status_type="info", parent=self
+        )
+        layout.addWidget(self.panel_status)
 
-        self.lbl_error = QLabel("", self)
-        self.lbl_error.setStyleSheet("color: #C62828;")
-        self.lbl_error.setWordWrap(True)
-        self.lbl_error.hide()
-        layout.addWidget(self.lbl_error)
+        actions_panel = CoreUIBuilder.build(FEATURE_CREATE_ACTIONS_SPEC, parent=self)
+        self._actions_panel = actions_panel
+        self.btn_ok = actions_panel.get("ok")
+        self.btn_cancel = actions_panel.get("cancel")
+        actions_panel.bind("ok_clicked", self._on_ok_clicked)
+        actions_panel.bind("cancel_clicked", self.reject)
+        layout.addWidget(actions_panel.widget)
 
-        self.btn_ok = QPushButton(UILabels.BTN_CONFIRM, self)
-        UIStyleHelper.set_primary_button(self.btn_ok)
-        self.btn_ok.clicked.connect(self._on_ok_clicked)
+        # T-0047 followup fix: real-time RequiredValidator feedback as the
+        # user types, mirroring PointNameEntryDialog._on_realtime_validate.
+        # T-0047 second followup fix: human confirmation after the previous
+        # textChanged-only wiring still showed the error only updating at
+        # OK-click time (self.edit_name is a QgsFilterLineEdit built via
+        # CoreUIBuilder's LINEEDIT_ROW, unlike GridInputDialog's plain
+        # QLineEdit edit_y). No definitive logic bug was found by static
+        # review of the textChanged wiring itself; as a defensive measure,
+        # textEdited (guaranteed by Qt to fire on every user keystroke,
+        # independent of any internal textChanged suppression a QLineEdit
+        # subclass such as QgsFilterLineEdit might perform, e.g. while
+        # syncing its clear-button/null-value display state) is now also
+        # connected to the same handler.
+        self.edit_name.textChanged.connect(self._on_realtime_validate)
+        self.edit_name.textEdited.connect(self._on_realtime_validate)
+        self._on_realtime_validate()
 
-        self.btn_cancel = QPushButton(UILabels.BTN_CANCEL, self)
-        self.btn_cancel.clicked.connect(self.reject)
+    def _on_realtime_validate(self, *args: Any) -> None:
+        """Run RequiredValidator live and reflect the result in panel_status.
 
-        layout.addLayout(UIStyleHelper.build_centered_button_row([self.btn_ok, self.btn_cancel]))
+        T-0047 followup fix: replaces the former confirm-time-only
+        QMessageBox validation flow, so the user sees the error inline while
+        typing instead of only after clicking OK. btn_ok is disabled while
+        the required check fails.
+        """
+        text = self.edit_name.text().strip()
+        result = RequiredValidator(UIMessages.ERR_NEW_FEATURE_REQUIRED).validate(text)
+        if not result.is_valid:
+            UIStyleHelper.update_status_panel(
+                self.panel_status, self.lbl_status, result.message, status_type="error"
+            )
+            self.btn_ok.setEnabled(False)
+            return
+        UIStyleHelper.update_status_panel(
+            self.panel_status, self.lbl_status, "", status_type="info"
+        )
+        self.btn_ok.setEnabled(True)
 
     def _on_ok_clicked(self) -> None:
-        """Validate the entered feature name and accept the dialog if non-empty."""
+        """Validate the entered feature name and accept the dialog if non-empty.
+
+        T-0047 followup fix: the RequiredValidator check now runs live via
+        _on_realtime_validate as the user types and already keeps btn_ok
+        disabled while it fails, so it is re-checked here only defensively
+        (should not normally be reachable in a failing state).
+        """
         text = self.edit_name.text().strip()
-        if not text:
-            self.lbl_error.setText(UIMessages.ERR_NEW_FEATURE_REQUIRED)
-            self.lbl_error.show()
+        result = RequiredValidator(UIMessages.ERR_NEW_FEATURE_REQUIRED).validate(text)
+        if not result.is_valid:
+            UIStyleHelper.update_status_panel(
+                self.panel_status, self.lbl_status, result.message, status_type="error"
+            )
+            self.btn_ok.setEnabled(False)
             return
         self.result_text = text
         self.accept()
@@ -638,15 +697,25 @@ class PointNameEntryDialog(QDialog):
     neither panel widget reliably holds the value the user actually wants
     at the moment of a canvas click. This dialog pops up at click time
     (positioned near the click via Tab2DigitizingMixin._on_canvas_clicked)
-    to collect 点名/枝番 explicitly, following the same
-    OK/キャンセル + red-text-above-buttons error pattern as
-    FeatureCreateDialog. On OK, a duplicate check
-    (core_logic.check_point_duplicate) is run against the panel's current
-    出土形態/遺構名/対象図面 (passed in by the caller, unchanged by this
-    dialog); a duplicate blocks acceptance and shows
-    core_logic.build_point_ident()'s message in ``self.lbl_error`` instead.
-    On success, ``result_point_name``/``result_branch_no`` hold the
-    validated values for the caller to build the digitized feature with.
+    to collect 点名/枝番 explicitly.
+
+    T-0047 fix: validation feedback is now shown inline in
+    ``self.panel_status``/``self.lbl_status`` (UIStyleHelper's
+    create_status_panel/update_status_panel, matching GridInputDialog's
+    Tier4 ステータス・エラー表示パネル), replacing the former OK-time
+    QMessageBox.warning() prompts. The SP-required check
+    (RequiredValidator) runs live as the user types (_on_realtime_validate).
+
+    T-0047 followup2 fix: the duplicate check (DuplicateValidator wrapping
+    core_logic.check_point_duplicate, via _check_duplicate) also now runs
+    live from _on_realtime_validate, for both SP and non-SP 属性 -- 点名
+    (spin_point_name.valueChanged / edit_point_name_sp.textChanged) and 枝番
+    (edit_branch_no.textChanged) changes all trigger it. A prior revision
+    left this OK-click-only for perceived per-keystroke layer-query overhead
+    reasons; actual QGIS usage showed non-SP 属性 (S/P/C) never wired up
+    live validation at all (実装スコープの見落とし), so that constraint is
+    withdrawn. On success, ``result_point_name``/``result_branch_no`` hold
+    the validated values for the caller to build the digitized feature with.
     """
 
     def __init__(
@@ -711,47 +780,141 @@ class PointNameEntryDialog(QDialog):
         )
         layout.setSpacing(UIConfig.DIALOG_MARGIN)
 
-        layout.addWidget(QLabel(UILabels.POINT_NAME, self))
-        self.spin_point_name: Optional[QSpinBox] = None
-        self.edit_point_name_sp: Optional[QLineEdit] = None
+        # T-0047: 点名 (numeric or SP free-text)/枝番 inputs + OK/キャンセル
+        # row built declaratively via CoreUI (see POINT_NAME_ENTRY_SPEC /
+        # POINT_NAME_ENTRY_ACTIONS_SPEC in schemas.py). Both the numeric
+        # "point_name" (SPINBOX_ROW) and free-text "point_name_sp"
+        # (LINEEDIT_ROW) fields are always built; only the one matching
+        # is_sp_attribute is shown, since CoreUI schemas stay static and this
+        # choice is fixed per dialog instance.
+        input_panel = CoreUIBuilder.build(POINT_NAME_ENTRY_SPEC, parent=self)
+        self._input_panel = input_panel
+        self.spin_point_name: QSpinBox = input_panel.get("point_name")
+        self.edit_point_name_sp: QLineEdit = input_panel.get("point_name_sp")
+        self.edit_branch_no: QLineEdit = input_panel.get("branch_no")
+
         if self._is_sp_attribute:
             # SP属性: edit_point_name_sp (tab2_digitizing_mixin.py) と同じ
             # 英数字・ハイフン・アンダースコアのみ許可のバリデータを踏襲する。
-            self.edit_point_name_sp = QLineEdit(self)
-            self.edit_point_name_sp.setPlaceholderText(UIPlaceholders.POINT_NAME_SP)
             self.edit_point_name_sp.setValidator(
                 QRegExpValidator(QRegExp(r"^[A-Za-z0-9_-]+$"), self.edit_point_name_sp)
             )
             if initial_point_name:
                 self.edit_point_name_sp.setText(initial_point_name)
-            layout.addWidget(self.edit_point_name_sp)
+            input_panel.get_row("point_name").hide()
         else:
-            self.spin_point_name = UIStyleHelper.create_spinbox(1, 999999, 1, self)
             if initial_point_name and initial_point_name.isdigit():
                 preset_value = int(initial_point_name)
                 if self.spin_point_name.minimum() <= preset_value <= self.spin_point_name.maximum():
                     self.spin_point_name.setValue(preset_value)
-            layout.addWidget(self.spin_point_name)
+            input_panel.get_row("point_name_sp").hide()
 
-        layout.addWidget(QLabel(UILabels.BRANCH_NO, self))
-        self.edit_branch_no = QLineEdit(self)
-        self.edit_branch_no.setPlaceholderText(UIPlaceholders.BRANCH_NO)
-        layout.addWidget(self.edit_branch_no)
+        layout.addWidget(input_panel.widget)
 
-        self.lbl_error = QLabel("", self)
-        self.lbl_error.setStyleSheet("color: #C62828;")
-        self.lbl_error.setWordWrap(True)
-        self.lbl_error.hide()
-        layout.addWidget(self.lbl_error)
+        # T-0047 fix: inline status panel replacing the former OK-time
+        # QMessageBox error dialog (see _on_realtime_validate /
+        # _on_ok_clicked below). Placed directly under the 点名/枝番 inputs,
+        # mirroring GridInputDialog's Tier4 ステータス・エラー表示パネル
+        # pattern (UIStyleHelper.create_status_panel/update_status_panel).
+        self.panel_status, self.lbl_status = UIStyleHelper.create_status_panel(
+            "", status_type="info", parent=self
+        )
+        layout.addWidget(self.panel_status)
 
-        self.btn_ok = QPushButton(UILabels.BTN_CONFIRM, self)
-        UIStyleHelper.set_primary_button(self.btn_ok)
-        self.btn_ok.clicked.connect(self._on_ok_clicked)
+        actions_panel = CoreUIBuilder.build(POINT_NAME_ENTRY_ACTIONS_SPEC, parent=self)
+        self._actions_panel = actions_panel
+        self.btn_ok = actions_panel.get("ok")
+        self.btn_cancel = actions_panel.get("cancel")
+        actions_panel.bind("ok_clicked", self._on_ok_clicked)
+        actions_panel.bind("cancel_clicked", self.reject)
+        layout.addWidget(actions_panel.widget)
 
-        self.btn_cancel = QPushButton(UILabels.BTN_CANCEL, self)
-        self.btn_cancel.clicked.connect(self.reject)
+        # T-0047 followup2 fix: real-time feedback now covers both the
+        # SP-required check AND the point_name+branch_no duplicate check
+        # (DuplicateValidator), for both SP and non-SP 属性. A prior revision
+        # left the duplicate check OK-click-only under the assumption that
+        # running it live would add avoidable per-keystroke overhead; actual
+        # QGIS usage confirmed non-SP 属性 (S/P/C) never got ANY live
+        # feedback at all (the QSpinBox/枝番 inputs were never wired to
+        # _on_realtime_validate), so that assumption is withdrawn in favor of
+        # matching the user-visible behavior already working correctly for
+        # SP 属性. See _check_duplicate()/_on_realtime_validate() below.
+        if self._is_sp_attribute:
+            self.edit_point_name_sp.textChanged.connect(self._on_realtime_validate)
+            self.edit_point_name_sp.textEdited.connect(self._on_realtime_validate)
+        else:
+            self.spin_point_name.valueChanged.connect(self._on_realtime_validate)
+        self.edit_branch_no.textChanged.connect(self._on_realtime_validate)
+        self._on_realtime_validate()
 
-        layout.addLayout(UIStyleHelper.build_centered_button_row([self.btn_ok, self.btn_cancel]))
+    def _check_duplicate(self, point_name: str, branch_no: str):
+        """Build the point identity and run DuplicateValidator against it.
+
+        T-0047 followup2 fix: factored out of _on_ok_clicked so the same
+        duplicate-check logic can also run live from _on_realtime_validate.
+
+        :param point_name: Candidate 点名 (already stripped by the caller).
+        :type point_name: str
+        :param branch_no: Candidate 枝番 (already stripped by the caller).
+        :type branch_no: str
+        :return: The DuplicateValidator's ValidationResult.
+        """
+        ident = build_point_ident(
+            self._excavation_type,
+            self._feature_name,
+            point_name,
+            branch_no,
+            self._drawing_name,
+        )
+        return DuplicateValidator(
+            lambda v: check_point_duplicate(
+                self._point_layer,
+                self._excavation_type,
+                self._feature_name,
+                v,
+                branch_no,
+                self._drawing_name,
+            ),
+            message=UIMessages.ERR_POINT_NAME_DUPLICATE.format(ident=ident),
+        ).validate(point_name)
+
+    def _on_realtime_validate(self, *args: Any) -> None:
+        """Run the required/duplicate checks live and reflect them in panel_status.
+
+        T-0047 followup2 fix: previously this only ran the SP-required check
+        (RequiredValidator) and only when ``self._is_sp_attribute`` was True,
+        leaving non-SP 属性 (S/P/C) with no live feedback at all for either
+        点名 (QSpinBox) or 枝番 changes. It now also runs the duplicate check
+        (DuplicateValidator, via _check_duplicate) live for both SP and
+        non-SP 属性, connected from both 点名 and 枝番 inputs in __init__.
+        The OK button is disabled while either check fails.
+        """
+        point_name = self._get_point_name_text()
+        branch_no = self.edit_branch_no.text().strip()
+
+        if self._is_sp_attribute:
+            required_result = RequiredValidator(UIMessages.ERR_POINT_NAME_REQUIRED).validate(
+                point_name
+            )
+            if not required_result.is_valid:
+                UIStyleHelper.update_status_panel(
+                    self.panel_status, self.lbl_status, required_result.message, status_type="error"
+                )
+                self.btn_ok.setEnabled(False)
+                return
+
+        dup_result = self._check_duplicate(point_name, branch_no)
+        if not dup_result.is_valid:
+            UIStyleHelper.update_status_panel(
+                self.panel_status, self.lbl_status, dup_result.message, status_type="error"
+            )
+            self.btn_ok.setEnabled(False)
+            return
+
+        UIStyleHelper.update_status_panel(
+            self.panel_status, self.lbl_status, "", status_type="info"
+        )
+        self.btn_ok.setEnabled(True)
 
     def _get_point_name_text(self) -> str:
         """Return the currently entered 点名 as a string, regardless of which
@@ -766,33 +929,38 @@ class PointNameEntryDialog(QDialog):
         return str(self.spin_point_name.value())
 
     def _on_ok_clicked(self) -> None:
-        """Validate (duplicate-check) the entered 点名/枝番 and accept if unique."""
+        """Validate (required + duplicate) the entered 点名/枝番 and accept if unique.
+
+        T-0047 followup2 fix: both the SP-required check and the duplicate
+        check now run live via _on_realtime_validate as the user types and
+        already keep btn_ok disabled while either fails, so both are
+        re-checked here only defensively (should not normally be reachable
+        in a failing state). Failures are shown inline in
+        panel_status/lbl_status, matching GridInputDialog's ステータス・
+        エラー表示パネル pattern.
+        """
         point_name = self._get_point_name_text()
         branch_no = self.edit_branch_no.text().strip()
 
-        if self._is_sp_attribute and not point_name:
-            self.lbl_error.setText(UIMessages.ERR_POINT_NAME_REQUIRED)
-            self.lbl_error.show()
-            return
-
-        is_dup = check_point_duplicate(
-            self._point_layer,
-            self._excavation_type,
-            self._feature_name,
-            point_name,
-            branch_no,
-            self._drawing_name,
-        )
-        if is_dup:
-            ident = build_point_ident(
-                self._excavation_type,
-                self._feature_name,
-                point_name,
-                branch_no,
-                self._drawing_name,
+        if self._is_sp_attribute:
+            required_result = RequiredValidator(UIMessages.ERR_POINT_NAME_REQUIRED).validate(
+                point_name
             )
-            self.lbl_error.setText(UIMessages.ERR_POINT_NAME_DUPLICATE.format(ident=ident))
-            self.lbl_error.show()
+            if not required_result.is_valid:
+                UIStyleHelper.update_status_panel(
+                    self.panel_status,
+                    self.lbl_status,
+                    required_result.message,
+                    status_type="error",
+                )
+                self.btn_ok.setEnabled(False)
+                return
+
+        dup_result = self._check_duplicate(point_name, branch_no)
+        if not dup_result.is_valid:
+            UIStyleHelper.update_status_panel(
+                self.panel_status, self.lbl_status, dup_result.message, status_type="error"
+            )
             return
 
         self.result_point_name = point_name

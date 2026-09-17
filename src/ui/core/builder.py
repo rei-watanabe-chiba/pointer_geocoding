@@ -70,6 +70,7 @@ class BuiltPanel:
         WidgetType.COMBOBOX_ROW,
         WidgetType.SEGMENTED_TOGGLE,
         WidgetType.RADIO_ROW,
+        WidgetType.SPINBOX_ROW,
     )
 
     def __init__(
@@ -131,6 +132,8 @@ class BuiltPanel:
                 if btn.isChecked():
                     return idx
             return -1
+        if widget_type == WidgetType.SPINBOX_ROW:
+            return self._field_widgets[field_id].value()
         raise NotImplementedError(
             f"get_value() is not supported for field '{field_id}' (widget_type={widget_type})"
         )
@@ -154,6 +157,9 @@ class BuiltPanel:
             return
         if widget_type in (WidgetType.SEGMENTED_TOGGLE, WidgetType.RADIO_ROW):
             self._buttons_lists[field_id][value].setChecked(True)
+            return
+        if widget_type == WidgetType.SPINBOX_ROW:
+            self._field_widgets[field_id].setValue(value)
             return
         raise NotImplementedError(
             f"set_value() is not supported for field '{field_id}' (widget_type={widget_type})"
@@ -288,10 +294,18 @@ class CoreUIBuilder:
         row = QWidget(parent)
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
+        if f.centered:
+            # T-0047: mirrors UIStyleHelper.build_centered_button_row's
+            # "stretch - buttons - stretch" pattern for modal dialogs' OK/
+            # キャンセル rows (dialogs.py); left-anchored rows (e.g. Tab1's
+            # rename_delete/transform_actions) leave f.centered False.
+            row_layout.addStretch(1)
         for b in f.buttons:
             btn = cls._make_button(b, row, register_hook)
             field_widgets[b.field_id] = btn
             row_layout.addWidget(btn, b.stretch)
+        if f.centered:
+            row_layout.addStretch(1)
         return row
 
     @classmethod
@@ -372,6 +386,24 @@ class CoreUIBuilder:
         )
 
     @classmethod
+    def _build_spinbox_row(cls, f, parent, field_widgets, buttons_lists, register_hook):
+        """Build a labeled row wrapping a single UIStyleHelper.create_spinbox()
+        QSpinBox (T-0047; e.g. dialogs.py's PointNameEntryDialog 点名 numeric
+        input), analogous to _build_lineedit_row but for an int-ranged value
+        instead of free text.
+        """
+        label = QLabel(f.label, parent) if f.label else None
+        spin = UIStyleHelper.create_spinbox(f.spin_min, f.spin_max, f.spin_default, parent)
+        field_widgets[f.field_id] = spin
+        register_hook(f.on_change, lambda cb, spin=spin: spin.valueChanged.connect(cb))
+        return UIStyleHelper.build_flex_row(
+            label,
+            [(spin, 1)],
+            main_ratio=f.main_ratio or UIConfig.MAIN_RATIO,
+            row_height=f.row_height or UIConfig.ROW_HEIGHT,
+        )
+
+    @classmethod
     def _build_info_panel(cls, f, parent, field_widgets, buttons_lists, register_hook):
         frame = QFrame(parent)
         UIStyleHelper.set_status_panel(frame)
@@ -415,4 +447,5 @@ CoreUIBuilder._BUILDERS = {
     WidgetType.SEGMENTED_TOGGLE: CoreUIBuilder._build_segmented_toggle,
     WidgetType.INFO_PANEL: CoreUIBuilder._build_info_panel,
     WidgetType.RADIO_ROW: CoreUIBuilder._build_radio_row,
+    WidgetType.SPINBOX_ROW: CoreUIBuilder._build_spinbox_row,
 }

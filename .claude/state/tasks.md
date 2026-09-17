@@ -21,6 +21,7 @@ v2開発はタスクIDをT-0043から連番継続する。
 | T-0043 | src配下を責務別フォルダ(ui/layer/logic/canvas)へ再構成。ロジック変更なし、ファイル移動+import文の追従修正のみ | 完了 |
 | T-0044 | QSpinBoxへの安全なQSS適用パターン確立(矢印つぶれ対策)。試行錯誤の詳細は`.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md`参照。確定した安全パターン: ①ボタン`subcontrol-position`必須指定 ②矢印グリフはborder-triangleハック不可・base64データURIも不可(QTBUG-51081)、`src/icon/`の実SVGファイルを絶対パスurl()参照 ③押下フィードバックはボタン背景色変化ではなく矢印アイコン自体の色替え(`::up-arrow:pressed`等)で行う(背景色変化はフォーカス枠等とのボックスモデル重なりを誘発するため不採用) | 完了 |
 | T-0045〜T-0045-b | CoreUI試作(`src/ui/core/`新設: field_spec.py/builder.py/rules.py/validators.py)、tab1_image.pyへ適用。UI構築の宣言化・値の抜き出し/書き込み共通化(BuiltPanel.get_value/set_value/collect_values)・スキーマ統合(`src/ui/schemas.py`)・座標変換後ダイアログ廃止・バリデーション/エラー表示ヘルパー化(Validator+show_validation_error)・LayerManager高レベルAPI追加(clear_drawing_name_for_layer/rename_drawing_name)。tab1_image.py 1151→1046行。storage/upload側の汎用ルール化(CommitRule等)はT-0047へ据え置き。基準点系の別ファイル分割は効果薄のため見送り。人手確認済み。詳細は`.claude/state/v2-coreui-plan.md`、実装ログは`.claude/logs/implement/2026-09-16-T-0045-coreui-tab1.md`・`2026-09-16-T-0045-b-tab1-dialog-validators-layermanager.md` | 完了 |
+| T-0047 | dialogs.py（実測808行）へCoreUI適用（GridInputDialog/FeatureCreateDialog/PointNameEntryDialog）。人手確認過程で複数回の追加修正（属性切替時の自動連番モード復帰、QMessageBoxバリデーションのリアルタイムインライン表示化、textEdited併用接続、非SP属性の重複チェックリアルタイム化）を実施。人手確認完了。詳細は`.claude/logs/implement/2026-09-17-T-0047-*.md`一連を参照 | 完了 |
 
 ## 進行中
 
@@ -33,8 +34,6 @@ T-0045/T-0045-b完了。`docs/fromGemini/`の2改定案を検討した結果、T
 
 | タスクID | 概要 | 状態 |
 |---|---|---|
-| T-0046 | start_dialog.py（実測1101行）へCoreUI適用。実装ログ: `.claude/logs/implement/2026-09-16-T-0046-coreui-start-dialog.md` | 完了 |
-| T-0047 | dialogs.py（実測808行）へCoreUI適用（GridInputDialog/FeatureCreateDialog/PointNameEntryDialog） | 承認待ち |
 | T-0048 | tab3_settings.py（実測367行）へCoreUI適用（最小規模から着手） | 承認待ち |
 | T-0049 | src/logic/分離状況の棚卸し（調査のみ、実装なし） | 承認待ち |
 | T-0050 | tab2_plot.py（実測1905行）へCoreUI適用＋T-0049結果に基づくlogic移管 | 承認待ち |
