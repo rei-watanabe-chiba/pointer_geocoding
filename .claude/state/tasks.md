@@ -22,6 +22,7 @@ v2開発はタスクIDをT-0043から連番継続する。
 | T-0044 | QSpinBoxへの安全なQSS適用パターン確立(矢印つぶれ対策)。試行錯誤の詳細は`.claude/logs/implement/2026-09-16-T-0044-qspinbox-safe-qss.md`参照。確定した安全パターン: ①ボタン`subcontrol-position`必須指定 ②矢印グリフはborder-triangleハック不可・base64データURIも不可(QTBUG-51081)、`src/icon/`の実SVGファイルを絶対パスurl()参照 ③押下フィードバックはボタン背景色変化ではなく矢印アイコン自体の色替え(`::up-arrow:pressed`等)で行う(背景色変化はフォーカス枠等とのボックスモデル重なりを誘発するため不採用) | 完了 |
 | T-0045〜T-0045-b | CoreUI試作(`src/ui/core/`新設: field_spec.py/builder.py/rules.py/validators.py)、tab1_image.pyへ適用。UI構築の宣言化・値の抜き出し/書き込み共通化(BuiltPanel.get_value/set_value/collect_values)・スキーマ統合(`src/ui/schemas.py`)・座標変換後ダイアログ廃止・バリデーション/エラー表示ヘルパー化(Validator+show_validation_error)・LayerManager高レベルAPI追加(clear_drawing_name_for_layer/rename_drawing_name)。tab1_image.py 1151→1046行。storage/upload側の汎用ルール化(CommitRule等)はT-0047へ据え置き。基準点系の別ファイル分割は効果薄のため見送り。人手確認済み。詳細は`.claude/state/v2-coreui-plan.md`、実装ログは`.claude/logs/implement/2026-09-16-T-0045-coreui-tab1.md`・`2026-09-16-T-0045-b-tab1-dialog-validators-layermanager.md` | 完了 |
 | T-0047 | dialogs.py（実測808行）へCoreUI適用（GridInputDialog/FeatureCreateDialog/PointNameEntryDialog）。人手確認過程で複数回の追加修正（属性切替時の自動連番モード復帰、QMessageBoxバリデーションのリアルタイムインライン表示化、textEdited併用接続、非SP属性の重複チェックリアルタイム化）を実施。人手確認完了。詳細は`.claude/logs/implement/2026-09-17-T-0047-*.md`一連を参照 | 完了 |
+| T-0048 | tab3_settings.py（実測367→219行）へCoreUI適用。schemas.pyにTAB3_SETTINGS_SPEC追加、field_spec.py/builder.pyにSECTION_HEADER/DOUBLE_SPINBOX_ROW/COLOR_BUTTON_ROW/ROW_GROUPを追加。人手確認でのレイアウト微調整依頼（ラベル幅不揃い・ラジオ行余白・線色ボタン伸長）を受け追加修正。人手確認完了（軽微修正-02のtest→mainマージに伴いmain反映済み、HEAD `273bca4`時点で含まれる）。詳細は`.claude/logs/implement/2026-09-17-T-0048-tab3-coreui.md`、`.claude/logs/implement/2026-09-17-T-0048-layout-fix.md`、`.claude/logs/implement/2026-09-17-T-0048-halo-row-fix.md` | 完了 |
 
 ## 進行中
 
@@ -35,7 +36,6 @@ T-0048以降を以下の通り再構築（旧T-0049「logic棚卸し」は本調
 
 | タスクID | 概要 | 状態 |
 |---|---|---|
-| T-0048 | tab3_settings.py（実測367→219行）へCoreUI適用。schemas.pyにTAB3_SETTINGS_SPEC追加、field_spec.py/builder.pyにSECTION_HEADER/DOUBLE_SPINBOX_ROW/COLOR_BUTTON_ROW/ROW_GROUPを追加。人手確認でのUIレイアウト微調整依頼（ラベル幅不揃い・ラジオ行の余白・線色ボタン伸長）を受け追加修正（SPACER追加、RADIO_ROWのmain_ratio修正、label_width導入、DOCK_WIDTH調整）。追加修正: lbl_row2（ROW_GROUP）新設し halo_toggle をref_row2と同じ1:1 SPACERパターンへ移動。verifier静的検証: 問題なし（実行環境での確認が必要）。詳細は`.claude/logs/implement/2026-09-17-T-0048-tab3-coreui.md`、`.claude/logs/implement/2026-09-17-T-0048-layout-fix.md`、`.claude/logs/implement/2026-09-17-T-0048-halo-row-fix.md` | 人手確認待ち |
 | T-0049 | tab1_image.pyの残存QGIS直接操作（画像削除・レイヤリネーム）をLayerManagerへ移管 | 承認待ち |
 | T-0050 | tab2_plot.pyの画像/基準点レイヤ可視性制御の重複6メソッドをLayerManagerの汎用APIへ集約 | 承認待ち |
 | T-0051 | tab2_plot.py（実測1905行）へCoreUI適用（T-0050でレイヤ操作を先に外出し後に着手） | 承認待ち |
